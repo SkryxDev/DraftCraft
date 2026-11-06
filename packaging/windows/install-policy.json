@@ -1,0 +1,56 @@
+{
+  "id": "rustdraft",
+  "name": "RustDraft",
+  "upgradeCode": "119D7D76-0167-4A9E-8F37-09DA0235F68E",
+  "sources": [
+    "rustdraft.wxs"
+  ],
+  "icon": "assets/app-icon/rustdraft.ico",
+  "localization": [],
+  "extensions": [
+    "UI"
+  ],
+  "payloads": [
+    "rustdraft-cli.exe",
+    "rustdraft.exe"
+  ],
+  "registry": [
+    [
+      "-1",
+      "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\rustdraft.exe",
+      "",
+      "[#RustdraftExe]"
+    ],
+    [
+      "-1",
+      "Software\\Classes\\Applications\\rustdraft.exe\\shell\\open\\command",
+      "",
+      "\"[#RustdraftExe]\" \"%1\""
+    ],
+    [
+      "-1",
+      "Software\\Classes\\.dxf\\OpenWithProgids",
+      "RustDraft.Drawing",
+      ""
+    ],
+    [
+      "-1",
+      "Software\\Classes\\.dwg\\OpenWithProgids",
+      "RustDraft.Drawing",
+      ""
+    ],
+    [
+      "-1",
+      "Software\\Classes\\RustDraft.Drawing\\shell\\open\\command",
+      "",
+      "\"[#RustdraftExe]\" \"%1\""
+    ],
+    [
+      "-1",
+      "Software\\Skryx Dev\\RustDraft",
+      "DesktopShortcut",
+      "1"
+    ]
+  ],
+  "mode": "dualScope"
+}

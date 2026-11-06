@@ -1,0 +1,11 @@
+*~
+/target
+/plan/
+/plans/
+/dist/
+/log/
+/temp/
+.DS_Store
+*.swp
+/apps/rustdraft-web/dist/
+/.claude/worktrees/

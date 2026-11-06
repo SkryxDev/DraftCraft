@@ -1,0 +1,32 @@
+[package]
+name = "rustdraft-io"
+description = "RustDraft file formats: DXF read/write mapping, SVG, PNG and PDF export"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+rustdraft-geom = { workspace = true }
+rustdraft-color = { workspace = true }
+rustdraft-doc = { workspace = true }
+rustdraft-dxf = { workspace = true }
+rustdraft-dwg = { workspace = true }
+rustdraft-render = { workspace = true }
+rustdraft-fonts = { workspace = true }
+thiserror = { workspace = true }
+serde_json = { workspace = true }
+serde = { workspace = true }
+miniz_oxide = "0.9"
+craft-pdf = { workspace = true, features = ["write"] }
+quick-xml = { workspace = true }
+image = { workspace = true }
+
+[dev-dependencies]
+# Reads RustDraft's DWG output as written (tests only; the same version as rustdraft-dwg's).
+acadrust = "0.6.6"
+tiny-skia = { workspace = true }
+# Reads plotted PDFs back.
+craft-pdf = { workspace = true, features = ["read"] }

@@ -1,0 +1,73 @@
+# Asset attribution
+
+Every non-code asset in this repository (images, icons, fonts, example drawings, presets) is listed
+here with its author, source and licence. `cargo xtask assets` (part of `cargo xtask ci`) fails if
+an asset file is missing from this table.
+
+**Policy (mandatory):** RustDraft contains **no Autodesk, Adobe or Avid iconography, images,
+artwork, fonts, hatch patterns, linetypes, templates or presets.** Every asset is original work by
+RustDraft contributors or third-party material under an open licence (OSI open source, public domain
+/ CC0, or Creative Commons that allows redistribution). Screenshots of Autodesk software are never
+committed. Font files are not added here: shared fonts live in
+[storytold/craft-fonts](https://github.com/storytold/craft-fonts), an optional build input.
+
+Generated-in-code assets are original and have no file to list:
+- the UI icon set (`crates/ui-egui/src/icons.rs`);
+- the "RustDraft Stroke" single-stroke drafting font (`crates/fonts/src/stroke.rs`);
+- the standard linetype and hatch-pattern libraries (`crates/doc/src/library.rs`; industry-common
+  names, our own dash/spacing values);
+- the colour index palette, generated from its structure (`crates/color/src/lib.rs`);
+- the sample drawings (`crates/engine/src/sample.rs`).
+
+| Asset | Author | Source | Licence | Notes |
+|---|---|---|---|---|
+| `epaint_default_fonts::EGUI_ICONS`, `epaint_default_fonts::EMOJI_ICON` (dependency font inputs) | John Slegers | [egui 173cc737](https://github.com/storytold/egui/tree/6d518fc799681571963842f95b55a6b68431b15a/crates/epaint_default_fonts/fonts), [emoji-icon-font](https://github.com/jslegers/emoji-icon-font) | MIT (Copyright (c) 2014 John Slegers; full upstream text in `NOTICE`) | egui-icons.ttf is the five-glyph subset; emoji-icon-font.ttf is the full monochrome fallback. Registered by the production default font definitions; dependency assets unmodified here, no font file copied into this repository. |
+| `krilla 0.8.2 / icc/sGrey-v2-magic.icc` (dependency-embedded) | Clinton Ingram | [craft-libs 9f89fe8 vendor/krilla/icc/sGrey-v2-magic.icc](https://github.com/storytold/craft-libs/blob/9f89fe8f6d72ab4db4cc06f186381a6a254463ab/vendor/krilla/icc/sGrey-v2-magic.icc) (Krilla 0.8.2 upstream 3ffdf0588cf98050aad6edba51ca70162e1fb5b5) | CC0-1.0 | Embedded by the pinned PDF writer (`craft-pdf` 0.1.0, Krilla 0.8.2); unmodified dependency asset, no file copied into this repository. SHA-256 `4110169287e5f1b5149ca9f1da1814d32943905bba8030e849d1a3b729a19481`. |
+| `krilla 0.8.2 / icc/sGrey-v4.icc` (dependency-embedded) | Clinton Ingram | [craft-libs 9f89fe8 vendor/krilla/icc/sGrey-v4.icc](https://github.com/storytold/craft-libs/blob/9f89fe8f6d72ab4db4cc06f186381a6a254463ab/vendor/krilla/icc/sGrey-v4.icc) (Krilla 0.8.2 upstream 3ffdf0588cf98050aad6edba51ca70162e1fb5b5) | CC0-1.0 | Embedded by the pinned PDF writer (`craft-pdf` 0.1.0, Krilla 0.8.2); unmodified dependency asset, no file copied into this repository. SHA-256 `00c0f94e09127520a17dc0e1d9264b5702081d96dbdb1549ee88e3631ce42a9d`. |
+| `krilla 0.8.2 / icc/sRGB-v2-magic.icc` (dependency-embedded) | Clinton Ingram | [craft-libs 9f89fe8 vendor/krilla/icc/sRGB-v2-magic.icc](https://github.com/storytold/craft-libs/blob/9f89fe8f6d72ab4db4cc06f186381a6a254463ab/vendor/krilla/icc/sRGB-v2-magic.icc) (Krilla 0.8.2 upstream 3ffdf0588cf98050aad6edba51ca70162e1fb5b5) | CC0-1.0 | Embedded by the pinned PDF writer (`craft-pdf` 0.1.0, Krilla 0.8.2); unmodified dependency asset, no file copied into this repository. SHA-256 `af4efe28f6d311799865f325ba39184a2e978b113ca74124d60af7de22b105f4`. |
+| `krilla 0.8.2 / icc/sRGB-v4.icc` (dependency-embedded) | Clinton Ingram | [craft-libs 9f89fe8 vendor/krilla/icc/sRGB-v4.icc](https://github.com/storytold/craft-libs/blob/9f89fe8f6d72ab4db4cc06f186381a6a254463ab/vendor/krilla/icc/sRGB-v4.icc) (Krilla 0.8.2 upstream 3ffdf0588cf98050aad6edba51ca70162e1fb5b5) | CC0-1.0 | Embedded by the pinned PDF writer (`craft-pdf` 0.1.0, Krilla 0.8.2); unmodified dependency asset, no file copied into this repository. SHA-256 `c56e1685d888f5edb92fe07f2750f387f8fe8e91b32ff8fb0b56bfbbb9458353`. |
+| `assets/app-icon/hicolor/128x128/apps/dev.skryx.rustdraft.png` | Skryx Dev | generated from `assets/app-icon/rustdraft-1024.png` | MIT OR Apache-2.0 | Linux hicolor icon |
+| `assets/app-icon/hicolor/16x16/apps/dev.skryx.rustdraft.png` | Skryx Dev | generated from `assets/app-icon/rustdraft-1024.png` | MIT OR Apache-2.0 | Linux hicolor icon |
+| `assets/app-icon/hicolor/24x24/apps/dev.skryx.rustdraft.png` | Skryx Dev | generated from `assets/app-icon/rustdraft-1024.png` | MIT OR Apache-2.0 | Linux hicolor icon |
+| `assets/app-icon/hicolor/256x256/apps/dev.skryx.rustdraft.png` | Skryx Dev | generated from `assets/app-icon/rustdraft-1024.png` | MIT OR Apache-2.0 | Linux hicolor icon |
+| `assets/app-icon/hicolor/32x32/apps/dev.skryx.rustdraft.png` | Skryx Dev | generated from `assets/app-icon/rustdraft-1024.png` | MIT OR Apache-2.0 | Linux hicolor icon |
+| `assets/app-icon/hicolor/48x48/apps/dev.skryx.rustdraft.png` | Skryx Dev | generated from `assets/app-icon/rustdraft-1024.png` | MIT OR Apache-2.0 | Linux hicolor icon |
+| `assets/app-icon/hicolor/512x512/apps/dev.skryx.rustdraft.png` | Skryx Dev | generated from `assets/app-icon/rustdraft-1024.png` | MIT OR Apache-2.0 | Linux hicolor icon |
+| `assets/app-icon/hicolor/64x64/apps/dev.skryx.rustdraft.png` | Skryx Dev | generated from `assets/app-icon/rustdraft-1024.png` | MIT OR Apache-2.0 | Linux hicolor icon |
+| `assets/app-icon/src/rustdraft-icon.svg` | Skryx Dev | original work for RustDraft (2026-11-06): overlapping R and D monogram on a blue drafting grid, letters drawn as paths (no font) | MIT OR Apache-2.0 | Master of the app icon (full bleed) |
+| `assets/app-icon/src/rustdraft-icon-macos.svg` | Skryx Dev | original work for RustDraft (2026-11-06), the same monogram in an 824-point squircle on the 1024 macOS icon grid | MIT OR Apache-2.0 | Master of the macOS icon |
+| `assets/app-icon/src/rustdraft-icon-square.svg` | Skryx Dev | original work for RustDraft (2026-11-06), the same monogram full-bleed, the art of the macOS 26+ icon | MIT OR Apache-2.0 | Source of `RustDraft.icon` |
+| `assets/app-icon/src/RustDraft.icon/Assets/rustdraft-art.png` | Skryx Dev | rendered from `assets/app-icon/src/rustdraft-icon-square.svg` | MIT OR Apache-2.0 | Layer of the Icon Composer icon (macOS 26+, compiled by actool) |
+| `assets/app-icon/src/RustDraft.icon/icon.json` | Skryx Dev | original work for RustDraft (2026-11-06): the Icon Composer description of the macOS 26+ icon | MIT OR Apache-2.0 | Compiled by actool into Assets.car |
+| `assets/app-icon/rustdraft.icns` | Skryx Dev | generated (packaging/icons.sh) | MIT OR Apache-2.0 | macOS icon |
+| `assets/app-icon/rustdraft.ico` | Skryx Dev | generated (packaging/icons.sh) | MIT OR Apache-2.0 | Windows icon |
+| `assets/app-icon/rustdraft-64.png` | Skryx Dev | generated | MIT OR Apache-2.0 | |
+| `assets/app-icon/rustdraft-256.png` | Skryx Dev | generated | MIT OR Apache-2.0 | |
+| `assets/app-icon/rustdraft-1024.png` | Skryx Dev | generated | MIT OR Apache-2.0 | |
+| `assets/app-icon/rustdraft-macos-512.png` | Skryx Dev | generated (macOS margin variant) | MIT OR Apache-2.0 | |
+| `examples/apartment.dxf` | RustDraft contributors | sample drawing made with rustdraft-cli commands | MIT OR Apache-2.0 | Original |
+| `docs/images/ui-apartment.png` | RustDraft contributors | screenshot of RustDraft itself (examples/apartment.dxf) | MIT OR Apache-2.0 | Original; no Autodesk UI |
+| `docs/images/ui-layout.png` | RustDraft contributors | screenshot of RustDraft itself (a layout of examples/apartment.dxf) | MIT OR Apache-2.0 | Original; no Autodesk UI |
+| `docs/images/ui-bracket.png` | RustDraft contributors | screenshot of RustDraft itself (sample drawing generated in code) | MIT OR Apache-2.0 | Original; no Autodesk UI |
+
+## Interface translations
+
+| Asset | Author | Source | Licence | Notes |
+|---|---|---|---|---|
+| `crates/ui-egui/src/i18n/uk.tsv` | @dmatviichuk | Original Ukrainian translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
+| `crates/ui-egui/src/i18n/de.tsv` | the RustDraft contributors | Original German translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
+| `crates/ui-egui/src/i18n/es.tsv` | @PedroGuille | Original Spanish translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
+| `crates/ui-egui/src/i18n/pt_br.tsv` | @WladmirJunior | Original Brazilian Portuguese translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
+| `crates/ui-egui/src/i18n/bs.tsv` | Nine (@nine-codes) with Claude Code (AI-assisted) | Original Bosnian translations of RustDraft English strings, shared with storytold/craft-i18n `locales/bs/` | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied; not yet reviewed by a native speaker |
+| `crates/ui-egui/src/i18n/cs.tsv` | @Losminek (AI-assisted) | Original Czech translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
+| `crates/ui-egui/src/i18n/ru.tsv` | @pechnikov2026-star | Original Russian translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
+| `crates/ui-egui/src/i18n/fr.tsv` | @pechnikov2026-star | Original French translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
+| `crates/ui-egui/src/i18n/zh.tsv` | @mayloglog | Original Simplified Chinese translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
+| `crates/ui-egui/src/i18n/sv.tsv` | Erik Holmbom (@holmbom) with Claude Code (AI-assisted) | Original Swedish translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied; terminology and the running app reviewed by a native speaker |
+| `crates/ui-egui/src/i18n/it.tsv` | Emanuele Bottelli (AI-assisted); terminology corrections: Andrea Brandi (@starise) with OpenAI Codex (AI-assisted) | Original Italian translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied; targeted Chamfer terminology review by a native speaker |
+| `crates/ui-egui/src/i18n/ko.tsv` | @huk082 (AI-assisted) | Original Korean translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied; no font assets added |
+| `crates/ui-egui/src/i18n/ar.tsv` | @hasan-sdaif | Original Arabic translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
+| `crates/ui-egui/src/i18n/hu.tsv` | @Skaywalker | Original Hungarian translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
+| `crates/ui-egui/src/i18n/tr.tsv` | @ogzhnklvz (AI-assisted) | Original Turkish translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied; written from the English strings, no other catalog used as a source; the running app reviewed by a native speaker |
+| `crates/ui-egui/src/i18n/el.tsv` | @Camthalion77 with ChatGPT (AI-assisted) | Original Greek translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied; independent native proofreading pending |
+| `crates/ui-egui/src/i18n/vi.tsv` | @2ez4gcx with Claude Code (AI-assisted) | Original Vietnamese translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied; terminology chosen with a native speaker, full proofreading pending |

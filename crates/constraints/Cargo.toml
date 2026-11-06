@@ -1,0 +1,15 @@
+[package]
+name = "rustdraft-constraints"
+description = "RustDraft parametric solver: geometric and dimensional constraints (own damped Gauss-Newton solver), expressions"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+rustdraft-geom = { workspace = true }
+rustdraft-doc = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }

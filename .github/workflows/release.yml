@@ -1,0 +1,120 @@
+name: Release
+
+# Builds RustDraft for Linux (x86_64, arm64) and Windows (x86_64, arm64) when a version tag is
+# pushed, and attaches the archives to that tag's GitHub release. The ARM builds are
+# cross-compiled on x86_64 runners. macOS builds are made on a Mac and uploaded to the same release.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and release, e.g. v0.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  # Open-licensed (SIL OFL 1.1) interface fonts embedded in the build; their licences ship in the archives.
+  CRAFT_FONTS_REF: b076417b5880bd4154bd22f00695b1d28c6bea83
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-x86_64, os: ubuntu-22.04, target: x86_64-unknown-linux-gnu }
+          - { name: linux-arm64, os: ubuntu-22.04, target: aarch64-unknown-linux-gnu }
+          - { name: windows-x86_64, os: windows-2022, target: x86_64-pc-windows-msvc }
+          - { name: windows-arm64, os: windows-2022, target: aarch64-pc-windows-msvc }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - name: Check out craft-fonts
+        uses: actions/checkout@v4
+        with:
+          repository: storytold/craft-fonts
+          ref: ${{ env.CRAFT_FONTS_REF }}
+          path: craft-fonts
+      - name: Install Rust
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal --target ${{ matrix.target }}
+          rustup default stable
+      - name: Linux arm64 cross linker
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - name: Build
+        shell: bash
+        run: |
+          export CRAFT_FONTS_DIR="$GITHUB_WORKSPACE/craft-fonts"
+          export RUSTDRAFT_BUILD_SHA="$(git rev-parse HEAD)"
+          cargo build --release --locked --target ${{ matrix.target }} -p rustdraft -p rustdraft-cli
+      - name: Package
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(awk '/^\[/{p=($0=="[workspace.package]");next} p&&$1=="version"{gsub(/[" ]/,"",$3);print $3;exit}' Cargo.toml)"
+          dir="RustDraft-$version-${{ matrix.name }}"
+          bin="target/${{ matrix.target }}/release"
+          mkdir -p "dist/$dir"
+          cp README.md LICENSE-MIT LICENSE-APACHE NOTICE ATTRIBUTION.md "dist/$dir/"
+          for f in craft-fonts/fonts/*/OFL.txt; do cp "$f" "dist/$dir/OFL-$(basename "$(dirname "$f")").txt"; done
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            cp "$bin/rustdraft.exe" "dist/$dir/RustDraft.exe"
+            cp "$bin/rustdraft-cli.exe" "dist/$dir/rustdraft-cli.exe"
+            (cd dist && 7z a -tzip "$dir.zip" "$dir" > /dev/null)
+            echo "ASSET=dist/$dir.zip" >> "$GITHUB_ENV"
+          else
+            cp "$bin/rustdraft" "$bin/rustdraft-cli" "dist/$dir/"
+            mkdir -p "dist/$dir/share/applications" "dist/$dir/share/icons"
+            cp packaging/linux/dev.skryx.rustdraft.desktop "dist/$dir/share/applications/"
+            cp -R assets/app-icon/hicolor "dist/$dir/share/icons/"
+            tar -C dist -czf "dist/$dir.tar.gz" "$dir"
+            echo "ASSET=dist/$dir.tar.gz" >> "$GITHUB_ENV"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ env.ASSET }}
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          cd assets
+          sha256sum * > "SHA256SUMS-$TAG-windows-linux.txt"
+          if ! gh release view "$TAG" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release create "$TAG" -R "$GITHUB_REPOSITORY" --title "RustDraft $TAG" --notes "RustDraft $TAG"
+          fi
+          gh release upload "$TAG" -R "$GITHUB_REPOSITORY" --clobber ./*
