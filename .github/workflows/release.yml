@@ -1,8 +1,8 @@
 name: Release
 
-# Builds RustDraft for Linux (x86_64, arm64) and Windows (x86_64, arm64) when a version tag is
-# pushed, and attaches the archives to that tag's GitHub release. The ARM builds are
-# cross-compiled on x86_64 runners. macOS builds are made on a Mac and uploaded to the same release.
+# Builds RustDraft for Linux (x86_64) and Windows (x86_64, arm64) when a version tag is pushed,
+# and attaches the archives to that tag's GitHub release. Windows arm64 is cross-compiled on an
+# x86_64 runner. macOS builds are made on a Mac and uploaded to the same release.
 on:
   push:
     tags: ["v*"]
@@ -34,7 +34,6 @@ jobs:
       matrix:
         include:
           - { name: linux-x86_64, os: ubuntu-22.04, target: x86_64-unknown-linux-gnu }
-          - { name: linux-arm64, os: ubuntu-22.04, target: aarch64-unknown-linux-gnu }
           - { name: windows-x86_64, os: windows-2022, target: x86_64-pc-windows-msvc }
           - { name: windows-arm64, os: windows-2022, target: aarch64-pc-windows-msvc }
     steps:
@@ -52,12 +51,6 @@ jobs:
         run: |
           rustup toolchain install stable --profile minimal --target ${{ matrix.target }}
           rustup default stable
-      - name: Linux arm64 cross linker
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
