@@ -391,7 +391,6 @@ fn main() -> eframe::Result {
             // Autosave files (SAVEFILEPATH) default to `<settings dir>/autosave`.
             if let Some(dir) = &vars.config_dir {
                 app.enable_autosave(&dir.join("autosave"));
-                // RustDraft never checks the original RustDraft repository for updates.
                 // Startup LISP (acad.lsp, acaddoc.lsp) is read from `<settings>/support`; the
                 // folder is made so it is there to put them in.
                 let support = dir.join("support");
@@ -399,6 +398,11 @@ fn main() -> eframe::Result {
                     log::warn!("no LISP support folder {}: {e}", support.display());
                 }
                 app.session.set_lisp_support_dir(Some(support));
+            }
+            // Once at startup, ask GitHub whether a newer RustDraft is out (RUSTDRAFT_NO_UPDATE_CHECK=1
+            // turns it off, e.g. for scripted runs).
+            if std::env::var_os("RUSTDRAFT_NO_UPDATE_CHECK").is_none_or(|v| v.is_empty() || v == "0") {
+                app.enable_update_check();
             }
             app.integrated_titlebar = cfg!(target_os = "macos");
             if surface.present_mode == eframe::wgpu::PresentMode::AutoNoVsync {

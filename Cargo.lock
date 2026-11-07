@@ -3866,7 +3866,7 @@ dependencies = [
 
 [[package]]
 name = "rustdraft"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "chrono",
  "clap",
@@ -3896,7 +3896,7 @@ dependencies = [
 
 [[package]]
 name = "rustdraft-cli"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "clap",
  "clap_complete",
@@ -3912,14 +3912,14 @@ dependencies = [
 
 [[package]]
 name = "rustdraft-color"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "rustdraft-constraints"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "rustdraft-doc",
  "rustdraft-geom",
@@ -3929,7 +3929,7 @@ dependencies = [
 
 [[package]]
 name = "rustdraft-doc"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "rustdraft-color",
  "rustdraft-geom",
@@ -3940,7 +3940,7 @@ dependencies = [
 
 [[package]]
 name = "rustdraft-dwg"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "acadrust",
  "log",
@@ -3948,7 +3948,7 @@ dependencies = [
 
 [[package]]
 name = "rustdraft-dxf"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "encoding_rs",
  "log",
@@ -3957,7 +3957,7 @@ dependencies = [
 
 [[package]]
 name = "rustdraft-engine"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "craft-docpath",
  "libc",
@@ -3978,7 +3978,7 @@ dependencies = [
 
 [[package]]
 name = "rustdraft-fonts"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "encoding_rs",
  "harfrust 0.14.0",
@@ -3990,14 +3990,14 @@ dependencies = [
 
 [[package]]
 name = "rustdraft-geom"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "rustdraft-io"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "acadrust",
  "craft-pdf",
@@ -4019,7 +4019,7 @@ dependencies = [
 
 [[package]]
 name = "rustdraft-mcp"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "clap",
  "getrandom 0.4.3",
@@ -4033,7 +4033,7 @@ dependencies = [
 
 [[package]]
 name = "rustdraft-render"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "lyon_tessellation",
  "rayon",
@@ -4047,7 +4047,7 @@ dependencies = [
 
 [[package]]
 name = "rustdraft-ui-egui"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "chrono",
  "craft-ui",
@@ -4074,7 +4074,7 @@ dependencies = [
 
 [[package]]
 name = "rustdraft-web"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "craft-web-host",
  "eframe",
@@ -5977,7 +5977,7 @@ checksum = "9440ea3e5aeabb0ac63af70daf835274065238cdd0cec83418f417eae38bacee"
 
 [[package]]
 name = "xtask"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "chrono",
  "serde_json",

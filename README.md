@@ -141,6 +141,11 @@ icons for your menu.
 
 Every package also contains `rustdraft-cli`, the headless command-line tool and MCP server.
 
+**Updates** — when RustDraft starts it asks GitHub whether a newer release is out and, if there is one,
+asks whether you want it: **Download** opens the release page. **Help › Check for Updates…** checks at any
+time. That one request to `api.github.com` is all RustDraft sends; set `RUSTDRAFT_NO_UPDATE_CHECK=1` to turn
+it off.
+
 ## Use it with AI agents
 
 RustDraft ships an [MCP](https://modelcontextprotocol.io) server. Add it to Claude Desktop, Claude Code

@@ -1370,6 +1370,17 @@ menu	Modify	Edita
 	Define each corner of the selection window with a separate click.	Definire ogni angolo della finestra di selezione con un clic separato.
 	Check for Updates…	Verifica aggiornamenti…
 	RustDraft is up to date.	RustDraft è aggiornato.
+	Check for Updates...	Controlla aggiornamenti...
+	Check for Updates	Controlla aggiornamenti
+	Update Available	Aggiornamento disponibile
+	RustDraft {version} is available.	È disponibile RustDraft {version}.
+	You have version {version}.	Hai la versione {version}.
+	Do you want to download the update?	Vuoi scaricare l'aggiornamento?
+	What's new	Novità
+	Download	Scarica
+	Later	Più tardi
+	Skip This Version	Salta questa versione
+	RustDraft is up to date (version {version}).	RustDraft è aggiornato (versione {version}).
 	Could not check for updates.	Impossibile verificare gli aggiornamenti.
 	Find All	Find All
 	Find what:	Find what:

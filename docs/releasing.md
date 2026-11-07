@@ -23,13 +23,13 @@ Pushing a `v*` tag runs [`.github/workflows/release.yml`](../.github/workflows/r
 
 | Package | Contents |
 | --- | --- |
-| `rustdraft-<version>-macos-aarch64.dmg` | `RustDraft.app` (Apple silicon, with `rustdraft-cli` inside) |
-| `rustdraft-cli-<version>-macos-aarch64.zip` | `rustdraft-cli` for macOS on its own |
+| `RustDraft-<version>-macos-arm64.dmg` | `RustDraft.app` (Apple silicon, with `rustdraft-cli` inside) |
+| `rustdraft-cli-<version>-macos-arm64.zip` | `rustdraft-cli` for macOS on its own |
 | `RustDraft-<version>-windows-x86_64.zip` | `RustDraft.exe`, `rustdraft-cli.exe`, licences |
 | `RustDraft-<version>-windows-arm64.zip` | the same for Windows on ARM (cross-compiled) |
 | `RustDraft-<version>-linux-x86_64.tar.gz` | `rustdraft`, `rustdraft-cli`, desktop entry, icons, licences |
 
-and creates the GitHub Release `RustDraft v<version>` with them and their `SHA256SUMS`. The DMG is
+and creates the GitHub Release `RustDraft v<version>` with them and `SHA256SUMS.txt`. The DMG is
 made on a macOS 26 runner, whose Xcode compiles the app icon. The workflow can also be started by hand
 (**Actions › Release › Run workflow**) for an existing tag.
 

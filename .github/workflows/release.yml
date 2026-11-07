@@ -90,7 +90,7 @@ jobs:
           if-no-files-found: error
 
   macos:
-    name: macos-aarch64
+    name: macos-arm64
     # Xcode 26 compiles the macOS 26+ Icon Composer icon (RustDraft.icon → Assets.car).
     runs-on: macos-26
     steps:
@@ -117,13 +117,16 @@ jobs:
           export CRAFT_FONTS_DIR="$GITHUB_WORKSPACE/craft-fonts"
           export RUSTDRAFT_BUILD_SHA="$(git rev-parse HEAD)"
           packaging/macos/package.sh --arch aarch64
-          ls -l dist/release
+          # The same names as the other packages: RustDraft-<version>-<system>.
+          version="$(awk '/^\[/{p=($0=="[workspace.package]");next} p&&$1=="version"{gsub(/[" ]/,"",$3);print $3;exit}' Cargo.toml)"
+          mkdir -p dist/upload
+          cp "dist/release/rustdraft-$version-macos-aarch64.dmg" "dist/upload/RustDraft-$version-macos-arm64.dmg"
+          cp "dist/release/rustdraft-cli-$version-macos-aarch64.zip" "dist/upload/rustdraft-cli-$version-macos-arm64.zip"
+          ls -l dist/upload
       - uses: actions/upload-artifact@v4
         with:
-          name: macos-aarch64
-          path: |
-            dist/release/*.dmg
-            dist/release/*.zip
+          name: macos-arm64
+          path: dist/upload/*
           if-no-files-found: error
 
   release:
@@ -143,7 +146,7 @@ jobs:
         run: |
           set -euo pipefail
           cd assets
-          sha256sum * > "SHA256SUMS-$TAG.txt"
+          sha256sum * > SHA256SUMS.txt
           if ! gh release view "$TAG" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             gh release create "$TAG" -R "$GITHUB_REPOSITORY" --title "RustDraft $TAG" --notes "RustDraft $TAG"
           fi

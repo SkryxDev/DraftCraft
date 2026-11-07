@@ -8,12 +8,13 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 #![forbid(unsafe_code)]
 
-/// RustDraft's identity for the update helper (update checks are off in RustDraft), with its 128 px icon and accent colour: the update
-/// prompt shows both, and an AppImage's menu entry gets the icon.
+/// RustDraft's identity for the update check: its GitHub repository (`SkryxDev/RustDraft`), whose
+/// newest release [`updates_ui`] offers, with its 128 px icon and accent colour.
 #[cfg(not(target_arch = "wasm32"))]
 pub const UPDATE_APP: craft_update::app::App = craft_update::app::App {
     icon_png: Some(include_bytes!("../../../assets/app-icon/hicolor/128x128/apps/dev.skryx.rustdraft.png")),
     accent: Some([0x3e, 0xa6, 0xe8]),
+    developer: "SkryxDev",
     ..craft_update::app::App::new("rustdraft", "RustDraft", "Computer-aided design and drafting", "SkryxDev/RustDraft")
 };
 

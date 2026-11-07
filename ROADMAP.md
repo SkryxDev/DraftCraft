@@ -1,6 +1,6 @@
 # RustDraft roadmap
 
-RustDraft **1.0.0** is out for macOS (Apple silicon), Windows (x64 and ARM64) and Linux (x64). It is a
+RustDraft **1.1.0** is out for macOS (Apple silicon), Windows (x64 and ARM64) and Linux (x64). It is a
 young project: good for 2D drafting, dimensioning and plotting, and still missing parts of what a full
 CAD suite does. This page says what works today, what is known to be missing and what comes next.
 

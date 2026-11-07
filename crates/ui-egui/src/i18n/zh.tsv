@@ -1353,6 +1353,17 @@
 	US Survey Mile	美国测量英里
 	Check for Updates…	检查更新…
 	RustDraft is up to date.	RustDraft 已是最新版本。
+	Check for Updates...	检查更新...
+	Check for Updates	检查更新
+	Update Available	有可用更新
+	RustDraft {version} is available.	RustDraft {version} 已发布。
+	You have version {version}.	当前版本为 {version}。
+	Do you want to download the update?	要下载此更新吗？
+	What's new	新功能
+	Download	下载
+	Later	稍后
+	Skip This Version	跳过此版本
+	RustDraft is up to date (version {version}).	RustDraft 已是最新版本（{version}）。
 	Could not check for updates.	无法检查更新。
 # Menu and command labels the October 2026 update missed (#1129).
 	Align Multileaders	对齐多重引线
