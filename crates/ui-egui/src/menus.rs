@@ -713,13 +713,9 @@ pub fn web_top_row(app: &mut CadApp, ui: &mut egui::Ui) {
     egui::Panel::top("cc_menubar").exact_size(WEB_TOP_ROW_H).frame(egui::Frame::NONE.fill(t.chrome_dark)).show(ui, |ui| {
         let r = ui.max_rect();
         let p = ui.painter().clone();
-        let logo = egui::Rect::from_center_size(egui::pos2(r.left() + 17.0, r.center().y), egui::vec2(18.0, 18.0));
-        crate::brand::paint(&p, logo);
-        let name = p.layout_no_wrap("DraftCraft".to_string(), egui::FontId::proportional(13.0), t.text);
-        let name_x = logo.right() + 7.0;
-        let name_w = name.size().x;
-        p.galley(egui::pos2(name_x, r.center().y - name.size().y / 2.0), name, t.text);
-        let menus = egui::Rect::from_min_max(egui::pos2(name_x + name_w + 12.0, r.top()), r.max);
+        let logo_left = r.left() + 8.0;
+        let logo_w = crate::brand::paint_full(&p, logo_left, r.center().y, WEB_LOGO_H, t.chrome_dark);
+        let menus = egui::Rect::from_min_max(egui::pos2(logo_left + logo_w + 12.0, r.top()), r.max);
         ui.scope_builder(egui::UiBuilder::new().max_rect(menus).layout(egui::Layout::left_to_right(egui::Align::Center)), |ui| {
             ui.set_clip_rect(menus);
             clicked = menu_titles(app, ui);
@@ -733,6 +729,10 @@ pub fn web_top_row(app: &mut CadApp, ui: &mut egui::Ui) {
 /// Height of the web build's top row: the same as DraftCraft's own title bar on Windows.
 #[cfg(target_arch = "wasm32")]
 const WEB_TOP_ROW_H: f32 = 30.0;
+
+/// Height of the full logo (icon and wordmark) in the web build's top row: as in the Windows title bar.
+#[cfg(target_arch = "wasm32")]
+const WEB_LOGO_H: f32 = 24.0;
 
 /// The menu titles (File, Edit … Help) and their menus, in `ui`. Returns the command chosen.
 pub fn menu_titles(app: &CadApp, ui: &mut egui::Ui) -> Option<String> {
