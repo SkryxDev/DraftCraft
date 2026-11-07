@@ -328,14 +328,23 @@ fn about(ctx: &egui::Context, open: &mut bool) {
         .resizable(false)
         .collapsible(false)
         .show(ctx, |ui| {
-            ui.heading(crate::tl!("DraftCraft"));
-            ui.label(crate::tf!("Version {version}", version = env!("CARGO_PKG_VERSION")));
+            ui.horizontal(|ui| {
+                crate::brand::show(ui, 64.0);
+                ui.vertical(|ui| {
+                    ui.add_space(8.0);
+                    ui.heading(crate::tl!("DraftCraft"));
+                    ui.label(crate::tf!("Version {version}", version = env!("CARGO_PKG_VERSION")));
+                });
+            });
             ui.label(crate::tl!("Computer-aided design and drafting: an open-source, clean-room CAD application written in pure Rust."));
             ui.add_space(6.0);
             ui.hyperlink_to("github.com/SkryxDev/DraftCraft", "https://github.com/SkryxDev/DraftCraft");
             ui.hyperlink_to("Discord", "https://discord.gg/YgRK8Eww9x");
             ui.add_space(6.0);
             ui.label(RichText::new(crate::tl!("MIT OR Apache-2.0. Not affiliated with Autodesk, Inc.")).small().color(t.text_faint));
+            ui.label(
+                RichText::new(crate::tl!("DraftCraft and the DraftCraft logo are trademarks of WithShalom Studios.")).small().color(t.text_faint),
+            );
         });
 }
 

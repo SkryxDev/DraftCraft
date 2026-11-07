@@ -910,13 +910,15 @@ struct Out {
     typed: Option<String>,
 }
 
-/// The application's own mark (not any other product's logo).
+/// The application button: the DraftCraft logo ([`crate::brand`]) and the menu arrow.
 fn paint_app_button(p: &egui::Painter, r: Rect, hovered: bool) {
-    let fill = if hovered { Color32::from_rgb(0x2f, 0x7d, 0xf0) } else { Color32::from_rgb(0x1f, 0x6a, 0xd8) };
+    let t = Tokens::get();
     let mark = Rect::from_min_size(r.min, vec2(r.height(), r.height()));
-    p.rect_filled(mark, 3.0, fill);
-    p.text(mark.center(), Align2::CENTER_CENTER, "DC", FontId::proportional(r.height() * 0.5), Color32::WHITE);
-    arrow(p, pos2(mark.right() + 7.0, r.center().y), Tokens::get().text_dim);
+    if hovered {
+        p.rect_filled(r.expand(2.0), 4.0, t.hover);
+    }
+    crate::brand::paint(p, mark);
+    arrow(p, pos2(mark.right() + 7.0, r.center().y), t.text_dim);
 }
 
 /// Application bar, ribbon tabs and the active tab's panels.

@@ -8,7 +8,7 @@
 //! `DRAFTCRAFT_TITLEBAR=app` draws this frame on any desktop (to try it). macOS keeps its own
 //! integrated title bar and Linux the desktop's.
 
-use egui::{Align2, Color32, CursorIcon, FontId, Rect, ResizeDirection, Sense, Stroke, StrokeKind, ViewportCommand, pos2, vec2};
+use egui::{Color32, CursorIcon, FontId, Rect, ResizeDirection, Sense, Stroke, StrokeKind, ViewportCommand, pos2, vec2};
 
 use crate::CadApp;
 use crate::theme::Tokens;
@@ -76,30 +76,9 @@ pub fn title_bar(app: &mut CadApp, ui: &mut egui::Ui) {
     }
 }
 
-/// The app icon, 64 px, drawn in the title bar.
-const ICON_PNG: &[u8] = include_bytes!("../../../assets/app-icon/hicolor/64x64/apps/dev.skryx.draftcraft.png");
-
-/// The app icon as a texture, decoded once per context. `None` if it doesn't decode.
-fn icon_texture(ctx: &egui::Context) -> Option<egui::TextureHandle> {
-    let id = egui::Id::unique("dc_window_icon");
-    if let Some(tex) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(id)) {
-        return Some(tex);
-    }
-    let img = image::load_from_memory_with_format(ICON_PNG, image::ImageFormat::Png).ok()?.to_rgba8();
-    let size = [usize::try_from(img.width()).ok()?, usize::try_from(img.height()).ok()?];
-    let tex = ctx.load_texture("window-icon", egui::ColorImage::from_rgba_unmultiplied(size, img.as_raw()), egui::TextureOptions::LINEAR);
-    ctx.data_mut(|d| d.insert_temp(id, tex.clone()));
-    Some(tex)
-}
-
-/// The app icon, small; a DC tile if the icon can't be drawn.
+/// The app icon, small, drawn in the title bar.
 fn paint_logo(p: &egui::Painter, r: Rect) {
-    if let Some(tex) = icon_texture(p.ctx()) {
-        p.image(tex.id(), r, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
-        return;
-    }
-    p.rect_filled(r, 4.0, Color32::from_rgb(0x0e, 0x34, 0x63));
-    p.text(r.center(), Align2::CENTER_CENTER, "DC", FontId::proportional(r.height() * 0.5), Color32::WHITE);
+    crate::brand::paint(p, r);
 }
 
 fn caption_buttons(ui: &mut egui::Ui, area: Rect) {
