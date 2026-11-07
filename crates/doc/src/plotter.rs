@@ -191,11 +191,11 @@ impl PlotterConfig {
         if text.len() > MAX_PLOTTER_FILE {
             return Err("the plotter configuration file is too large".into());
         }
-        let v: serde_json::Value = serde_json::from_str(text).map_err(|e| format!("not a RustDraft plotter configuration: {e}"))?;
+        let v: serde_json::Value = serde_json::from_str(text).map_err(|e| format!("not a DraftCraft plotter configuration: {e}"))?;
         match v.get(FILE_MARKER).and_then(serde_json::Value::as_u64) {
             Some(FILE_VERSION) => {}
-            Some(n) => return Err(format!("plotter configuration format version {n} is newer than this RustDraft reads")),
-            None => return Err(format!("not a RustDraft plotter configuration (no `{FILE_MARKER}`)")),
+            Some(n) => return Err(format!("plotter configuration format version {n} is newer than this DraftCraft reads")),
+            None => return Err(format!("not a DraftCraft plotter configuration (no `{FILE_MARKER}`)")),
         }
         let c: PlotterConfig = serde_json::from_value(v).map_err(|e| format!("bad plotter configuration: {e}"))?;
         let c = c.sanitized();

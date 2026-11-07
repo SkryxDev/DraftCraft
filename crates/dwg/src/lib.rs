@@ -92,7 +92,7 @@ mod native {
     /// passes for a complete one.
     pub fn dwg_to_dxf_noted(bytes: &[u8], limits: Limits) -> Result<(Vec<u8>, Vec<String>), String> {
         if bytes.len() > limits.max_dwg_bytes {
-            return Err(format!("DWG: the file is {}, larger than the {} RustDraft opens", mb(bytes.len() as u64), mb(limits.max_dwg_bytes as u64)));
+            return Err(format!("DWG: the file is {}, larger than the {} DraftCraft opens", mb(bytes.len() as u64), mb(limits.max_dwg_bytes as u64)));
         }
         let outcome = std::panic::catch_unwind(|| {
             acadrust::DwgReader::from_stream_with_options(Cursor::new(bytes), acadrust::DwgReadOptions::failsafe()).read_with_stats()
@@ -729,7 +729,7 @@ mod native {
         // runs inside `catch_unwind` so a decode failure is reported rather than crashing.
         if dxf.len() > Limits::DEFAULT.max_dxf_bytes {
             return Err(format!(
-                "DXF: the input is {}, larger than the {} RustDraft converts to DWG",
+                "DXF: the input is {}, larger than the {} DraftCraft converts to DWG",
                 mb(dxf.len() as u64),
                 mb(Limits::DEFAULT.max_dxf_bytes as u64)
             ));
@@ -947,7 +947,7 @@ fn fail_in_test(_stage: &str) {
 #[cfg_attr(no_dwg_bridge, allow(dead_code))]
 fn unsupported(version: &str) -> String {
     let list: Vec<&str> = VERSIONS.iter().map(|(_, year)| *year).collect();
-    format!("DWG version `{version}` can't be written (RustDraft writes {})", list.join(", "))
+    format!("DWG version `{version}` can't be written (DraftCraft writes {})", list.join(", "))
 }
 
 /// Which build has no DWG bridge, for the stubs' errors.

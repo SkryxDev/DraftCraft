@@ -35,7 +35,7 @@
 	A drawing opened from a file keeps that file's format.	Ένα σχέδιο που ανοίγεται από αρχείο διατηρεί τη μορφή του αρχείου του.
 	A variable name starts with a letter and has only letters, digits and _	Το όνομα μιας μεταβλητής αρχίζει με γράμμα και περιέχει μόνο γράμματα, ψηφία και _
 	About	Πληροφορίες
-	About RustDraft	Πληροφορίες για το RustDraft
+	About DraftCraft	Πληροφορίες για το DraftCraft
 	Absolute	Απόλυτο
 	Accessibility	Προσβασιμότητα
 	Add	Προσθήκη
@@ -125,9 +125,9 @@
 	ByBlock	Κατά μπλοκ (ByBlock)
 	ByColor	Κατά χρώμα (ByColor)
 	ByLayer	Κατά επίπεδο (ByLayer)
-	RustDraft	RustDraft
-	RustDraft Help	Βοήθεια RustDraft
-	RustDraft keeps these preferences, object snap modes and drafting toggles for your user account and restores them when it starts.	Το RustDraft αποθηκεύει τις προτιμήσεις, τις λειτουργίες έλξης αντικειμένων και τους διακόπτες σχεδίασης στον λογαριασμό σας και τις επαναφέρει στην εκκίνηση.
+	DraftCraft	DraftCraft
+	DraftCraft Help	Βοήθεια DraftCraft
+	DraftCraft keeps these preferences, object snap modes and drafting toggles for your user account and restores them when it starts.	Το DraftCraft αποθηκεύει τις προτιμήσεις, τις λειτουργίες έλξης αντικειμένων και τους διακόπτες σχεδίασης στον λογαριασμό σας και τις επαναφέρει στην εκκίνηση.
 	Calibrate	Βαθμονόμηση
 	Calibrate 3D Mouse	Βαθμονόμηση ποντικιού 3Δ
 	Cancel	Ακύρωση
@@ -467,7 +467,7 @@
 	Hide All	Απόκρυψη όλων
 	Hide All Constraint Bars	Απόκρυψη όλων των γραμμών περιορισμών
 	Hide All Dynamic Dimensions	Απόκρυψη όλων των δυναμικών διαστάσεων
-	Hide RustDraft	Απόκρυψη RustDraft
+	Hide DraftCraft	Απόκρυψη DraftCraft
 	Hide Layer List	Απόκρυψη λίστας επιπέδων
 	Hide Objects	Απόκρυψη αντικειμένων
 	Hide Others	Απόκρυψη άλλων
@@ -809,7 +809,7 @@
 	Quick Select...	Γρήγορη επιλογή...
 	QuickCalc	Γρήγορη αριθμομηχανή (QuickCalc)
 	QuickCalc Pick	Επιλογή στη γρήγορη αριθμομηχανή
-	Quit RustDraft	Έξοδος από το RustDraft
+	Quit DraftCraft	Έξοδος από το DraftCraft
 	Radius	Ακτίνα
 	Raster Image	Εικόνα ψηφίδων (Raster Image)
 	Ray	Ημιευθεία (Ray)
@@ -1330,7 +1330,7 @@ menu	Draw	Σχεδίαση
 menu	Modify	Τροποποίηση
 menu	View	Προβολή
 	Check for Updates…	Έλεγχος για ενημερώσεις…
-	RustDraft is up to date.	Το RustDraft είναι ενημερωμένο.
+	DraftCraft is up to date.	Το DraftCraft είναι ενημερωμένο.
 	Could not check for updates.	Δεν ήταν δυνατός ο έλεγχος για ενημερώσεις.
 	Find All	Find All
 	Find what:	Find what:

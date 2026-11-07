@@ -28,7 +28,7 @@
 	= Equals	= Равно
 	> Greater than	> Больше чем
 	About	О программе
-	About RustDraft	О RustDraft
+	About DraftCraft	О DraftCraft
 	Absolute	Абсолютные
 	Add Leader	Добавить выноску
 	Align	Выровнять
@@ -84,7 +84,7 @@
 	ByBlock	Поблоку
 	ByColor	ПоЦвету
 	ByLayer	Послою
-	RustDraft Help	Справка RustDraft
+	DraftCraft Help	Справка DraftCraft
 	Cancel	Отмена
 	Cartesian (x, y)	Декартовы (x, y)
 	Center	Центр
@@ -587,7 +587,7 @@
 	Quick Select Properties	Свойства быстрого выбора
 	Quick Select...	Быстрый выбор...
 	QuickCalc	Быстрокалькулятор
-	Quit RustDraft	Выйти из RustDraft
+	Quit DraftCraft	Выйти из DraftCraft
 	Radius	Радиус
 	Raster Image	Растровое изображение
 	Ray	Луч
@@ -994,7 +994,7 @@
 @plural	{n} contributor	{n} участник|{n} участника|{n} участников
 	Drawing as bytes	Чертеж как байты
 	Services	Службы
-	Hide RustDraft	Скрыть RustDraft
+	Hide DraftCraft	Скрыть DraftCraft
 	Hide Others	Скрыть остальные
 	Accessibility	Специальные возможности
 	Show System Cursor	Показывать системный курсор
@@ -1010,7 +1010,7 @@
 	Query Texts	Запрос текстов
 	Analyze Shapes	Анализ фигур
 	Check for Updates…	Проверить обновления…
-	RustDraft is up to date.	У вас последняя версия RustDraft.
+	DraftCraft is up to date.	У вас последняя версия DraftCraft.
 	Could not check for updates.	Не удалось проверить обновления.
 	Find All	Find All
 	Find what:	Find what:

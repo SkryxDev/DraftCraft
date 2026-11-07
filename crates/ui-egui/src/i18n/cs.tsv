@@ -50,7 +50,7 @@
 	> Greater than	> Větší než
 	A variable name starts with a letter and has only letters, digits and _	Název proměnné začíná písmenem a obsahuje pouze písmena, číslice a _
 	About	O aplikaci
-	About RustDraft	O aplikaci RustDraft
+	About DraftCraft	O aplikaci DraftCraft
 	Absolute	Absolutní
 	Add Leader	Přidat odkaz
 	Additional angles	Další úhly
@@ -112,7 +112,7 @@
 	ByBlock	Dle bloku
 	ByColor	Dle barvy
 	ByLayer	Dle hladiny
-	RustDraft Help	Nápověda RustDraft
+	DraftCraft Help	Nápověda DraftCraft
 	Cancel	Zrušit
 	Cartesian (x, y)	Kartézské (x, y)
 	Center	Střed
@@ -696,7 +696,7 @@
 	Quick Select...	Rychlý výběr...
 	QuickCalc	Rychlá kalkulačka
 	QuickCalc Pick	Výběr pro rychlou kalkulačku
-	Quit RustDraft	Ukončit RustDraft
+	Quit DraftCraft	Ukončit DraftCraft
 	Radius	Poloměr
 	Raster Image	Rastrový obrázek
 	Ray	Polopřímka
@@ -927,7 +927,7 @@
 	Specify insertion point	Určete bod vložení
 	A drawing opened from a file keeps that file's format.	Výkres otevřený ze souboru si zachová formát tohoto souboru.
 	An array that would create more objects than this is refused.	Pole překračující tento počet objektů bude odmítnuto.
-	RustDraft keeps these preferences, object snap modes and drafting toggles for your user account and restores them when it starts.	RustDraft ukládá tyto předvolby, režimy uchopení objektu a přepínače kreslení pro váš uživatelský účet a obnovuje je při spuštění.
+	DraftCraft keeps these preferences, object snap modes and drafting toggles for your user account and restores them when it starts.	DraftCraft ukládá tyto předvolby, režimy uchopení objektu a přepínače kreslení pro váš uživatelský účet a obnovuje je při spuštění.
 	Changes apply at once and are kept for next time.	Změny se projeví okamžitě a uloží se pro příště.
 	Command line history	Historie příkazového řádku
 	Copy as JSON	Kopírovat jako JSON
@@ -1173,7 +1173,7 @@
 @plural	{n} contributor	{n} přispěvatel|{n} přispěvatelé|{n} přispěvatelů
 	Drawing as bytes	Výkres jako bajty
 	Services	Služby
-	Hide RustDraft	Skrýt RustDraft
+	Hide DraftCraft	Skrýt DraftCraft
 	Hide Others	Skrýt ostatní
 	Accessibility	Zpřístupnění
 	Show System Cursor	Zobrazit systémový kurzor
@@ -1207,7 +1207,7 @@
 	X	X
 	Y	Y
 	B	B
-	RustDraft	RustDraft
+	DraftCraft	DraftCraft
 	More toolbar commands	Další příkazy panelu nástrojů
 menu	View	Zobrazení
 menu	Draw	Kreslení
@@ -1219,7 +1219,7 @@ menu	Modify	Modifikace
 	Query Texts	Dotaz na texty
 	Analyze Shapes	Analyzovat tvary
 	Check for Updates…	Zkontrolovat aktualizace…
-	RustDraft is up to date.	RustDraft je aktuální.
+	DraftCraft is up to date.	DraftCraft je aktuální.
 	Could not check for updates.	Aktualizace se nepodařilo zkontrolovat.
 	Find All	Find All
 	Find what:	Find what:

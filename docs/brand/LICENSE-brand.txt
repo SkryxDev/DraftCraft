@@ -1,0 +1,37 @@
+DraftCraft brand terms
+
+The marks
+  - the name DraftCraft™ (also written DRAFTCRAFT or Draftcraft);
+  - the DraftCraft logo: the wordmark with the compass icon (docs/brand/draftcraft-logo.svg and
+    docs/brand/draftcraft-logo-dark.svg);
+  - the DraftCraft app icon: a drafting compass and the arc it drew on a blueprint-blue tile with a
+    drafting grid (assets/app-icon/, including assets/app-icon/src/draftcraft-icon.svg and
+    assets/app-icon/src/draftcraft-icon-macos.svg).
+
+Origin
+  The DraftCraft name, the logo and the app icon were created by WithShalom Studios, which first used
+  them and first claimed DraftCraft as its trademark, for its drafting application at
+  https://github.com/withshalom/draftcraft (2026). DraftCraft™ and the DraftCraft logo are trademarks
+  of WithShalom Studios. The ™ sign marks a claimed trademark; it is not a registration.
+
+Use in this repository
+  WithShalom Studios lets this repository (https://github.com/SkryxDev/RustDraft, under whatever name
+  it later carries) and its maintainer, SkryxDev, use the marks for the application developed here,
+  which SkryxDev and WithShalom Studios develop together. The program was released as RustDraft; it
+  carries the DraftCraft name and logo by this agreement. WithShalom Studios may end or change this
+  permission; the code itself stays under its open-source licence either way.
+
+What the code licence covers
+  The source code and the files in this repository are licensed under the MIT License or the Apache
+  License, Version 2.0, at your option (LICENSE-MIT, LICENSE-APACHE). Those licences grant rights to
+  the code and the files; they do not grant any right to use the DraftCraft name or logo as a mark
+  (the Apache License says so in its section 6).
+
+Forks and redistribution
+  You may fork, modify and redistribute the code under its licence. A modified version or a fork
+  must not be presented as DraftCraft or with the DraftCraft logo or app icon, and must not suggest
+  that WithShalom Studios made, endorsed or supports it, unless WithShalom Studios agrees in writing.
+  You may say truthfully that your work is based on or compatible with DraftCraft.
+
+Contact
+  WithShalom Studios, https://github.com/withshalom

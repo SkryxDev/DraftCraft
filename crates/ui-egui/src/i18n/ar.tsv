@@ -39,7 +39,7 @@
 	A drawing opened from a file keeps that file's format.	الرسم المفتوح من ملف يحتفظ بتنسيق ذلك الملف.
 	A variable name starts with a letter and has only letters, digits and _	يبدأ اسم المتغير بحرف ولا يحوي إلا أحرفاً وأرقاماً و _
 	About	حول
-	About RustDraft	حول RustDraft
+	About DraftCraft	حول DraftCraft
 	Absolute	مطلق
 	Accessibility	إمكانية الوصول
 	Add	إضافة
@@ -116,8 +116,8 @@
 	ByBlock	حسب الكتلة
 	ByColor	حسب اللون
 	ByLayer	حسب الطبقة
-	RustDraft Help	تعليمات RustDraft
-	RustDraft keeps these preferences, object snap modes and drafting toggles for your user account and restores them when it starts.	يحتفظ RustDraft بهذه التفضيلات وأنماط الالتقاط بالكائن ومفاتيح تبديل الرسم لحساب مستخدمك ويعيدها عند بدء التشغيل.
+	DraftCraft Help	تعليمات DraftCraft
+	DraftCraft keeps these preferences, object snap modes and drafting toggles for your user account and restores them when it starts.	يحتفظ DraftCraft بهذه التفضيلات وأنماط الالتقاط بالكائن ومفاتيح تبديل الرسم لحساب مستخدمك ويعيدها عند بدء التشغيل.
 	Calibrate	معايرة
 	Calibrate 3D Mouse	معايرة الفأرة ثلاثية الأبعاد
 	Cancel	إلغاء
@@ -424,7 +424,7 @@
 	Hide All	إخفاء الكل
 	Hide All Constraint Bars	إخفاء كل أشرطة القيود
 	Hide All Dynamic Dimensions	إخفاء كل التأشيرات الديناميكية
-	Hide RustDraft	إخفاء RustDraft
+	Hide DraftCraft	إخفاء DraftCraft
 	Hide Layer List	إخفاء قائمة الطبقات
 	Hide Objects	إخفاء الكائنات
 	Hide Others	إخفاء الطبقات الأخرى
@@ -743,7 +743,7 @@
 	Quick Select...	تحديد سريع...
 	QuickCalc	الحاسبة السريعة
 	QuickCalc Pick	اختيار الحاسبة السريعة
-	Quit RustDraft	إنهاء RustDraft
+	Quit DraftCraft	إنهاء DraftCraft
 	Radius	نصف القطر
 	Raster Image	صورة نقطية
 	Ray	شعاع
@@ -1234,7 +1234,7 @@ menu	View	عرض
 @plural	{n} commit	{n} إيداع|{n} إيداع|{n} إيداعان|{n} إيداعات|{n} إيداعاً|{n} إيداع
 @plural	{n} contributor	{n} مساهم|{n} مساهم|{n} مساهمان|{n} مساهمين|{n} مساهماً|{n} مساهم
 	Check for Updates…	التحقق من وجود تحديثات…
-	RustDraft is up to date.	RustDraft محدّث.
+	DraftCraft is up to date.	DraftCraft محدّث.
 	Could not check for updates.	تعذّر التحقق من وجود تحديثات.
 	Add to Working Set	إضافة إلى مجموعة العمل
 	Add: Pick points	إضافة: انتقاء نقاط

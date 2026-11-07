@@ -28,7 +28,7 @@
 	= Equals	= Égal à
 	> Greater than	> Supérieur à
 	About	À propos
-	About RustDraft	À propos de RustDraft
+	About DraftCraft	À propos de DraftCraft
 	Absolute	Absolu
 	Add Leader	Ajouter un repère
 	Align	Aligner
@@ -84,7 +84,7 @@
 	ByBlock	DuBloc
 	ByColor	Par couleur
 	ByLayer	DuCalque
-	RustDraft Help	Aide de RustDraft
+	DraftCraft Help	Aide de DraftCraft
 	Cancel	Annuler
 	Cartesian (x, y)	Cartésien (x, y)
 	Center	Centre
@@ -587,7 +587,7 @@
 	Quick Select Properties	Propriétés de la sélection rapide
 	Quick Select...	Sélection rapide...
 	QuickCalc	Calculatrice rapide
-	Quit RustDraft	Quitter RustDraft
+	Quit DraftCraft	Quitter DraftCraft
 	Radius	Rayon
 	Raster Image	Image raster
 	Ray	Rayon
@@ -994,7 +994,7 @@
 @plural	{n} contributor	{n} contributeur|{n} contributeurs
 	Drawing as bytes	Dessin sous forme d'octets
 	Services	Services
-	Hide RustDraft	Masquer RustDraft
+	Hide DraftCraft	Masquer DraftCraft
 	Hide Others	Masquer les autres
 	Accessibility	Accessibilité
 	Show System Cursor	Afficher le curseur système
@@ -1009,7 +1009,7 @@
 	Query Texts	Interroger les textes
 	Analyze Shapes	Analyser les formes
 	Check for Updates…	Rechercher des mises à jour…
-	RustDraft is up to date.	RustDraft est à jour.
+	DraftCraft is up to date.	DraftCraft est à jour.
 	Could not check for updates.	Impossible de rechercher les mises à jour.
 	Find All	Find All
 	Find what:	Find what:

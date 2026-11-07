@@ -50,14 +50,14 @@ impl NativeMenu {
         let language = app.language();
         let mut submenus = Vec::new();
         let mut counter = 0usize;
-        let app_menu = Submenu::new("RustDraft", true);
-        let about = MenuItem::with_id("cc-about", i18n::tr(language, "About RustDraft"), true, None);
+        let app_menu = Submenu::new("DraftCraft", true);
+        let about = MenuItem::with_id("cc-about", i18n::tr(language, "About DraftCraft"), true, None);
         let predefined = vec![
             ("Services", PredefinedMenuItem::services(Some(i18n::tr(language, "Services")))),
-            ("Hide RustDraft", PredefinedMenuItem::hide(Some(i18n::tr(language, "Hide RustDraft")))),
+            ("Hide DraftCraft", PredefinedMenuItem::hide(Some(i18n::tr(language, "Hide DraftCraft")))),
             ("Hide Others", PredefinedMenuItem::hide_others(Some(i18n::tr(language, "Hide Others")))),
             ("Show All", PredefinedMenuItem::show_all(Some(i18n::tr(language, "Show All")))),
-            ("Quit RustDraft", PredefinedMenuItem::quit(Some(i18n::tr(language, "Quit RustDraft")))),
+            ("Quit DraftCraft", PredefinedMenuItem::quit(Some(i18n::tr(language, "Quit DraftCraft")))),
         ];
         // The Mac place for preferences: RustDraft ▸ Settings… (⌘,) opens the Options dialog.
         let settings = MenuItem::with_id("cc-settings", i18n::tr(language, "Settings..."), true, accel("Cmd+Comma"));
@@ -68,7 +68,7 @@ impl NativeMenu {
                 let _ = app_menu.append(&PredefinedMenuItem::separator());
             }
         }
-        items.insert("cc-about".into(), ("ui.dialog.about".into(), "About RustDraft".into(), about));
+        items.insert("cc-about".into(), ("ui.dialog.about".into(), "About DraftCraft".into(), about));
         items.insert("cc-settings".into(), ("options".into(), "Settings...".into(), settings));
         let _ = menu.append(&app_menu);
         for (title, entries) in menus::tree(app) {

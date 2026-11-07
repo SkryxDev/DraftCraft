@@ -28,7 +28,7 @@
 	= Equals	= 等于
 	> Greater than	> 大于
 	About	关于
-	About RustDraft	关于 RustDraft
+	About DraftCraft	关于 DraftCraft
 	Absolute	绝对
 	Add Leader	添加引线
 	Align	对齐
@@ -84,7 +84,7 @@
 	ByBlock	ByBlock
 	ByColor	ByColor
 	ByLayer	ByLayer
-	RustDraft Help	RustDraft 帮助
+	DraftCraft Help	DraftCraft 帮助
 	Cancel	取消
 	Cartesian (x, y)	笛卡尔坐标 (x, y)
 	Center	中心
@@ -588,7 +588,7 @@
 	Quick Select Properties	快速选择特性
 	Quick Select...	快速选择...
 	QuickCalc	快速计算器
-	Quit RustDraft	退出 RustDraft
+	Quit DraftCraft	退出 DraftCraft
 	Radius	半径
 	Raster Image	光栅图像
 	Raster Image Reference...	光栅图像参照...
@@ -1003,7 +1003,7 @@
 @plural	{n} contributor	{n} 位贡献者|{n} 位贡献者
 	Drawing as bytes	字节形式的图形
 	Services	服务
-	Hide RustDraft	隐藏 RustDraft
+	Hide DraftCraft	隐藏 DraftCraft
 	Hide Others	隐藏其他人
 	Accessibility	辅助功能
 	Show System Cursor	显示系统光标
@@ -1107,7 +1107,7 @@
 	An array that would create more objects than this is refused.	将拒绝创建超出此对象数量的阵列。
 	Time-sensitive right-click: a quick click is Enter, holding opens the menu	时间敏感右键：快速点击相当于回车，按住不放打开菜单
 	Turned off, a right-click while a command runs always opens the shortcut menu.	关闭后，在命令运行期间右键单击总是打开快捷菜单。
-	RustDraft keeps these preferences, object snap modes and drafting toggles for your user account and restores them when it starts.	RustDraft 会为你的用户账号保留这些偏好设置、对象捕捉模式和绘图切换开关，并在启动时恢复它们。
+	DraftCraft keeps these preferences, object snap modes and drafting toggles for your user account and restores them when it starts.	DraftCraft 会为你的用户账号保留这些偏好设置、对象捕捉模式和绘图切换开关，并在启动时恢复它们。
 	Reset to Defaults	恢复默认设置
 	Copy as JSON	复制为 JSON
 	Reset keeps the interface language.	重置时会保留界面语言。
@@ -1229,7 +1229,7 @@
 	Reinitialize	重新初始化
 	Update Data Links	更新数据链接
 	Dim scale overall	全局标注比例
-	RustDraft	RustDraft
+	DraftCraft	DraftCraft
 	Enter	输入
 	Temporary track point	临时追踪点
 	Plot Window	窗口打印
@@ -1352,18 +1352,18 @@
 	US Survey Yard	美国测量码
 	US Survey Mile	美国测量英里
 	Check for Updates…	检查更新…
-	RustDraft is up to date.	RustDraft 已是最新版本。
+	DraftCraft is up to date.	DraftCraft 已是最新版本。
 	Check for Updates...	检查更新...
 	Check for Updates	检查更新
 	Update Available	有可用更新
-	RustDraft {version} is available.	RustDraft {version} 已发布。
+	DraftCraft {version} is available.	DraftCraft {version} 已发布。
 	You have version {version}.	当前版本为 {version}。
 	Do you want to download the update?	要下载此更新吗？
 	What's new	新功能
 	Download	下载
 	Later	稍后
 	Skip This Version	跳过此版本
-	RustDraft is up to date (version {version}).	RustDraft 已是最新版本（{version}）。
+	DraftCraft is up to date (version {version}).	DraftCraft 已是最新版本（{version}）。
 	Could not check for updates.	无法检查更新。
 # Menu and command labels the October 2026 update missed (#1129).
 	Align Multileaders	对齐多重引线
