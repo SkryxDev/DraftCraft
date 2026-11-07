@@ -4,9 +4,8 @@ version = 4
 
 [[package]]
 name = "acadrust"
-version = "0.6.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8923c99ea1f151cb7fc17ce2fc14f8b1e330fa22611e535602d985c0cc3c89a2"
+version = "0.6.8"
+source = "git+https://github.com/hakanaktt/acadrust?rev=008c6391bbb5deb7baf4bd44495b7b1cfc53eceb#008c6391bbb5deb7baf4bd44495b7b1cfc53eceb"
 dependencies = [
  "anyhow",
  "bitflags 2.13.2",
@@ -16,6 +15,7 @@ dependencies = [
  "foldhash 0.2.0",
  "indexmap",
  "itoa",
+ "memchr",
  "memmap2",
  "nom 7.1.3",
  "oem_cp",

@@ -12,8 +12,10 @@ workspace = true
 log = { workspace = true }
 
 # The same targets as build.rs's `no_dwg_bridge` leave acadrust out: wasm32, and FreeBSD aarch64,
-# where acadrust 0.6.6 passes a `*const c_char` (u8 there) to its own `*const i8` sysctlbyname.
-# 0.6.7 and 0.6.8 fix that but read some damaged DWGs as empty with no note (tests.rs, #800).
+# where acadrust 0.6.6 passed a `*const c_char` (u8 there) to its own `*const i8` sysctlbyname.
+# A commit of acadrust's main branch, not a release: 0.6.8 and older write 2004–2018 DWG files that
+# AutoCAD refuses (their section map has no empty first entry; acadrust issue #281, fixed by PR #280).
+# Go back to a crates.io version (also in crates/io/Cargo.toml) once one includes that fix.
 [target.'cfg(not(any(target_arch = "wasm32", all(target_os = "freebsd", target_arch = "aarch64"))))'.dependencies]
 # MPL-2.0: used as an unmodified dependency only (see plan/adr/0001 and NOTICE).
-acadrust = "0.6.6"
+acadrust = { git = "https://github.com/hakanaktt/acadrust", rev = "008c6391bbb5deb7baf4bd44495b7b1cfc53eceb" }

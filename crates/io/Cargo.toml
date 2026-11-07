@@ -26,7 +26,7 @@ image = { workspace = true }
 
 [dev-dependencies]
 # Reads RustDraft's DWG output as written (tests only; the same version as rustdraft-dwg's).
-acadrust = "0.6.6"
+acadrust = { git = "https://github.com/hakanaktt/acadrust", rev = "008c6391bbb5deb7baf4bd44495b7b1cfc53eceb" }
 tiny-skia = { workspace = true }
 # Reads plotted PDFs back.
 craft-pdf = { workspace = true, features = ["read"] }

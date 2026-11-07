@@ -52,8 +52,8 @@ People trust RustDraft with their drawings; a crash loses their work. **This out
 - Three tests fail only on macOS and pass on Linux CI: two need file names that APFS refuses
   (`read_file_refuses_a_name_that_is_not_unicode`, `usage::non_unicode_output_names`) and one needs an
   installed Thai font (`thai_marks_stack_in_an_installed_font`).
-- `.github/workflows/ci.yml` runs the checks on every push; `.github/workflows/release.yml` builds the
-  Windows and Linux packages when a `v*` tag is pushed (see `docs/releasing.md`).
+- `.github/workflows/ci.yml` runs the checks on every push; `.github/workflows/release.yml` builds every
+  package (macOS DMG, Windows, Linux) when a `v*` tag is pushed (see `docs/releasing.md`).
 
 ## Contributor credits
 The About window's Contributors tab lists the CADCraft contributors, compiled from

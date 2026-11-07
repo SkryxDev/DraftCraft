@@ -87,6 +87,9 @@ pub(crate) fn read_table_style(name: &str, tags: &[Tag]) -> TableStyle {
     let body = body.get(..body.iter().position(|t| t.code >= 1000).unwrap_or(body.len())).unwrap_or(&[]);
     let head_end = body.iter().position(|t| t.code == 7).unwrap_or(body.len());
     let head = body.get(..head_end).unwrap_or(&[]);
+    // A 280 before the description (group 3) is the style's version number, as AutoCAD 2010+
+    // writes it; the title suppression is the 280 after it.
+    let after_description = head.get(head.iter().position(|t| t.code == 3).unwrap_or(0)..).unwrap_or(&[]);
     // Each cell type starts at a code 7 group.
     let mut blocks: Vec<&[Tag]> = Vec::new();
     let mut i = head_end;
@@ -100,8 +103,8 @@ pub(crate) fn read_table_style(name: &str, tags: &[Tag]) -> TableStyle {
         name: name.to_string(),
         text_height: data_h.unwrap_or(def.text_height),
         margin: first(40, head).filter(|m| *m >= 0.0).unwrap_or(def.margin),
-        title: head.iter().find(|t| t.code == 280).map(Tag::i64).unwrap_or(0) == 0,
-        header: head.iter().find(|t| t.code == 281).map(Tag::i64).unwrap_or(0) == 0,
+        title: after_description.iter().find(|t| t.code == 280).map(Tag::i64).unwrap_or(0) == 0,
+        header: after_description.iter().find(|t| t.code == 281).map(Tag::i64).unwrap_or(0) == 0,
         cell_styles: Vec::new(),
     };
     let margin_v = first(41, head).filter(|m| *m >= 0.0);
@@ -232,5 +235,21 @@ mod tests {
         let c = chunks(&s);
         assert!(c.iter().all(|x| x.len() <= 250));
         assert_eq!(c.concat(), s);
+    }
+
+    /// AutoCAD 2010+ (and acadrust's DWG→DXF since 2026-11) write the style's version as a 280
+    /// before the description: the title suppression is the 280 after it, not the first one.
+    #[test]
+    fn the_version_280_before_the_description_is_not_the_title_flag() {
+        let style = |groups: &str| {
+            let text = format!("0\nTABLESTYLE\n100\nAcDbTableStyle\n{groups}7\nStandard\n140\n2.5\n0\nEOF\n");
+            let tags = rustdraft_dxf::parse(text.as_bytes()).unwrap();
+            let s = read_table_style("S", &tags);
+            (s.title, s.header)
+        };
+        assert_eq!(style("280\n0\n3\n\n70\n0\n71\n1\n40\n1.0\n41\n1.0\n280\n1\n281\n0\n"), (false, true));
+        assert_eq!(style("280\n0\n3\n\n70\n0\n71\n0\n40\n1.0\n41\n1.0\n280\n0\n281\n1\n"), (true, false));
+        // Without the version group, as RustDraft and older files write it.
+        assert_eq!(style("3\n\n70\n0\n71\n0\n40\n1.0\n41\n1.0\n280\n1\n281\n1\n"), (false, false));
     }
 }

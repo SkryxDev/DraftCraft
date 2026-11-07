@@ -1246,6 +1246,7 @@ mod tests {
                 is_scale_independent: false,
                 is_snappable: false,
                 root_component: root,
+                undecoded_fields: None,
                 properties: vec![],
             },
         );

@@ -1,8 +1,8 @@
 name: Release
 
-# Builds RustDraft for Linux (x86_64) and Windows (x86_64, arm64) when a version tag is pushed,
-# and attaches the archives to that tag's GitHub release. Windows arm64 is cross-compiled on an
-# x86_64 runner. macOS builds are made on a Mac and uploaded to the same release.
+# Builds every RustDraft package when a version tag is pushed and attaches them to that tag's
+# GitHub release: macOS (Apple silicon DMG and CLI zip), Linux (x86_64) and Windows (x86_64,
+# arm64). Windows arm64 is cross-compiled on an x86_64 runner.
 on:
   push:
     tags: ["v*"]
@@ -89,8 +89,45 @@ jobs:
           path: ${{ env.ASSET }}
           if-no-files-found: error
 
+  macos:
+    name: macos-aarch64
+    # Xcode 26 compiles the macOS 26+ Icon Composer icon (RustDraft.icon → Assets.car).
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - name: Check out craft-fonts
+        uses: actions/checkout@v4
+        with:
+          repository: storytold/craft-fonts
+          ref: ${{ env.CRAFT_FONTS_REF }}
+          path: craft-fonts
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal --target aarch64-apple-darwin
+          rustup default stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: aarch64-apple-darwin
+      - name: Build and package
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          export CRAFT_FONTS_DIR="$GITHUB_WORKSPACE/craft-fonts"
+          export RUSTDRAFT_BUILD_SHA="$(git rev-parse HEAD)"
+          packaging/macos/package.sh --arch aarch64
+          ls -l dist/release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-aarch64
+          path: |
+            dist/release/*.dmg
+            dist/release/*.zip
+          if-no-files-found: error
+
   release:
-    needs: build
+    needs: [build, macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -106,7 +143,7 @@ jobs:
         run: |
           set -euo pipefail
           cd assets
-          sha256sum * > "SHA256SUMS-$TAG-windows-linux.txt"
+          sha256sum * > "SHA256SUMS-$TAG.txt"
           if ! gh release view "$TAG" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             gh release create "$TAG" -R "$GITHUB_REPOSITORY" --title "RustDraft $TAG" --notes "RustDraft $TAG"
           fi

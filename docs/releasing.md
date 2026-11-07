@@ -12,7 +12,7 @@ cargo xtask ci                 # the quality checks
 git commit -am "RustDraft 1.1.0" && git push origin main
 ```
 
-## 2. Tag: Windows and Linux are built for you
+## 2. Tag: every package is built for you
 
 ```bash
 git tag -a v1.1.0 -m "RustDraft 1.1.0"
@@ -23,30 +23,28 @@ Pushing a `v*` tag runs [`.github/workflows/release.yml`](../.github/workflows/r
 
 | Package | Contents |
 | --- | --- |
+| `rustdraft-<version>-macos-aarch64.dmg` | `RustDraft.app` (Apple silicon, with `rustdraft-cli` inside) |
+| `rustdraft-cli-<version>-macos-aarch64.zip` | `rustdraft-cli` for macOS on its own |
 | `RustDraft-<version>-windows-x86_64.zip` | `RustDraft.exe`, `rustdraft-cli.exe`, licences |
 | `RustDraft-<version>-windows-arm64.zip` | the same for Windows on ARM (cross-compiled) |
 | `RustDraft-<version>-linux-x86_64.tar.gz` | `rustdraft`, `rustdraft-cli`, desktop entry, icons, licences |
 
-and creates the GitHub Release `RustDraft v<version>` with them and their `SHA256SUMS`. The workflow
-can also be started by hand (**Actions › Release › Run workflow**) for an existing tag.
+and creates the GitHub Release `RustDraft v<version>` with them and their `SHA256SUMS`. The DMG is
+made on a macOS 26 runner, whose Xcode compiles the app icon. The workflow can also be started by hand
+(**Actions › Release › Run workflow**) for an existing tag.
 
-## 3. macOS: build on a Mac
+## 3. A macOS build on your own Mac
 
-On an Apple-silicon Mac with Xcode (Xcode compiles the macOS 26+ icon):
+The release doesn't need it, but the same script makes the DMG locally (Apple-silicon Mac with Xcode):
 
 ```bash
 git clone https://github.com/storytold/craft-fonts.git ../craft-fonts   # once
 CRAFT_FONTS_DIR="$PWD/../craft-fonts" packaging/macos/package.sh --arch aarch64
 ```
 
-It writes `dist/release/rustdraft-<version>-macos-aarch64.dmg` (the app, with `rustdraft-cli` inside)
-and `rustdraft-cli-<version>-macos-aarch64.zip`. Upload them to the release:
-
-```bash
-gh release upload v1.1.0 dist/release/rustdraft-1.1.0-macos-aarch64.dmg
-```
-
-`--arch universal` also builds for Intel Macs (it needs `rustup target add x86_64-apple-darwin`).
+It writes `dist/release/rustdraft-<version>-macos-aarch64.dmg` and
+`rustdraft-cli-<version>-macos-aarch64.zip`. `--arch universal` also builds for Intel Macs (it needs
+`rustup target add x86_64-apple-darwin`).
 
 ## Signing
 
