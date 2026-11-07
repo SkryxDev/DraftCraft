@@ -8,13 +8,16 @@
 //! `DRAFTCRAFT_TITLEBAR=app` draws this frame on any desktop (to try it). macOS keeps its own
 //! integrated title bar and Linux the desktop's.
 
-use egui::{Color32, CursorIcon, FontId, Rect, ResizeDirection, Sense, Stroke, StrokeKind, ViewportCommand, pos2, vec2};
+use egui::{Color32, CursorIcon, Rect, ResizeDirection, Sense, Stroke, StrokeKind, ViewportCommand, pos2, vec2};
 
 use crate::CadApp;
 use crate::theme::Tokens;
 
 /// Height of the title bar row.
 pub const TITLE_H: f32 = 30.0;
+
+/// Height of the full logo (icon and wordmark) in the title bar, in points.
+const LOGO_H: f32 = 24.0;
 /// Width of each window button, as Windows draws them.
 const BUTTON_W: f32 = 46.0;
 /// How far in from the window's edge a press resizes it.
@@ -56,14 +59,10 @@ pub fn title_bar(app: &mut CadApp, ui: &mut egui::Ui) {
         // First, so the controls drawn over it keep their own clicks.
         craft_window::title_bar::empty_area(ui, free).on_hover_text("DraftCraft");
         let p = ui.painter().clone();
-        let logo = Rect::from_center_size(pos2(r.left() + 17.0, r.center().y), vec2(18.0, 18.0));
-        paint_logo(&p, logo);
-        let name = p.layout_no_wrap("DraftCraft".to_string(), FontId::proportional(13.0), t.text);
-        let name_x = logo.right() + 7.0;
-        let name_w = name.size().x;
-        p.galley(pos2(name_x, r.center().y - name.size().y / 2.0), name, t.text);
+        let logo_left = r.left() + 8.0;
+        let logo_w = crate::brand::paint_full(&p, logo_left, r.center().y, LOGO_H, t.chrome_dark);
         if app.ui.in_window_menu {
-            let menus = Rect::from_min_max(pos2(name_x + name_w + 12.0, r.top()), pos2(free.right(), r.bottom()));
+            let menus = Rect::from_min_max(pos2(logo_left + logo_w + 12.0, r.top()), pos2(free.right(), r.bottom()));
             ui.scope_builder(egui::UiBuilder::new().max_rect(menus).layout(egui::Layout::left_to_right(egui::Align::Center)), |ui| {
                 ui.set_clip_rect(menus);
                 clicked = crate::menus::menu_titles(app, ui);
@@ -74,11 +73,6 @@ pub fn title_bar(app: &mut CadApp, ui: &mut egui::Ui) {
     if let Some(id) = clicked {
         crate::menus::activate(app, &id);
     }
-}
-
-/// The app icon, small, drawn in the title bar.
-fn paint_logo(p: &egui::Painter, r: Rect) {
-    crate::brand::paint(p, r);
 }
 
 fn caption_buttons(ui: &mut egui::Ui, area: Rect) {
