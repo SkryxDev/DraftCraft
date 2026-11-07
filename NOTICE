@@ -1,12 +1,17 @@
-RustDraft
+DraftCraft™ (released as RustDraft)
 Copyright (c) 2026 Skryx Dev.
 
-RustDraft is based on CADCraft (https://github.com/storytold/cadcraft):
+DraftCraft is based on CADCraft (https://github.com/storytold/cadcraft):
 Copyright (c) 2026 ArtCraft Team and the CADCraft contributors.
 
 Both are licensed under the MIT License or the Apache License, Version 2.0, at your option
-(LICENSE-MIT, LICENSE-APACHE). RustDraft is not made, sponsored or endorsed by the ArtCraft Team
+(LICENSE-MIT, LICENSE-APACHE). DraftCraft is not made, sponsored or endorsed by the ArtCraft Team
 or the CADCraft project; it contains none of the ArtCraft names, wordmarks or logos.
+
+DraftCraft™ and the DraftCraft logo are trademarks of WithShalom Studios, which created the name, the
+logo and the app icon and first claimed the trademark. They are used in this repository by agreement
+and are not covered by the license above: the code may be forked and redistributed, but a modified
+version should not be presented as DraftCraft. Their terms are in docs/brand/LICENSE-brand.txt.
 
 Third-party material
 
@@ -16,12 +21,12 @@ Mozilla Public License 2.0 and is used unmodified as a separate library (crates/
 is available from crates.io and the repository above.
 
 
-RustDraft's icons, drafting font, hatch patterns and linetypes are drawn or defined in code.
+DraftCraft's icons, drafting font, hatch patterns and linetypes are drawn or defined in code.
 The UI also bundles the egui font inputs described below. The per-file list is in ATTRIBUTION.md.
 Builds made with the optional craft-fonts input (CRAFT_FONTS_DIR) embed the fonts listed in its
 ATTRIBUTION.md, each under the SIL Open Font License 1.1.
 
-RustDraft is an independent project and is not affiliated with, sponsored by or endorsed by
+DraftCraft is an independent project and is not affiliated with, sponsored by or endorsed by
 Autodesk, Inc. AutoCAD and DWG are trademarks of Autodesk, Inc.
 
 

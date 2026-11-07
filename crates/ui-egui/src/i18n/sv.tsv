@@ -34,7 +34,7 @@
 	A drawing opened from a file keeps that file's format.	En ritning som öppnats från en fil behåller filens format.
 	A variable name starts with a letter and has only letters, digits and _	Ett variabelnamn börjar med en bokstav och innehåller bara bokstäver, siffror och _
 	About	Om
-	About RustDraft	Om RustDraft
+	About DraftCraft	Om DraftCraft
 	Absolute	Absolut
 	Add Current Scale	Lägg till aktuell skala
 	Add Leader	Lägg till hänvisningslinje
@@ -110,9 +110,9 @@
 	ByBlock	Enligt block
 	ByColor	Enligt färg
 	ByLayer	Enligt lager
-	RustDraft	RustDraft
-	RustDraft Help	Hjälp för RustDraft
-	RustDraft keeps these preferences, object snap modes and drafting toggles for your user account and restores them when it starts.	RustDraft sparar de här inställningarna, objektfästena och ritlägena för ditt användarkonto och återställer dem när programmet startar.
+	DraftCraft	DraftCraft
+	DraftCraft Help	Hjälp för DraftCraft
+	DraftCraft keeps these preferences, object snap modes and drafting toggles for your user account and restores them when it starts.	DraftCraft sparar de här inställningarna, objektfästena och ritlägena för ditt användarkonto och återställer dem när programmet startar.
 	Cancel	Avbryt
 	Cartesian (x, y)	Kartesisk (x, y)
 	Center	Centrum
@@ -795,7 +795,7 @@
 	Quick Select Properties	Egenskaper för snabbmarkering
 	Quick Select...	Snabbmarkering...
 	QuickCalc	Snabbkalkyl
-	Quit RustDraft	Avsluta RustDraft
+	Quit DraftCraft	Avsluta DraftCraft
 	Radius	Radie
 	Raster Image	Rasterbild
 	Ray	Stråle
@@ -1213,7 +1213,7 @@
 @plural	{n} contributor	{n} bidragsgivare|{n} bidragsgivare
 	Drawing as bytes	Ritningen som byte
 	Services	Tjänster
-	Hide RustDraft	Dölj RustDraft
+	Hide DraftCraft	Dölj DraftCraft
 	Hide Others	Dölj övriga
 	Accessibility	Tillgänglighet
 	Show System Cursor	Visa systemets muspekare
@@ -1443,7 +1443,7 @@ menu	Modify	Ändra
 	Yards	Yard
 	Your changes will be lost if you don't save them.	Dina ändringar går förlorade om du inte sparar dem.
 	Check for Updates…	Sök efter uppdateringar…
-	RustDraft is up to date.	RustDraft är uppdaterat.
+	DraftCraft is up to date.	DraftCraft är uppdaterat.
 	Could not check for updates.	Det gick inte att söka efter uppdateringar.
 	Find All	Find All
 	Find what:	Find what:

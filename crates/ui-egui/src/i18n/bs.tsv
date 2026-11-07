@@ -52,7 +52,7 @@
 	> Greater than	> Veće od
 	A variable name starts with a letter and has only letters, digits and _	Naziv varijable počinje slovom i sadrži samo slova, cifre i _
 	About	O programu
-	About RustDraft	O RustDraftu
+	About DraftCraft	O DraftCraftu
 	Absolute	Apsolutno
 	Add Leader	Dodaj pokaznu liniju
 	Additional angles	Dodatni uglovi
@@ -114,7 +114,7 @@
 	ByBlock	PoBloku
 	ByColor	PoBoji
 	ByLayer	PoSloju
-	RustDraft Help	Pomoć za RustDraft
+	DraftCraft Help	Pomoć za DraftCraft
 	Cancel	Otkaži
 	Cartesian (x, y)	Kartezijske (x, y)
 	Center	Sredina
@@ -698,7 +698,7 @@
 	Quick Select...	Brzi odabir...
 	QuickCalc	Brzi kalkulator
 	QuickCalc Pick	Odabir za brzi kalkulator
-	Quit RustDraft	Zatvori RustDraft
+	Quit DraftCraft	Zatvori DraftCraft
 	Radius	Poluprečnik
 	Raster Image	Rasterska slika
 	Ray	Zraka
@@ -929,7 +929,7 @@
 	Specify insertion point	Navedite tačku umetanja
 	A drawing opened from a file keeps that file's format.	Crtež otvoren iz datoteke zadržava format te datoteke.
 	An array that would create more objects than this is refused.	Niz koji bi kreirao više objekata od ovoga se odbija.
-	RustDraft keeps these preferences, object snap modes and drafting toggles for your user account and restores them when it starts.	RustDraft čuva ove postavke, načine hvatanja objekata i prekidače za crtanje za vaš korisnički račun i vraća ih pri pokretanju.
+	DraftCraft keeps these preferences, object snap modes and drafting toggles for your user account and restores them when it starts.	DraftCraft čuva ove postavke, načine hvatanja objekata i prekidače za crtanje za vaš korisnički račun i vraća ih pri pokretanju.
 	Changes apply at once and are kept for next time.	Promjene se primjenjuju odmah i čuvaju za sljedeći put.
 	Command line history	Historija komandne linije
 	Copy as JSON	Kopiraj kao JSON
@@ -1175,7 +1175,7 @@
 @plural	{n} contributor	{n} saradnik|{n} saradnika|{n} saradnika
 	Drawing as bytes	Crtež kao bajtovi
 	Services	Usluge
-	Hide RustDraft	Sakrij RustDraft
+	Hide DraftCraft	Sakrij DraftCraft
 	Hide Others	Sakrij ostale
 	Accessibility	Pristupačnost
 	Show System Cursor	Prikaži sistemski kursor
@@ -1209,7 +1209,7 @@
 	X	X
 	Y	Y
 	B	B
-	RustDraft	RustDraft
+	DraftCraft	DraftCraft
 	More toolbar commands	Više naredbi trake s alatima
 menu	View	Prikaz
 menu	Draw	Crtaj
@@ -1221,7 +1221,7 @@ menu	Modify	Izmijeni
 	Query Texts	Upit o tekstovima
 	Analyze Shapes	Analiziraj oblike
 	Check for Updates…	Provjeri ažuriranja…
-	RustDraft is up to date.	RustDraft je ažuran.
+	DraftCraft is up to date.	DraftCraft je ažuran.
 	Could not check for updates.	Nije moguće provjeriti ažuriranja.
 	3D Mouse	3D miš
 	3D Mouse Navigation	Navigacija 3D mišem

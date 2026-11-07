@@ -64,7 +64,7 @@ fn convert_long_about() -> &'static str {
     })
 }
 
-/// rustdraft-cli: headless RustDraft
+/// rustdraft-cli: headless DraftCraft
 #[derive(Parser)]
 #[command(name = "rustdraft-cli", version = rustdraft_engine::build_version(), arg_required_else_help = true)]
 pub(crate) struct Cli {

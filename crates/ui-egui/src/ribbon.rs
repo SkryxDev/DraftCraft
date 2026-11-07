@@ -915,7 +915,7 @@ fn paint_app_button(p: &egui::Painter, r: Rect, hovered: bool) {
     let fill = if hovered { Color32::from_rgb(0x2f, 0x7d, 0xf0) } else { Color32::from_rgb(0x1f, 0x6a, 0xd8) };
     let mark = Rect::from_min_size(r.min, vec2(r.height(), r.height()));
     p.rect_filled(mark, 3.0, fill);
-    p.text(mark.center(), Align2::CENTER_CENTER, "RD", FontId::proportional(r.height() * 0.5), Color32::WHITE);
+    p.text(mark.center(), Align2::CENTER_CENTER, "DC", FontId::proportional(r.height() * 0.5), Color32::WHITE);
     arrow(p, pos2(mark.right() + 7.0, r.center().y), Tokens::get().text_dim);
 }
 
@@ -973,7 +973,7 @@ fn app_bar(app: &mut CadApp, ui: &mut egui::Ui, bar: Rect, out: &mut Out) {
         ui.allocate_ui_with_layout(vec2(width, 30.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.spacing_mut().item_spacing.x = 8.0;
             ui.spacing_mut().button_padding = vec2(10.0, 4.0);
-            if ui.add(egui::Button::new(crate::tl!("Exit RustDraft")).frame(true)).clicked() {
+            if ui.add(egui::Button::new(crate::tl!("Exit DraftCraft")).frame(true)).clicked() {
                 out.command = Some("ui.quit");
                 ui.close();
             }
@@ -1053,8 +1053,8 @@ fn app_bar(app: &mut CadApp, ui: &mut egui::Ui, bar: Rect, out: &mut Out) {
     }
     // Window title, centred, between the toolbar and the search box.
     let title = match app.session.state() {
-        Ok(st) if !app.ui.start_tab => format!("RustDraft   {}{}", st.title, if st.title.contains('.') { "" } else { ".dwg" }),
-        _ => format!("RustDraft   {}", crate::tl!("Start")),
+        Ok(st) if !app.ui.start_tab => format!("DraftCraft   {}{}", st.title, if st.title.contains('.') { "" } else { ".dwg" }),
+        _ => format!("DraftCraft   {}", crate::tl!("Start")),
     };
     let galley = p.layout_no_wrap(title, FontId::proportional(13.0), t.text);
     let right_limit = if sr.left() > qat_end + 120.0 { sr.left() - 10.0 } else { bar.right() - 8.0 };

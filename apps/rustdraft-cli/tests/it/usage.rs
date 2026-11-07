@@ -95,13 +95,13 @@ fn top_level_requests() {
     run_cases(
         "top",
         &[
-            case("--help", &["--help"], 0, Line("rustdraft-cli: headless RustDraft"), Empty),
-            case("-h", &["-h"], 0, Line("rustdraft-cli: headless RustDraft"), Empty),
-            case("help", &["help"], 0, Line("rustdraft-cli: headless RustDraft"), Empty),
+            case("--help", &["--help"], 0, Line("rustdraft-cli: headless DraftCraft"), Empty),
+            case("-h", &["-h"], 0, Line("rustdraft-cli: headless DraftCraft"), Empty),
+            case("help", &["help"], 0, Line("rustdraft-cli: headless DraftCraft"), Empty),
             case("--version", &["--version"], 0, Starts("rustdraft-cli "), Empty),
             case("-V", &["-V"], 0, Starts("rustdraft-cli "), Empty),
             case("version is not a subcommand", &["version"], 2, Empty, Line("error: unrecognized subcommand 'version'")),
-            case("bare", &[], 2, Empty, Line("rustdraft-cli: headless RustDraft")),
+            case("bare", &[], 2, Empty, Line("rustdraft-cli: headless DraftCraft")),
             case("unknown subcommand", &["foo"], 2, Empty, Line("error: unrecognized subcommand 'foo'")),
             case("unknown top-level flag", &["--bogus"], 2, Empty, Line("error: unexpected argument '--bogus' found")),
             case("empty subcommand", &[""], 2, Empty, Line("error: unrecognized subcommand ''")),

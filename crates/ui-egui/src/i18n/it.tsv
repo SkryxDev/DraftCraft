@@ -55,7 +55,7 @@ menu	Modify	Edita
 	> Greater than	> Maggiore di
 	A variable name starts with a letter and has only letters, digits and _	Un nome di variabile inizia con una lettera e contiene solo lettere, cifre e _
 	About	Informazioni
-	About RustDraft	Informazioni su RustDraft
+	About DraftCraft	Informazioni su DraftCraft
 	Absolute	Assoluto
 	Add Leader	Aggiungi direttrice
 	Additional angles	Angoli aggiuntivi
@@ -118,7 +118,7 @@ menu	Modify	Edita
 	ByBlock	DaBlocco
 	ByColor	DaColore
 	ByLayer	DaLayer
-	RustDraft Help	Aiuto di RustDraft
+	DraftCraft Help	Aiuto di DraftCraft
 	Cancel	Annulla
 	Cartesian (x, y)	Cartesiane (x, y)
 	Center	Centro
@@ -710,7 +710,7 @@ menu	Modify	Edita
 	Quick Select...	Selezione rapida...
 	QuickCalc	CalcRapida
 	QuickCalc Pick	Punto CalcRapida
-	Quit RustDraft	Esci da RustDraft
+	Quit DraftCraft	Esci da DraftCraft
 	Radius	Raggio
 	Raster Image	Immagine raster
 	Ray	Semiretta
@@ -937,7 +937,7 @@ menu	Modify	Edita
 	Specify insertion point	Specificare il punto di inserimento
 	A drawing opened from a file keeps that file's format.	Un disegno aperto da un file conserva il formato di quel file.
 	An array that would create more objects than this is refused.	Una serie che creerebbe più oggetti di così viene rifiutata.
-	RustDraft keeps these preferences, object snap modes and drafting toggles for your user account and restores them when it starts.	RustDraft conserva queste preferenze, le modalità di snap ad oggetto e le impostazioni di disegno per il tuo account utente e le ripristina all'avvio.
+	DraftCraft keeps these preferences, object snap modes and drafting toggles for your user account and restores them when it starts.	DraftCraft conserva queste preferenze, le modalità di snap ad oggetto e le impostazioni di disegno per il tuo account utente e le ripristina all'avvio.
 	Changes apply at once and are kept for next time.	Le modifiche si applicano subito e restano per la prossima volta.
 	Command line history	Cronologia della riga di comando
 	Copy as JSON	Copia come JSON
@@ -1190,7 +1190,7 @@ menu	Modify	Edita
 @plural	{n} contributor	{n} collaboratore|{n} collaboratori
 	Drawing as bytes	Disegno in byte
 	Services	Servizi
-	Hide RustDraft	Nascondi RustDraft
+	Hide DraftCraft	Nascondi DraftCraft
 	Hide Others	Nascondi altre
 	Accessibility	Accessibilità
 	Show System Cursor	Mostra cursore di sistema
@@ -1369,18 +1369,18 @@ menu	Modify	Edita
 	Select using two clicks only	Seleziona solo con due clic
 	Define each corner of the selection window with a separate click.	Definire ogni angolo della finestra di selezione con un clic separato.
 	Check for Updates…	Verifica aggiornamenti…
-	RustDraft is up to date.	RustDraft è aggiornato.
+	DraftCraft is up to date.	DraftCraft è aggiornato.
 	Check for Updates...	Controlla aggiornamenti...
 	Check for Updates	Controlla aggiornamenti
 	Update Available	Aggiornamento disponibile
-	RustDraft {version} is available.	È disponibile RustDraft {version}.
+	DraftCraft {version} is available.	È disponibile DraftCraft {version}.
 	You have version {version}.	Hai la versione {version}.
 	Do you want to download the update?	Vuoi scaricare l'aggiornamento?
 	What's new	Novità
 	Download	Scarica
 	Later	Più tardi
 	Skip This Version	Salta questa versione
-	RustDraft is up to date (version {version}).	RustDraft è aggiornato (versione {version}).
+	DraftCraft is up to date (version {version}).	DraftCraft è aggiornato (versione {version}).
 	Could not check for updates.	Impossibile verificare gli aggiornamenti.
 	Find All	Find All
 	Find what:	Find what:
@@ -1499,5 +1499,5 @@ menu	Modify	Edita
 	Based on CADCraft by the ArtCraft team and the CADCraft contributors.	Basato su CADCraft del team ArtCraft e dei contributori di CADCraft.
 	Ribbon	Barra multifunzione
 	{panel} panel	Pannello {panel}
-	Exit RustDraft	Esci da RustDraft
-	The contributors of CADCraft, the open-source project RustDraft is based on.	I contributori di CADCraft, il progetto open source su cui si basa RustDraft.
+	Exit DraftCraft	Esci da DraftCraft
+	The contributors of CADCraft, the open-source project DraftCraft is based on.	I contributori di CADCraft, il progetto open source su cui si basa DraftCraft.

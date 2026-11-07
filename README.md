@@ -1,12 +1,13 @@
 <p align="center">
-  <img src="assets/app-icon/rustdraft-256.png" width="160" alt="RustDraft icon">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/draftcraft-logo-dark.svg">
+    <img src="docs/brand/draftcraft-logo.svg" height="140" alt="DraftCraft™: a drafting compass that has just drawn an arc, on a dark blueprint-blue tile with a drafting grid, beside the name DraftCraft with Draft in bold">
+  </picture>
 </p>
-
-<h1 align="center">RustDraft</h1>
 
 <p align="center">
   <a href="https://ko-fi.com/K0O529L823"><img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Support me on Ko-fi"></a>
-  <a href="https://discord.gg/34w9FmQXvz"><img height="30" src="https://img.shields.io/badge/Discord-Join%20the%20server-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join the RustDraft Discord"></a>
+  <a href="https://discord.gg/34w9FmQXvz"><img height="30" src="https://img.shields.io/badge/Discord-Join%20the%20server-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join the DraftCraft Discord"></a>
 </p>
 
 <p align="center">
@@ -20,13 +21,20 @@
   <img alt="License: MIT or Apache-2.0" src="https://img.shields.io/badge/license-MIT%20%2F%20Apache--2.0-blue">
 </p>
 
+> [!NOTE]
+> **DraftCraft™ was RustDraft.** The program is RustDraft by [SkryxDev](https://github.com/SkryxDev), built on
+> [CADCraft](https://github.com/storytold/cadcraft); the DraftCraft name and logo are
+> [WithShalom Studios](https://github.com/withshalom)' brand, used here by agreement
+> ([`docs/brand/LICENSE-brand.txt`](docs/brand/LICENSE-brand.txt)). The rename is under way: the installers, the
+> app bundle, the program files and the settings folder still carry the name RustDraft for now.
+
 <p align="center">
-  <img src="docs/screenshots/rustdraft-ribbon.png" width="900" alt="RustDraft with the Home tab of the ribbon and the sample drawing: a mounting bracket with dimensions, a section view and a title block">
+  <img src="docs/screenshots/rustdraft-ribbon.png" width="900" alt="DraftCraft with the Home tab of the ribbon and the sample drawing: a mounting bracket with dimensions, a section view and a title block">
 </p>
 
 ---
 
-RustDraft is a 2D CAD application for drafting, dimensioning and plotting drawings, written from the
+DraftCraft™ is a 2D CAD application for drafting, dimensioning and plotting drawings, written from the
 ground up in Rust. It opens and saves **DWG** and **DXF** files, speaks AutoCAD's command names and prompts
 at its command line, and puts everything in a **Windows-style ribbon** — the same on macOS, Windows and
 Linux, so you find the tools where you expect them on any computer. It is also built to be driven by
@@ -142,15 +150,15 @@ icons for your menu.
 
 Every package also contains `rustdraft-cli`, the headless command-line tool and MCP server.
 
-**Updates** — when RustDraft starts it asks GitHub whether a newer release is out and, if there is one,
+**Updates** — when DraftCraft starts it asks GitHub whether a newer release is out and, if there is one,
 asks whether you want it: **Download** opens the release page. **Help › Check for Updates…** checks at any
-time. That one request to `api.github.com` is all RustDraft sends; set `RUSTDRAFT_NO_UPDATE_CHECK=1` to turn
+time. That one request to `api.github.com` is all DraftCraft sends; set `RUSTDRAFT_NO_UPDATE_CHECK=1` to turn
 it off.
 
 ## Use it with AI agents
 
-RustDraft ships an [MCP](https://modelcontextprotocol.io) server. Add it to Claude Desktop, Claude Code
-or any MCP client, and the agent draws in the open RustDraft window while you watch (on macOS it opens
+DraftCraft ships an [MCP](https://modelcontextprotocol.io) server. Add it to Claude Desktop, Claude Code
+or any MCP client, and the agent draws in the open DraftCraft window while you watch (on macOS it opens
 the app when needed):
 
 ```json
@@ -199,7 +207,7 @@ cargo build --release -p rustdraft -p rustdraft-cli
 The programs are written to `target/release/` (`rustdraft` and `rustdraft-cli`). The interface fonts for
 Chinese, Japanese, Korean, Arabic, Thai and more come from the optional
 [craft-fonts](https://github.com/storytold/craft-fonts) repository: clone it and set
-`CRAFT_FONTS_DIR=/path/to/craft-fonts` before building to embed them. Without it RustDraft uses the fonts
+`CRAFT_FONTS_DIR=/path/to/craft-fonts` before building to embed them. Without it DraftCraft uses the fonts
 installed on your system.
 
 The quality checks — formatting, clippy, tests, asset licences, crate layering and the web build — run
@@ -242,14 +250,14 @@ apps/
   command runs behind a guard that restores the drawing and reports an error instead of crashing.
 - **Drawing happens on the GPU** through wgpu (Metal, DirectX 12, Vulkan), with a CPU fallback.
 - **No borrowed artwork.** Every icon is drawn in code, and the hatch patterns, linetypes and drafting
-  font are RustDraft's own definitions; [ATTRIBUTION.md](ATTRIBUTION.md) lists every asset file.
+  font are DraftCraft's own definitions; [ATTRIBUTION.md](ATTRIBUTION.md) lists every asset file.
 
 Settings, logs and autosaves live in `~/Library/Application Support/RustDraft` on macOS,
 `%APPDATA%\RustDraft` on Windows and `~/.config/rustdraft` on Linux.
 
 ## Status
 
-RustDraft is young. 2D drafting, dimensioning, layouts and plotting work; 3D modelling is not there yet,
+DraftCraft is young. 2D drafting, dimensioning, layouts and plotting work; 3D modelling is not there yet,
 and some object types that DWG/DXF files can contain can be lost on save. [ROADMAP.md](ROADMAP.md) lists
 what works, what is missing and what comes next.
 
@@ -264,15 +272,21 @@ Pull requests are welcome too: fork the repository, make your change on a branch
 
 ## License
 
-RustDraft is licensed under the [MIT License](LICENSE-MIT) or the [Apache License 2.0](LICENSE-APACHE),
+DraftCraft is licensed under the [MIT License](LICENSE-MIT) or the [Apache License 2.0](LICENSE-APACHE),
 at your option. Third-party material is listed in [NOTICE](NOTICE) and [ATTRIBUTION.md](ATTRIBUTION.md).
+
+DraftCraft™ and the DraftCraft logo are trademarks of WithShalom Studios, who first made the name and the
+trademark claim. The licences above cover the code, not the name or the logo: you may fork and redistribute
+the code, but a modified version should not be presented as DraftCraft. Their terms are in
+[docs/brand/LICENSE-brand.txt](docs/brand/LICENSE-brand.txt).
 
 ## Credits
 
-Made by **[SkryxDev](https://github.com/SkryxDev)**.
+Made by **[SkryxDev](https://github.com/SkryxDev)**. The DraftCraft™ name and logo are by
+**[WithShalom Studios](https://github.com/withshalom)**.
 
-RustDraft is based on [CADCraft](https://github.com/storytold/cadcraft) by the ArtCraft Team and the
+DraftCraft is based on [CADCraft](https://github.com/storytold/cadcraft) by the ArtCraft Team and the
 CADCraft contributors, used under the same MIT OR Apache-2.0 licence; their copyright notice is kept in
-[LICENSE-MIT](LICENSE-MIT) and [NOTICE](NOTICE). RustDraft is an independent project: it is not made,
+[LICENSE-MIT](LICENSE-MIT) and [NOTICE](NOTICE). DraftCraft is an independent project: it is not made,
 sponsored or endorsed by them, and it is not affiliated with, sponsored by or endorsed by Autodesk, Inc.
 AutoCAD and DWG are trademarks of Autodesk, Inc., named here only to describe compatibility.

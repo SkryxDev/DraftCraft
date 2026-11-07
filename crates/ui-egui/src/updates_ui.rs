@@ -132,12 +132,12 @@ fn finish(app: &mut CadApp, answer: Result<Option<Offer>, String>) {
     let message = match answer {
         // The startup check doesn't offer a version the user skipped; a requested one does.
         Ok(Some(offer)) if requested || rt.skipped.as_deref() != Some(offer.version.as_str()) => {
-            log::info!("RustDraft {} is available ({})", offer.version, offer.url);
+            log::info!("DraftCraft {} is available ({})", offer.version, offer.url);
             rt.message = None;
             rt.offer = Some(offer);
             return;
         }
-        Ok(_) => crate::tf!("RustDraft is up to date (version {version}).", version = running_version()),
+        Ok(_) => crate::tf!("DraftCraft is up to date (version {version}).", version = running_version()),
         Err(e) => {
             log::info!("update check: {e}");
             format!("{} {e}", crate::tl!("Could not check for updates."))
@@ -223,7 +223,7 @@ fn offer_window(ctx: &egui::Context, offer: &Offer) -> Choice {
         .anchor(egui::Align2::CENTER_TOP, vec2(0.0, 120.0))
         .show(ctx, |ui| {
             ui.set_width(420.0);
-            ui.label(RichText::new(crate::tf!("RustDraft {version} is available.", version = offer.version)).strong().size(15.0));
+            ui.label(RichText::new(crate::tf!("DraftCraft {version} is available.", version = offer.version)).strong().size(15.0));
             ui.label(RichText::new(crate::tf!("You have version {version}.", version = running_version())).color(t.text_dim));
             ui.add_space(4.0);
             ui.label(crate::tl!("Do you want to download the update?"));

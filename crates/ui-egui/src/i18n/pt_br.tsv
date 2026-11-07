@@ -30,7 +30,7 @@
 	A drawing opened from a file keeps that file's format.	Um desenho aberto de um arquivo mantém o formato desse arquivo.
 	A variable name starts with a letter and has only letters, digits and _	Um nome de variável começa com uma letra e contém apenas letras, dígitos e _
 	About	Sobre
-	About RustDraft	Sobre o RustDraft
+	About DraftCraft	Sobre o DraftCraft
 	Absolute	Absoluto
 	Add Current Scale	Adicionar escala atual
 	Add Leader	Adicionar linha de chamada
@@ -106,9 +106,9 @@
 	ByBlock	PorBloco
 	ByColor	PorCor
 	ByLayer	PorCamada
-	RustDraft	RustDraft
-	RustDraft Help	Ajuda do RustDraft
-	RustDraft keeps these preferences, object snap modes and drafting toggles for your user account and restores them when it starts.	O RustDraft mantém estas preferências, os modos de snap a objetos e as opções de desenho na sua conta de usuário e os restaura ao iniciar.
+	DraftCraft	DraftCraft
+	DraftCraft Help	Ajuda do DraftCraft
+	DraftCraft keeps these preferences, object snap modes and drafting toggles for your user account and restores them when it starts.	O DraftCraft mantém estas preferências, os modos de snap a objetos e as opções de desenho na sua conta de usuário e os restaura ao iniciar.
 	Cancel	Cancelar
 	Cartesian (x, y)	Cartesiano (x, y)
 	Center	Centro
@@ -792,7 +792,7 @@
 	Quick Select Properties	Propriedades da seleção rápida
 	Quick Select...	Seleção rápida...
 	QuickCalc	Calculadora rápida
-	Quit RustDraft	Sair do RustDraft
+	Quit DraftCraft	Sair do DraftCraft
 	Radius	Raio
 	Raster Image	Imagem raster
 	Ray	Semirreta
@@ -1215,7 +1215,7 @@
 @plural	{n} contributor	{n} colaborador|{n} colaboradores
 	Drawing as bytes	Desenho como bytes
 	Services	Serviços
-	Hide RustDraft	Ocultar o RustDraft
+	Hide DraftCraft	Ocultar o DraftCraft
 	Hide Others	Ocultar outros
 	Accessibility	Acessibilidade
 	Show System Cursor	Exibir cursor do sistema
@@ -1248,7 +1248,7 @@
 	Select using two clicks only	Selecionar apenas com dois cliques
 	Define each corner of the selection window with a separate click.	Defina cada canto da janela de seleção com um clique separado.
 	Check for Updates…	Verificar atualizações…
-	RustDraft is up to date.	O RustDraft está atualizado.
+	DraftCraft is up to date.	O DraftCraft está atualizado.
 	Could not check for updates.	Não foi possível verificar atualizações.
 	Find All	Find All
 	Find what:	Find what:

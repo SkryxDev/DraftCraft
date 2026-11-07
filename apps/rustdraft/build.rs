@@ -12,8 +12,8 @@ fn main() {
     if std::path::Path::new("../../assets/app-icon/rustdraft.ico").exists() {
         res.set_icon("../../assets/app-icon/rustdraft.ico");
     }
-    res.set("ProductName", "RustDraft")
-        .set("FileDescription", "RustDraft computer-aided design")
+    res.set("ProductName", "DraftCraft")
+        .set("FileDescription", "DraftCraft computer-aided design")
         .set("CompanyName", "Skryx Dev")
         .set(
             "LegalCopyright",

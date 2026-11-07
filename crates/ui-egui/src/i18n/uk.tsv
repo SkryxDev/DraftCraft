@@ -52,7 +52,7 @@
 	> Greater than	> Більше ніж
 	A variable name starts with a letter and has only letters, digits and _	Ім'я змінної починається з літери й містить лише літери, цифри та _
 	About	Про програму
-	About RustDraft	Про RustDraft
+	About DraftCraft	Про DraftCraft
 	Absolute	Абсолютні
 	Add Leader	Додати виноску
 	Additional angles	Додаткові кути
@@ -115,7 +115,7 @@
 	ByBlock	За блоком
 	ByColor	За кольором
 	ByLayer	За шаром
-	RustDraft Help	Довідка RustDraft
+	DraftCraft Help	Довідка DraftCraft
 	Cancel	Скасувати
 	Cartesian (x, y)	Декартові (x, y)
 	Center	Центр
@@ -718,7 +718,7 @@
 	Quick Select...	Швидкий вибір...
 	QuickCalc	Калькулятор
 	QuickCalc Pick	Вибір для калькулятора
-	Quit RustDraft	Вийти з RustDraft
+	Quit DraftCraft	Вийти з DraftCraft
 	Radius	Радіус
 	Raster Image	Растрове зображення
 	Ray	Промінь
@@ -952,7 +952,7 @@
 # Options dialog (OPTIONS).
 	A drawing opened from a file keeps that file's format.	Креслення, відкрите з файлу, зберігає формат цього файлу.
 	An array that would create more objects than this is refused.	Масив, що створив би більше об'єктів, буде відхилено.
-	RustDraft keeps these preferences, object snap modes and drafting toggles for your user account and restores them when it starts.	RustDraft зберігає ці параметри, режими об'єктної прив'язки та перемикачі креслення для вашого облікового запису й відновлює їх під час запуску.
+	DraftCraft keeps these preferences, object snap modes and drafting toggles for your user account and restores them when it starts.	DraftCraft зберігає ці параметри, режими об'єктної прив'язки та перемикачі креслення для вашого облікового запису й відновлює їх під час запуску.
 	Changes apply at once and are kept for next time.	Зміни застосовуються одразу й зберігаються на наступний раз.
 	Command line history	Історія командного рядка
 	Copy as JSON	Копіювати як JSON
@@ -1227,7 +1227,7 @@
 @plural	{n} contributor	{n} учасник|{n} учасники|{n} учасників
 	Drawing as bytes	Креслення як байти
 	Services	Служби
-	Hide RustDraft	Приховати RustDraft
+	Hide DraftCraft	Приховати DraftCraft
 	Hide Others	Приховати інші
 	Accessibility	Спеціальні можливості
 	Show System Cursor	Показувати системний курсор
@@ -1372,7 +1372,7 @@
 	Customize	Налаштування інтерфейсу
 	Edit Command Aliases (PGP)...	Редагувати псевдоніми команд (PGP)...
 	Check for Updates…	Перевірити оновлення…
-	RustDraft is up to date.	Встановлено найновішу версію RustDraft.
+	DraftCraft is up to date.	Встановлено найновішу версію DraftCraft.
 	Could not check for updates.	Не вдалося перевірити оновлення.
 	Save changes to block "{name}"?	Зберегти зміни в блоці «{name}»?
 	Find All	Find All

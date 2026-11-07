@@ -28,7 +28,7 @@
 	= Equals	= Gleich
 	> Greater than	> Größer als
 	About	Über
-	About RustDraft	Über RustDraft
+	About DraftCraft	Über DraftCraft
 	Absolute	Absolut
 	Add Leader	Führungslinie hinzufügen
 	Align	Ausrichten
@@ -84,7 +84,7 @@
 	ByBlock	VonBlock
 	ByColor	VonFarbe
 	ByLayer	VonLayer
-	RustDraft Help	RustDraft-Hilfe
+	DraftCraft Help	DraftCraft-Hilfe
 	Cancel	Abbrechen
 	Cartesian (x, y)	Kartesisch (x, y)
 	Center	Zentrum
@@ -593,7 +593,7 @@
 	Quick Select Properties	Schnellauswahl-Eigenschaften
 	Quick Select...	Schnellauswahl...
 	QuickCalc	QuickCalc
-	Quit RustDraft	RustDraft beenden
+	Quit DraftCraft	DraftCraft beenden
 	Radius	Radius
 	Raster Image	Rasterbild
 	Ray	Strahl
@@ -1000,7 +1000,7 @@
 @plural	{n} contributor	{n} Mitwirkender|{n} Mitwirkende
 	Drawing as bytes	Zeichnung als Bytes
 	Services	Dienste
-	Hide RustDraft	RustDraft ausblenden
+	Hide DraftCraft	DraftCraft ausblenden
 	Hide Others	Andere ausblenden
 	Accessibility	Bedienungshilfen
 	Show System Cursor	Systemzeiger anzeigen
@@ -1036,7 +1036,7 @@
 	Text color	Textfarbe
 	Click the ruler to add a tab stop, right-click to remove one	Klick auf das Lineal setzt einen Tabstopp, Rechtsklick entfernt ihn
 	Check for Updates…	Nach Updates suchen…
-	RustDraft is up to date.	RustDraft ist auf dem neuesten Stand.
+	DraftCraft is up to date.	DraftCraft ist auf dem neuesten Stand.
 	Could not check for updates.	Die Suche nach Updates ist fehlgeschlagen.
 	Find All	Find All
 	Find what:	Find what:

@@ -49,7 +49,7 @@
 	A drawing opened from a file keeps that file's format.	Bir dosyadan açılan çizim o dosyanın biçimini korur.
 	A variable name starts with a letter and has only letters, digits and _	Değişken adı bir harfle başlar ve yalnızca harf, rakam ve _ içerir
 	About	Hakkında
-	About RustDraft	RustDraft Hakkında
+	About DraftCraft	DraftCraft Hakkında
 	Absolute	Mutlak
 	Accessibility	Erişilebilirlik
 	Add	Ekle
@@ -139,9 +139,9 @@
 	ByBlock	BloğaGöre
 	ByColor	RengeGöre
 	ByLayer	KatmanaGöre
-	RustDraft	RustDraft
-	RustDraft Help	RustDraft Yardımı
-	RustDraft keeps these preferences, object snap modes and drafting toggles for your user account and restores them when it starts.	RustDraft bu tercihleri, nesne kenetleme kiplerini ve çizim seçeneklerini kullanıcı hesabınız için saklar ve açılışta geri yükler.
+	DraftCraft	DraftCraft
+	DraftCraft Help	DraftCraft Yardımı
+	DraftCraft keeps these preferences, object snap modes and drafting toggles for your user account and restores them when it starts.	DraftCraft bu tercihleri, nesne kenetleme kiplerini ve çizim seçeneklerini kullanıcı hesabınız için saklar ve açılışta geri yükler.
 	Calibrate	Kalibre Et
 	Calibrate 3D Mouse	3B Fareyi Kalibre Et
 	Cancel	İptal
@@ -479,7 +479,7 @@
 	Hide All	Tümünü Gizle
 	Hide All Constraint Bars	Tüm Kısıtlama Çubuklarını Gizle
 	Hide All Dynamic Dimensions	Tüm Dinamik Ölçüleri Gizle
-	Hide RustDraft	RustDraft'ı Gizle
+	Hide DraftCraft	DraftCraft'ı Gizle
 	Hide Layer List	Katman Listesini Gizle
 	Hide Objects	Nesneleri Gizle
 	Hide Others	Diğerlerini Gizle
@@ -819,7 +819,7 @@
 	Quick Select...	Hızlı Seçim...
 	QuickCalc	Hızlı Hesap
 	QuickCalc Pick	Hızlı Hesap Seçimi
-	Quit RustDraft	RustDraft'tan Çık
+	Quit DraftCraft	DraftCraft'tan Çık
 	Radius	Yarıçap
 	Raster Image	Raster Görüntü
 	Ray	Işın
@@ -1344,7 +1344,7 @@ menu	Draw	Çiz
 menu	Modify	Değiştir
 menu	View	Görünüm
 	Check for Updates…	Güncellemeleri denetle…
-	RustDraft is up to date.	RustDraft güncel.
+	DraftCraft is up to date.	DraftCraft güncel.
 	Could not check for updates.	Güncellemeler denetlenemedi.
 	Find All	Find All
 	Find what:	Find what:
