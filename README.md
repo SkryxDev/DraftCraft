@@ -6,6 +6,7 @@
 
 <p align="center">
   <a href="https://ko-fi.com/K0O529L823"><img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Support me on Ko-fi"></a>
+  <a href="https://discord.gg/34w9FmQXvz"><img height="30" src="https://img.shields.io/badge/Discord-Join%20the%20server-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join the RustDraft Discord"></a>
 </p>
 
 <p align="center">
