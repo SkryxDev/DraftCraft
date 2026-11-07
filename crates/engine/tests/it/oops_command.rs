@@ -1,15 +1,15 @@
 //! OOPS, as AutoCAD 2024 runs it (accoreconsole: a line A, a line B, a circle C and a line D, these
 //! scripts, then the drawing's `entnext` order read back).
 
-use rustdraft_engine::Session;
-use rustdraft_engine::cmd::file::{EntityCodec, set_entity_codec};
-use rustdraft_engine::doc::{Common, EntityKind, Handle, Line, Space};
-use rustdraft_engine::geom::Vec3;
+use draftcraft_engine::Session;
+use draftcraft_engine::cmd::file::{EntityCodec, set_entity_codec};
+use draftcraft_engine::doc::{Common, EntityKind, Handle, Line, Space};
+use draftcraft_engine::geom::Vec3;
 use serde_json::{Value, json};
 
 /// A session that `entmake` works in.
 fn session() -> Session {
-    set_entity_codec(EntityCodec { groups: rustdraft_io::entity_groups, entity: rustdraft_io::entity_from_groups });
+    set_entity_codec(EntityCodec { groups: draftcraft_io::entity_groups, entity: draftcraft_io::entity_from_groups });
     Session::new()
 }
 

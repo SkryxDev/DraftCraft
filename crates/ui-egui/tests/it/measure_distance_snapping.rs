@@ -1,12 +1,12 @@
 //! Measure Distance uses real pointer snaps in MODEL and PAPER, including viewport scale (#516).
 
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{Common, Drawing, EntityKind, Line, Space, Viewport};
+use draftcraft_engine::geom::{Vec2, Vec3};
+use draftcraft_engine::snap::mode;
+use draftcraft_ui_egui::{CadApp, Services};
 use egui::{Event, Modifiers, PointerButton, Pos2, vec2};
 use egui_kittest::Harness;
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{Common, Drawing, EntityKind, Line, Space, Viewport};
-use rustdraft_engine::geom::{Vec2, Vec3};
-use rustdraft_engine::snap::mode;
-use rustdraft_ui_egui::{CadApp, Services};
 use serde_json::json;
 
 fn harness(paper: bool, render: bool) -> Harness<'static, CadApp> {
@@ -72,7 +72,7 @@ fn click(h: &mut Harness<'_, CadApp>, pos: Pos2) {
 }
 
 fn measure(paper: bool) {
-    let shots = std::env::var_os("RUSTDRAFT_MEASURE_SHOTS").map(std::path::PathBuf::from);
+    let shots = std::env::var_os("DRAFTCRAFT_MEASURE_SHOTS").map(std::path::PathBuf::from);
     let mut h = harness(paper, shots.is_some());
     let dirty_before = h.state().session.state().unwrap().is_dirty();
     // The ribbon's Measure ▸ Distance starts DIST as this does.

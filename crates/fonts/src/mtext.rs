@@ -1,6 +1,6 @@
 //! MTEXT: inline-format parsing, word wrap and attachment.
 
-use rustdraft_geom::{Bounds2, Vec2};
+use draftcraft_geom::{Bounds2, Vec2};
 
 use crate::{Shaped, TextFont, shape_line, text_width};
 

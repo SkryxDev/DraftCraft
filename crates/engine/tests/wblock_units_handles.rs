@@ -1,9 +1,9 @@
 //! WBLOCK writes the source's units, only the blocks the written objects use, and handles that
 //! never repeat.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::cmd::file::{IoHooks, set_io};
-use rustdraft_engine::doc::Drawing;
+use draftcraft_engine::Session;
+use draftcraft_engine::cmd::file::{IoHooks, set_io};
+use draftcraft_engine::doc::Drawing;
 use serde_json::json;
 
 /// Writes "insunits;block names;handles;distinct handles" so the test can read what would be saved.
@@ -21,7 +21,7 @@ fn write(d: &Drawing, _path: &str) -> Result<Vec<u8>, String> {
 }
 
 fn written(s: &mut Session, p: serde_json::Value) -> String {
-    let path = std::env::temp_dir().join(format!("rustdraft-wblock-units-{}.dxf", std::process::id()));
+    let path = std::env::temp_dir().join(format!("draftcraft-wblock-units-{}.dxf", std::process::id()));
     let mut p = p;
     p["path"] = json!(path.to_string_lossy());
     s.execute("wblock", &p).unwrap();

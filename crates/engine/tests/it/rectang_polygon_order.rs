@@ -2,8 +2,8 @@
 //! one rectangle to the next. The scripts and numbers were measured with accoreconsole; the
 //! RECTANG scripts reset Chamfer, Fillet, Width, Elevation and Thickness first, but not Rotation.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::EntityKind;
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::EntityKind;
 use serde_json::json;
 
 type Vertex = (f64, f64, f64);

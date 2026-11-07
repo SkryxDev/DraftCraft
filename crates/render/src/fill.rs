@@ -1,7 +1,7 @@
 //! Polygon filling: even-odd regions to triangles (slab decomposition), wide polylines.
 
-use rustdraft_doc::LwPolyline;
-use rustdraft_geom::{Polyline, Vec2};
+use draftcraft_doc::LwPolyline;
+use draftcraft_geom::{Polyline, Vec2};
 
 /// Triangulate an even-odd region bounded by closed loops (holes allowed) by cutting it into
 /// horizontal slabs at every vertex y and emitting trapezoids. Two edges that cross inside a slab

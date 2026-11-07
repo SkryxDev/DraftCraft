@@ -1,9 +1,9 @@
 //! The ACIS geometry of 3D solids and regions survives a save. From AutoCAD 2013 on those entities
 //! don't carry it themselves: it lives in the file's data store section (ACDSDATA), one record per
-//! entity bound by a 320 handle. RustDraft doesn't model solids, so it keeps the section as read and
+//! entity bound by a 320 handle. DraftCraft doesn't model solids, so it keeps the section as read and
 //! writes it back (and the DWG bridge reads it), without the records of deleted entities.
 
-use rustdraft_doc::EntityKind;
+use draftcraft_doc::EntityKind;
 
 /// Stand-in modeler data, carried as opaque bytes: the binary ACIS magic, some bytes, and the
 /// end-of-data marker DWG readers delimit each body with.
@@ -63,20 +63,20 @@ fn asm_data(text: &str) -> Vec<(String, String)> {
 
 #[test]
 fn dxf_keeps_the_data_store_and_drops_records_of_deleted_entities() {
-    let mut d = rustdraft_io::read_dxf(dxf().as_bytes()).unwrap();
+    let mut d = draftcraft_io::read_dxf(dxf().as_bytes()).unwrap();
     assert_eq!(d.foreign.data_store_entities().len(), 2);
-    let out = String::from_utf8(rustdraft_io::write(&d, "x.dxf").unwrap()).unwrap();
+    let out = String::from_utf8(draftcraft_io::write(&d, "x.dxf").unwrap()).unwrap();
     assert_eq!(asm_data(&out), vec![("2A".to_string(), SAB_HEX.to_string()), ("2B".to_string(), SAB_HEX.to_string())]);
 
     // Deleting a solid drops its record; the other stays.
     let h = d.model.iter().find(|e| e.handle.hex() == "2B").map(|e| e.handle).unwrap();
     d.remove_entity(h).unwrap();
-    let out = String::from_utf8(rustdraft_io::write(&d, "x.dxf").unwrap()).unwrap();
+    let out = String::from_utf8(draftcraft_io::write(&d, "x.dxf").unwrap()).unwrap();
     assert_eq!(asm_data(&out), vec![("2A".to_string(), SAB_HEX.to_string())]);
 
     // An R2000 file has no data store (its solids would carry SAT text instead).
     let r2000 = String::from_utf8(
-        rustdraft_io::write_with(&d, "x.dxf", &rustdraft_io::SaveOptions { version: Some(rustdraft_io::Version::R2000), binary: false }).unwrap(),
+        draftcraft_io::write_with(&d, "x.dxf", &draftcraft_io::SaveOptions { version: Some(draftcraft_io::Version::R2000), binary: false }).unwrap(),
     )
     .unwrap();
     assert!(!r2000.contains("ACDSDATA"));
@@ -84,21 +84,21 @@ fn dxf_keeps_the_data_store_and_drops_records_of_deleted_entities() {
     // No solid left: no section.
     let h = d.model.iter().find(|e| matches!(e.kind, EntityKind::Unknown(_))).map(|e| e.handle).unwrap();
     d.remove_entity(h).unwrap();
-    let out = String::from_utf8(rustdraft_io::write(&d, "x.dxf").unwrap()).unwrap();
+    let out = String::from_utf8(draftcraft_io::write(&d, "x.dxf").unwrap()).unwrap();
     assert!(!out.contains("ACDSDATA"));
 }
 
 #[test]
 fn dwg_keeps_the_solids_geometry() {
-    let d = rustdraft_io::read_dxf(dxf().as_bytes()).unwrap();
-    let dwg = rustdraft_io::write(&d, "x.dwg").unwrap();
+    let d = draftcraft_io::read_dxf(dxf().as_bytes()).unwrap();
+    let dwg = draftcraft_io::write(&d, "x.dwg").unwrap();
     // The DWG read back (as the bridge's DXF) binds the same bytes to both solids.
-    let back = String::from_utf8(rustdraft_dwg::dwg_to_dxf(&dwg).unwrap()).unwrap();
+    let back = String::from_utf8(draftcraft_dwg::dwg_to_dxf(&dwg).unwrap()).unwrap();
     let mut got = asm_data(&back);
     got.sort();
     assert_eq!(got, vec![("2A".to_string(), SAB_HEX.to_string()), ("2B".to_string(), SAB_HEX.to_string())]);
-    // And reopening it in RustDraft keeps them for the next save.
-    let again = rustdraft_io::read(&dwg, "x.dwg").unwrap();
+    // And reopening it in DraftCraft keeps them for the next save.
+    let again = draftcraft_io::read(&dwg, "x.dwg").unwrap();
     assert_eq!(again.foreign.data_store_entities().len(), 2);
 }
 
@@ -111,23 +111,23 @@ fn sat_text_solids_are_left_out_of_dxf_2013_and_later() {
         0\nREGION\n5\n2B\n100\nAcDbEntity\n8\n0\n100\nAcDbModelerGeometry\n70\n1\n1\n400 1 1 0\n1\n16 ZWCAD\n3\nEnd-of-ACIS-data\n\
         0\n3DSOLID\n5\n2C\n100\nAcDbEntity\n8\n0\n100\nAcDbModelerGeometry\n70\n1\n1\n400 1 1 0\n3\nEnd-of-ACIS-data\n\
         0\nLINE\n5\n2D\n8\n0\n10\n0\n20\n0\n11\n1\n21\n1\n0\nENDSEC\n0\nEOF\n";
-    let d = rustdraft_io::read_dxf(sat.as_bytes()).unwrap();
-    let count = |v: rustdraft_io::Version, ty: &str| {
-        let out = rustdraft_io::write_with(&d, "x.dxf", &rustdraft_io::SaveOptions { version: Some(v), binary: false }).unwrap();
+    let d = draftcraft_io::read_dxf(sat.as_bytes()).unwrap();
+    let count = |v: draftcraft_io::Version, ty: &str| {
+        let out = draftcraft_io::write_with(&d, "x.dxf", &draftcraft_io::SaveOptions { version: Some(v), binary: false }).unwrap();
         let t = String::from_utf8(out).unwrap().replace("\r\n", "\n");
         t.matches(&format!("\n0\n{ty}\n")).count() + t.matches(&format!("\n  0\n{ty}\n")).count()
     };
-    assert_eq!(rustdraft_doc::foreign::sat_text_dropped(&d), [("3DSOLID".to_string(), 1), ("REGION".to_string(), 1)].into());
-    for v in [rustdraft_io::Version::R2000, rustdraft_io::Version::R2010] {
+    assert_eq!(draftcraft_doc::foreign::sat_text_dropped(&d), [("3DSOLID".to_string(), 1), ("REGION".to_string(), 1)].into());
+    for v in [draftcraft_io::Version::R2000, draftcraft_io::Version::R2010] {
         assert_eq!((count(v, "REGION"), count(v, "3DSOLID")), (1, 1), "{v:?} keeps them");
     }
-    for v in [rustdraft_io::Version::R2013, rustdraft_io::Version::R2018] {
+    for v in [draftcraft_io::Version::R2013, draftcraft_io::Version::R2018] {
         assert_eq!((count(v, "REGION"), count(v, "3DSOLID")), (0, 0), "{v:?} leaves them out");
         assert_eq!(count(v, "LINE"), 1, "{v:?} keeps the rest");
     }
     // Solids with a data store record keep their geometry in 2013 and later.
-    let stored = rustdraft_io::read_dxf(dxf().as_bytes()).unwrap();
-    assert!(rustdraft_doc::foreign::sat_text_dropped(&stored).is_empty());
+    let stored = draftcraft_io::read_dxf(dxf().as_bytes()).unwrap();
+    assert!(draftcraft_doc::foreign::sat_text_dropped(&stored).is_empty());
 }
 
 /// A DWG keeps SAT-text solids at any version (its writer handles them), and a DXF's note leaves
@@ -137,32 +137,33 @@ fn sat_text_solids_stay_in_dwg_2018_and_xref_contents_are_not_counted() {
     let sat = "0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1015\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n\
         0\nREGION\n5\n2B\n100\nAcDbEntity\n8\n0\n100\nAcDbModelerGeometry\n70\n1\n1\n400 1 1 0\n3\nEnd-of-ACIS-data\n\
         0\nLINE\n5\n2D\n8\n0\n10\n0\n20\n0\n11\n1\n21\n1\n0\nENDSEC\n0\nEOF\n";
-    let d = rustdraft_io::read_dxf(sat.as_bytes()).unwrap();
-    let opts = rustdraft_io::SaveOptions { version: Some(rustdraft_io::Version::R2018), binary: false };
-    let dwg = rustdraft_io::write_with(&d, "x.dwg", &opts).unwrap();
-    let back = rustdraft_io::read(&dwg, "x.dwg").unwrap();
-    let unknown = |d: &rustdraft_doc::Drawing| d.model.iter().filter(|e| matches!(&e.kind, EntityKind::Unknown(u) if u.dxf_type == "REGION")).count();
+    let d = draftcraft_io::read_dxf(sat.as_bytes()).unwrap();
+    let opts = draftcraft_io::SaveOptions { version: Some(draftcraft_io::Version::R2018), binary: false };
+    let dwg = draftcraft_io::write_with(&d, "x.dwg", &opts).unwrap();
+    let back = draftcraft_io::read(&dwg, "x.dwg").unwrap();
+    let unknown =
+        |d: &draftcraft_doc::Drawing| d.model.iter().filter(|e| matches!(&e.kind, EntityKind::Unknown(u) if u.dxf_type == "REGION")).count();
     assert_eq!(unknown(&back), 1, "the DWG 2018 keeps the region");
 
     // Xref blocks (and `xref|` ones) hold no entities in the file: not reported as left out.
     let mut x = d.clone();
     let region = d.model.iter().find(|e| matches!(&e.kind, EntityKind::Unknown(_))).cloned().unwrap();
-    let mut host = rustdraft_doc::Block::new("REF");
+    let mut host = draftcraft_doc::Block::new("REF");
     host.xref_path = Some("other.dwg".into());
     host.entities.push((*region).clone());
     x.blocks.insert("REF".into(), std::sync::Arc::new(host));
-    let mut dep = rustdraft_doc::Block::new("REF|PART");
+    let mut dep = draftcraft_doc::Block::new("REF|PART");
     dep.entities.push((*region).clone());
     x.blocks.insert("REF|PART".into(), std::sync::Arc::new(dep));
-    assert_eq!(rustdraft_doc::foreign::sat_text_dropped(&x), [("REGION".to_string(), 1)].into(), "only the model-space region");
+    assert_eq!(draftcraft_doc::foreign::sat_text_dropped(&x), [("REGION".to_string(), 1)].into(), "only the model-space region");
 }
 
 /// Only groups 1 and 3 of the modeler geometry subclass are SAT text, and only a record holding
 /// the entity's ASM_Data keeps its geometry in the data store (#2334).
 #[test]
 fn sat_text_is_told_by_its_subclass_and_a_geometry_record() {
-    use rustdraft_doc::foreign::{Foreign, sat_text_acis};
-    use rustdraft_doc::{Handle, RawTag, Unknown};
+    use draftcraft_doc::foreign::{Foreign, sat_text_acis};
+    use draftcraft_doc::{Handle, RawTag, Unknown};
     let tag = |code: i32, value: &str| RawTag { code, value: value.into() };
     let solid = |tags: Vec<RawTag>| Unknown { dxf_type: "3DSOLID".into(), tags };
     let none = std::collections::BTreeSet::new();
@@ -190,8 +191,8 @@ fn sat_text_is_told_by_its_subclass_and_a_geometry_record() {
 /// stored (#2334).
 #[test]
 fn a_data_store_record_stores_only_its_first_entity() {
-    use rustdraft_doc::foreign::Foreign;
-    use rustdraft_doc::{Handle, RawTag};
+    use draftcraft_doc::foreign::Foreign;
+    use draftcraft_doc::{Handle, RawTag};
     let tag = |code: i32, value: &str| RawTag { code, value: value.into() };
     let store = Foreign { data_store: vec![tag(0, "ACDSRECORD"), tag(320, "2B"), tag(320, "2C"), tag(2, "ASM_Data")], ..Foreign::default() };
     assert_eq!(store.data_store_entities(), [Handle(0x2B)].into());
@@ -204,16 +205,16 @@ fn a_data_store_record_stores_only_its_first_entity() {
 fn a_dwg_keeps_a_sat_text_region_only_before_2013() {
     let sat = "0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1015\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n\
         0\nREGION\n5\n2B\n100\nAcDbEntity\n8\n0\n100\nAcDbModelerGeometry\n70\n1\n1\n400 1 1 0\n3\nEnd-of-ACIS-data\n0\nENDSEC\n0\nEOF\n";
-    let d = rustdraft_io::read_dxf(sat.as_bytes()).unwrap();
-    let holds_sat = |v: rustdraft_io::Version| {
-        let dwg = rustdraft_io::write_with(&d, "x.dwg", &rustdraft_io::SaveOptions { version: Some(v), binary: false }).unwrap();
-        let back = rustdraft_io::read(&dwg, "x.dwg").unwrap();
+    let d = draftcraft_io::read_dxf(sat.as_bytes()).unwrap();
+    let holds_sat = |v: draftcraft_io::Version| {
+        let dwg = draftcraft_io::write_with(&d, "x.dwg", &draftcraft_io::SaveOptions { version: Some(v), binary: false }).unwrap();
+        let back = draftcraft_io::read(&dwg, "x.dwg").unwrap();
         let region = back.model.iter().find_map(|e| match &e.kind {
             EntityKind::Unknown(u) if u.dxf_type == "REGION" => Some(u.clone()),
             _ => None,
         });
-        region.is_some_and(|u| rustdraft_doc::foreign::has_sat_text(&u.tags))
+        region.is_some_and(|u| draftcraft_doc::foreign::has_sat_text(&u.tags))
     };
-    assert!(holds_sat(rustdraft_io::Version::R2010), "2010 keeps the SAT text");
-    assert!(!holds_sat(rustdraft_io::Version::R2018), "2018 comes back without it");
+    assert!(holds_sat(draftcraft_io::Version::R2010), "2010 keeps the SAT text");
+    assert!(!holds_sat(draftcraft_io::Version::R2018), "2018 comes back without it");
 }

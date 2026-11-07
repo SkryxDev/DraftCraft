@@ -9,7 +9,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use rustdraft_doc::{Drawing, Entity, EntityStore, Handle, entity_bounds};
+use draftcraft_doc::{Drawing, Entity, EntityStore, Handle, entity_bounds};
 use serde::Serialize;
 use serde::ser;
 

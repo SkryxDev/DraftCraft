@@ -6,7 +6,7 @@
 
 use std::collections::HashSet;
 
-use rustdraft_doc::{Drawing, EntityKind, EntityStore, Handle};
+use draftcraft_doc::{Drawing, EntityKind, EntityStore, Handle};
 use serde_json::{Value, json};
 
 use super::super::{bad, find_command, str_param};

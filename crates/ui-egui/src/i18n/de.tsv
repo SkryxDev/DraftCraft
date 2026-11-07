@@ -1,6 +1,6 @@
-# RustDraft German interface catalog — original translations by the RustDraft contributors.
+# DraftCraft German interface catalog — original translations by the DraftCraft contributors.
 # License: MIT OR Apache-2.0 (the repository LICENSE-MIT and LICENSE-APACHE).
-# Written from RustDraft's English strings; no proprietary translations were copied.
+# Written from DraftCraft's English strings; no proprietary translations were copied.
 # UTF-8: context<TAB>English source<TAB>German translation.
 # Empty context = ordinary label; @plural = one|other forms with {n}.
 # Keep command IDs, keywords, technology/product names and user data unchanged.

@@ -1,5 +1,5 @@
-use rustdraft_doc::{EntityKind, Handle, MLeader};
-use rustdraft_geom::Vec2;
+use draftcraft_doc::{EntityKind, Handle, MLeader};
+use draftcraft_geom::Vec2;
 use serde_json::{Value, json};
 
 use crate::{Input, Session};
@@ -118,13 +118,13 @@ fn hostile_mleader_edit_params_never_panic() {
     ] {
         let _ = s.execute(id, &p);
     }
-    let _ = rustdraft_render::build(s.doc().unwrap(), &rustdraft_doc::Space::Model, &rustdraft_render::Options::default());
+    let _ = draftcraft_render::build(s.doc().unwrap(), &draftcraft_doc::Space::Model, &draftcraft_render::Options::default());
 }
 
 mod units {
     use super::super::{Spacing, align_directional, align_distribute, align_parallel};
-    use rustdraft_doc::{Handle, MLeader};
-    use rustdraft_geom::{Vec2, Vec3};
+    use draftcraft_doc::{Handle, MLeader};
+    use draftcraft_geom::{Vec2, Vec3};
 
     fn unit_ml(arrow: [f64; 2], land: [f64; 2]) -> MLeader {
         MLeader {

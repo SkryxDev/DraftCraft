@@ -1,11 +1,11 @@
 //! INSERT of exploded blocks (`*NAME`) and of drawing files (`-INSERT path`, `NAME=path`, JSON
 //! `file`), read through the io hooks (#340).
 
-use rustdraft_engine::Session;
-use rustdraft_engine::cmd::file::{IoHooks, set_io};
-use rustdraft_engine::doc::color::Color;
-use rustdraft_engine::doc::geom::Vec3;
-use rustdraft_engine::doc::{Block, Circle, Drawing, Entity, EntityKind, HVal, Handle, Insert, Layer, Line};
+use draftcraft_engine::Session;
+use draftcraft_engine::cmd::file::{IoHooks, set_io};
+use draftcraft_engine::doc::color::Color;
+use draftcraft_engine::doc::geom::Vec3;
+use draftcraft_engine::doc::{Block, Circle, Drawing, Entity, EntityKind, HVal, Handle, Insert, Layer, Line};
 use serde_json::json;
 
 #[path = "support/temp_dir.rs"]

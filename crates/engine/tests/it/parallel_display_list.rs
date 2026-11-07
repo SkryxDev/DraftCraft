@@ -1,9 +1,9 @@
 //! Model space is built on all cores for the screen: the chunks are joined in drawing order, so
 //! the display list is exactly what one thread builds (vertex and triangle indices included).
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::Space;
-use rustdraft_engine::render::{DisplayList, Options, build, build_entities};
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::Space;
+use draftcraft_engine::render::{DisplayList, Options, build, build_entities};
 use serde_json::json;
 
 fn same(a: &DisplayList, b: &DisplayList) {

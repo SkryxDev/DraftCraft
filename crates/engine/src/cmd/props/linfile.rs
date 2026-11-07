@@ -1,8 +1,8 @@
 //! Linetypes from the user's own `.lin` files: LINETYPE `{load, file | text}` and the
 //! command-line -LINETYPE (`?`, `Load` from the built-in library or a file, `Set`).
 
-use rustdraft_doc::library::files::parse_lin;
-use rustdraft_doc::{Drawing, Linetype};
+use draftcraft_doc::library::files::parse_lin;
+use draftcraft_doc::{Drawing, Linetype};
 use serde_json::{Value, json};
 
 use super::super::helpers::support_text;

@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use rustdraft_doc::*;
+use draftcraft_doc::*;
 
 /// ASCII DXF from one `code value` group per line.
 fn dxf(groups: &str) -> Vec<u8> {
@@ -91,7 +91,7 @@ const DAMAGED: &str = "
 
 #[test]
 fn records_the_reader_cannot_place_are_counted_by_section() {
-    let d = rustdraft_io::read_dxf(&dxf(DAMAGED)).unwrap();
+    let d = draftcraft_io::read_dxf(&dxf(DAMAGED)).unwrap();
     // ENTITIES: a VERTEX and an ATTRIB with no POLYLINE/INSERT before them, a HATCH without
     // boundary data, a polyface mesh without faces. BLOCKS: a CIRCLE before any BLOCK, a VERTEX
     // inside one. Outside sections: the LINE between HEADER and BLOCKS.
@@ -103,9 +103,9 @@ fn records_the_reader_cannot_place_are_counted_by_section() {
 }
 
 #[test]
-fn a_file_rustdraft_wrote_skips_nothing() {
+fn a_file_draftcraft_wrote_skips_nothing() {
     let mut d = Drawing::new_metric();
-    d.add(&Space::Model, Common::default(), EntityKind::Line(Line { a: Default::default(), b: rustdraft_geom::Vec3::new(1.0, 1.0, 0.0) })).unwrap();
-    let back = rustdraft_io::read_dxf(rustdraft_io::write_dxf(&d).as_bytes()).unwrap();
+    d.add(&Space::Model, Common::default(), EntityKind::Line(Line { a: Default::default(), b: draftcraft_geom::Vec3::new(1.0, 1.0, 0.0) })).unwrap();
+    let back = draftcraft_io::read_dxf(draftcraft_io::write_dxf(&d).as_bytes()).unwrap();
     assert!(back.skipped_records.is_empty(), "{:?}", back.skipped_records);
 }

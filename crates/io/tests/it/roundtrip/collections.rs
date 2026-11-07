@@ -7,15 +7,15 @@ use super::{
     cases::{self, Case},
     compare,
 };
-use rustdraft_color::Color;
-use rustdraft_doc::{
+use draftcraft_color::Color;
+use draftcraft_doc::{
     Common, Drawing, EntityKind, Group, HVal, Layer, LayerState, Layout, Line, Linetype, NamedView, Space, TextStyle, Ucs, Viewport, VportConfig,
     VportTile,
 };
-use rustdraft_geom::{Vec2, Vec3};
+use draftcraft_geom::{Vec2, Vec3};
 
 pub(super) fn foreign_records() -> Case {
-    use rustdraft_doc::{Handle, RawTag, foreign::ForeignObject};
+    use draftcraft_doc::{Handle, RawTag, foreign::ForeignObject};
     let mut drawing = cases::drawing();
     let foreign = std::sync::Arc::make_mut(&mut drawing.foreign);
     foreign.dictionary.push(("SYNTHETIC_PAYLOAD".into(), Handle(0xA000)));
@@ -50,12 +50,12 @@ pub(super) fn assert_foreign_records(a: &Drawing, b: &Drawing, context: &str) {
     let source = a.foreign.objects.iter().find(|o| o.handle == *handle).unwrap();
     let back = b.foreign.objects.iter().find(|o| o.handle == *target).expect("dictionary target must resolve");
     assert_eq!(back.kind, source.kind, "{context}.object.kind");
-    let owner = back.tags.iter().find(|t| t.code == 330).and_then(|t| rustdraft_doc::Handle::parse_hex(&t.value)).expect("XRECORD owner");
+    let owner = back.tags.iter().find(|t| t.code == 330).and_then(|t| draftcraft_doc::Handle::parse_hex(&t.value)).expect("XRECORD owner");
     assert_eq!(b.foreign.targets.get(&owner), Some(&("NOD".into(), String::new())), "{context}.object.owner");
     // Foreign's documented contract reallocates object handles and remaps references.
     // Identity here is the NOD key and its resolved target, not the numeric allocation.
     // Preserve every payload tag (including its order) after the subclass marker.
-    fn payload(tags: &[rustdraft_doc::RawTag]) -> &[rustdraft_doc::RawTag] {
+    fn payload(tags: &[draftcraft_doc::RawTag]) -> &[draftcraft_doc::RawTag] {
         let start =
             tags.iter().position(|t| t.code == 100 && t.value == "AcDbXrecord").unwrap_or_else(|| panic!("missing XRECORD subclass: {tags:?}"));
         &tags[start + 1..]

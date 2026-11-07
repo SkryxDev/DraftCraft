@@ -1,9 +1,9 @@
 //! ARRAY, ARRAYRECT and ARRAYPOLAR at the command line: the type prompt and the edit-array
 //! option loops. Each input is its own `cmdline` call (one typed line each).
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{Drawing, Entity, EntityKind};
-use rustdraft_engine::geom::{Mat3, Vec2};
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{Drawing, Entity, EntityKind};
+use draftcraft_engine::geom::{Mat3, Vec2};
 use serde_json::json;
 
 fn typed(s: &mut Session, inputs: &[&str]) {

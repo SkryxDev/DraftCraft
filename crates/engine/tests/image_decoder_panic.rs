@@ -1,16 +1,16 @@
 //! A raster image decoder that panics on a damaged file fails that image only (#956): the
 //! drawing it belongs to still opens, and IMAGEATTACH reports an error.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::cmd::file::{IoHooks, base64_encode, set_image_decoder, set_io};
-use rustdraft_engine::doc::geom::{Vec2, Vec3};
-use rustdraft_engine::doc::{Common, Drawing, EntityKind, Image, Line, Space};
+use draftcraft_engine::Session;
+use draftcraft_engine::cmd::file::{IoHooks, base64_encode, set_image_decoder, set_io};
+use draftcraft_engine::doc::geom::{Vec2, Vec3};
+use draftcraft_engine::doc::{Common, Drawing, EntityKind, Image, Line, Space};
 use serde_json::json;
 
 fn hooks() {
     set_io(IoHooks {
-        read: |b, name| rustdraft_io::read(b, name).map_err(|e| e.to_string()),
-        write: |d, name| rustdraft_io::write(d, name).map_err(|e| e.to_string()),
+        read: |b, name| draftcraft_io::read(b, name).map_err(|e| e.to_string()),
+        write: |d, name| draftcraft_io::write(d, name).map_err(|e| e.to_string()),
         plot: None,
     });
     set_image_decoder(|_| panic!("decoder bug"));
@@ -19,7 +19,7 @@ fn hooks() {
 #[test]
 fn a_panicking_decoder_fails_the_image_not_the_drawing() {
     hooks();
-    let dir = std::env::temp_dir().join(format!("rustdraft-image-panic-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("draftcraft-image-panic-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(dir.join("map.png"), b"anything").unwrap();
@@ -35,7 +35,7 @@ fn a_panicking_decoder_fails_the_image_not_the_drawing() {
     };
     d.add(&Space::Model, Common::default(), EntityKind::Image(i)).unwrap();
     let host = dir.join("host.dxf");
-    std::fs::write(&host, rustdraft_io::write(&d, "host.dxf").unwrap()).unwrap();
+    std::fs::write(&host, draftcraft_io::write(&d, "host.dxf").unwrap()).unwrap();
 
     let mut s = Session::new();
     s.execute("open", &json!({ "path": host.to_string_lossy() })).unwrap();

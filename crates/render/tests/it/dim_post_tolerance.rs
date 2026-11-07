@@ -1,8 +1,8 @@
 //! DIMPOST's suffix goes on the tolerance values as well as on the measurement (issue #390).
 
-use rustdraft_doc::{DimKind, DimStyle, Dimension};
-use rustdraft_geom::Vec3;
-use rustdraft_render::dimension_geometry;
+use draftcraft_doc::{DimKind, DimStyle, Dimension};
+use draftcraft_geom::Vec3;
+use draftcraft_render::dimension_geometry;
 
 fn text(vars: serde_json::Value) -> (String, String) {
     let d = Dimension {

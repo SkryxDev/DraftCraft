@@ -44,21 +44,21 @@ pub(super) fn prims_of(list: &DisplayList, handles: &[Handle]) -> Vec<usize> {
 }
 
 /// Build options for previews at `scale` pixels per drawing unit (opaque).
-pub(super) fn preview_options(scale: f64) -> rustdraft_render::Options {
-    rustdraft_render::Options { tolerance: 0.5 / scale, min_dash: 2.0 / scale, ..Default::default() }
+pub(super) fn preview_options(scale: f64) -> draftcraft_render::Options {
+    draftcraft_render::Options { tolerance: 0.5 / scale, min_dash: 2.0 / scale, ..Default::default() }
 }
 
 /// The display list of preview entities the session builds with the current properties
-/// ([`rustdraft_engine::Session::preview`], the extras of [`rustdraft_engine::Session::drag`]): the
+/// ([`draftcraft_engine::Session::preview`], the extras of [`draftcraft_engine::Session::drag`]): the
 /// command's rubber band and rebuilt copies of existing objects. They carry CLAYER's properties,
 /// not the objects', so they are drawn opaque (the GPU drag of the objects themselves keeps their
 /// transparency, see [`draw_drag_gpu`]).
 pub(super) fn rebuilt_preview<'a>(
-    doc: &rustdraft_doc::Drawing,
-    ents: impl IntoIterator<Item = &'a rustdraft_doc::Entity>,
+    doc: &draftcraft_doc::Drawing,
+    ents: impl IntoIterator<Item = &'a draftcraft_doc::Entity>,
     scale: f64,
 ) -> DisplayList {
-    rustdraft_render::build_entities(doc, ents, &preview_options(scale))
+    draftcraft_render::build_entities(doc, ents, &preview_options(scale))
 }
 
 /// Rebuild the display list when needed. `xf`: the current view; `views`: every area on screen
@@ -71,7 +71,7 @@ pub(super) fn rebuilt_preview<'a>(
 /// (drawing folders, font folders, the search path) can each change what text looks like. Every
 /// cache of drawn geometry keys on it.
 pub(super) fn font_generation() -> u64 {
-    rustdraft_fonts::ttf::generation().wrapping_add(rustdraft_fonts::shx::generation() << 32)
+    draftcraft_fonts::ttf::generation().wrapping_add(draftcraft_fonts::shx::generation() << 32)
 }
 
 pub(super) fn ensure_list(app: &mut CadApp, xf: &Xf, views: &[(Bounds2, f64)], ctx: &egui::Context) {
@@ -141,7 +141,7 @@ pub(super) fn ensure_list(app: &mut CadApp, xf: &Xf, views: &[(Bounds2, f64)], c
     // dropping it cancels it.
     app.canvas.job = None;
     let t0 = crate::now_ms();
-    let opts = rustdraft_render::Options {
+    let opts = draftcraft_render::Options {
         tolerance: 2f64.powi(band(px)) * 0.5,
         // Two pixels at the band's finest zoom: the list serves every zoom in the band, so its
         // level of detail must hold at the finest one.
@@ -175,7 +175,7 @@ pub(super) fn ensure_list(app: &mut CadApp, xf: &Xf, views: &[(Bounds2, f64)], c
         }
     }
     let space = st.space.clone();
-    app.canvas.list = Some(rustdraft_render::build(&st.doc, &space, &opts));
+    app.canvas.list = Some(draftcraft_render::build(&st.doc, &space, &opts));
     app.canvas.key = key;
     app.canvas.window = opts.view;
     app.canvas.list_gen = app.canvas.list_gen.wrapping_add(1);
@@ -183,7 +183,7 @@ pub(super) fn ensure_list(app: &mut CadApp, xf: &Xf, views: &[(Bounds2, f64)], c
 }
 
 /// The display list of what a running command shows in place of the drawing
-/// ([`rustdraft_engine::Session::display_only`]: DVIEW's preview set), rebuilt when the drawing,
+/// ([`draftcraft_engine::Session::display_only`]: DVIEW's preview set), rebuilt when the drawing,
 /// the set or the 2x zoom band changes.
 #[derive(Default)]
 pub(super) struct OnlyList {
@@ -193,7 +193,7 @@ pub(super) struct OnlyList {
 
 impl OnlyList {
     /// `outline`: a clipped viewport's outline (model units) the preview is clipped to.
-    pub(super) fn update(&mut self, st: &rustdraft_engine::DocState, only: &rustdraft_engine::DisplayOnly, scale: f64, outline: Option<&[Vec2]>) {
+    pub(super) fn update(&mut self, st: &draftcraft_engine::DocState, only: &draftcraft_engine::DisplayOnly, scale: f64, outline: Option<&[Vec2]>) {
         let band = (1.0 / scale.max(1e-300)).log2().floor() as i32;
         let key = {
             use std::hash::{Hash, Hasher};
@@ -206,8 +206,8 @@ impl OnlyList {
         if self.key != Some(key) {
             let ents = only.handles.iter().filter_map(|h| st.doc.entity(*h)).map(|e| e.as_ref()).chain(only.extra.iter());
             let list = rebuilt_preview(&st.doc, ents, 2f64.powi(-band));
-            self.list = match outline.and_then(rustdraft_render::clip::PolyClip::new) {
-                Some(c) => rustdraft_render::clip_list(&list, &c),
+            self.list = match outline.and_then(draftcraft_render::clip::PolyClip::new) {
+                Some(c) => draftcraft_render::clip_list(&list, &c),
                 None => list,
             };
             self.key = Some(key);

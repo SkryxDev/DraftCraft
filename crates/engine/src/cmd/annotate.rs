@@ -3,8 +3,8 @@
 //! DIMREASSOCIATE / DIMDISASSOCIATE, DIMTEDIT, DIMSPACE; DIMEDIT, DIMJOGGED, DIMJOGLINE,
 //! DIMBREAK and DIMINSPECT in `annotate_dimedit.rs`.
 
-use rustdraft_doc::{AssocSnap, DimAssoc, DimKind, Dimension, EntityKind, Handle, MLeader, MText, Prim};
-use rustdraft_geom::{Segment, Vec2, Vec3};
+use draftcraft_doc::{AssocSnap, DimAssoc, DimKind, Dimension, EntityKind, Handle, MLeader, MText, Prim};
+use draftcraft_geom::{Segment, Vec2, Vec3};
 use serde_json::{Value, json};
 
 use super::helpers::v3;

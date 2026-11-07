@@ -1,7 +1,7 @@
 //! Snap queries through the same rectangular layout viewports that the renderer displays.
 
-use rustdraft_doc::{Drawing, EntityKind, Handle, Space, Viewport};
-use rustdraft_geom::{Bounds2, Vec2};
+use draftcraft_doc::{Drawing, EntityKind, Handle, Space, Viewport};
+use draftcraft_geom::{Bounds2, Vec2};
 use serde::Serialize;
 
 use super::{Deferred, SnapCurve, SnapHit};

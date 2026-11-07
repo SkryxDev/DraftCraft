@@ -1,6 +1,6 @@
-# RustDraft Arabic interface catalog — original translations.
+# DraftCraft Arabic interface catalog — original translations.
 # License: MIT OR Apache-2.0 (the repository LICENSE-MIT and LICENSE-APACHE).
-# Written from RustDraft's English strings; no proprietary translations were copied.
+# Written from DraftCraft's English strings; no proprietary translations were copied.
 # UTF-8: context<TAB>English source<TAB>Arabic (العربية) translation.
 # Empty context = ordinary label; @plural = zero|one|two|few|many|other forms with {n}.
 # Command IDs, typed keywords, technology/product names and user data stay unchanged.

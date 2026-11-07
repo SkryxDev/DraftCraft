@@ -2,9 +2,9 @@
 //! follow the multiline's own), caps and joints in the multiline's properties, and the fill.
 
 use super::{Builder, Ctx, Ink, fill, ink, linetype, resolve_common};
-use rustdraft_color::Color;
-use rustdraft_doc::{Entity, MLine};
-use rustdraft_geom::Vec2;
+use draftcraft_color::Color;
+use draftcraft_doc::{Entity, MLine};
+use draftcraft_geom::Vec2;
 
 pub(super) fn draw(b: &mut Builder, ctx: &Ctx, e: &Entity, m: &MLine, rgb: Ink, lw: f32, tol: f64) {
     let g = m.geometry();
@@ -58,7 +58,7 @@ pub(super) fn draw(b: &mut Builder, ctx: &Ctx, e: &Entity, m: &MLine, rgb: Ink, 
 }
 
 #[allow(clippy::too_many_arguments)]
-fn stroke(b: &mut Builder, ctx: &Ctx, rgb: Ink, lw: f32, lt: Option<&rustdraft_doc::Linetype>, scale: f64, min: f64, pts: &[Vec2]) {
+fn stroke(b: &mut Builder, ctx: &Ctx, rgb: Ink, lw: f32, lt: Option<&draftcraft_doc::Linetype>, scale: f64, min: f64, pts: &[Vec2]) {
     match lt.filter(|_| b.opts.linetypes) {
         Some(lt) => {
             for dash in linetype::apply(pts, lt, scale, min) {

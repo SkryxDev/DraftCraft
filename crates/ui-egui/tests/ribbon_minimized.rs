@@ -1,12 +1,12 @@
 //! A minimized ribbon opens again from any tab, not only from the tab that minimized it: a click
 //! on another tab shows that tab's panels.
 
+use draftcraft_engine::Session;
+use draftcraft_ui_egui::{CadApp, Services};
 use egui::accesskit::Role;
 use egui::vec2;
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
-use rustdraft_engine::Session;
-use rustdraft_ui_egui::{CadApp, Services};
 
 fn harness() -> Harness<'static, CadApp> {
     let mut app = CadApp::new(Session::default(), Services::default());

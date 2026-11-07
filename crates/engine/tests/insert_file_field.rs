@@ -4,11 +4,11 @@
 
 use std::sync::Arc;
 
-use rustdraft_engine::Session;
-use rustdraft_engine::cmd::file::{IoHooks, set_io};
-use rustdraft_engine::doc::foreign::{ForeignExtra, ForeignObject};
-use rustdraft_engine::doc::{Attrib, Drawing, Entity, EntityKind, Handle, RawTag, Text};
-use rustdraft_engine::geom::Vec3;
+use draftcraft_engine::Session;
+use draftcraft_engine::cmd::file::{IoHooks, set_io};
+use draftcraft_engine::doc::foreign::{ForeignExtra, ForeignObject};
+use draftcraft_engine::doc::{Attrib, Drawing, Entity, EntityKind, Handle, RawTag, Text};
+use draftcraft_engine::geom::Vec3;
 use serde_json::json;
 
 #[path = "support/temp_dir.rs"]

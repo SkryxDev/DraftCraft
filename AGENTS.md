@@ -1,13 +1,14 @@
-# RustDraft — instructions for agents
+# DraftCraft — instructions for agents
 
-RustDraft is an open-source, pure-Rust 2D CAD and drafting application with a Windows-style ribbon
+DraftCraft is an open-source, pure-Rust 2D CAD and drafting application with a Windows-style ribbon
 interface on macOS, Windows and Linux, plus a browser build (WASM). It reads and writes DWG and DXF, uses
 AutoCAD's command names at its command line, and can be driven by agents (MCP, control channel, CLI).
-It is based on [CADCraft](https://github.com/storytold/cadcraft) (MIT OR Apache-2.0); keep its copyright
-notice in `LICENSE-MIT` and `NOTICE`.
+Its upstream's copyright notice (MIT OR Apache-2.0) stays in `LICENSE-MIT` and `NOTICE`: the licence
+requires it. The DraftCraft™ name and logo are WithShalom Studios' marks, used by agreement
+(`docs/brand/LICENSE-brand.txt`).
 
 ## Never crash
-People trust RustDraft with their drawings; a crash loses their work. **This outranks feature work.**
+People trust DraftCraft with their drawings; a crash loses their work. **This outranks feature work.**
 - **No panics in non-test code:** no `unwrap()`, `expect()`, `panic!`, `unreachable!`, `todo!`, `unimplemented!`; no `unsafe` (`unsafe_code = "forbid"`).
 - **Errors are `Result<T, E>`** through the crate's error type and `?`. An unfinished feature returns an error or reports "not available yet"; it never panics.
 - **Input-derived numbers are hostile** (DXF/DWG files, command-line text, MCP/control params): `get()` not `[i]`, checked arithmetic, no NaN casts, cap input-sized allocations and loop counts.
@@ -18,7 +19,7 @@ People trust RustDraft with their drawings; a crash loses their work. **This out
 
 ## Non-negotiables
 - **Clean-room.** AutoCAD may only be *observed* black-box (run it, look at its UI with your own drawings). Never read, disassemble or copy anything inside an Autodesk install; never copy Autodesk fonts (SHX), hatch patterns (`.pat`), linetypes (`.lin`), templates, CUI/PGP files, icons, artwork or help text; never commit files produced by AutoCAD or screenshots of it. File formats come from public specifications (Autodesk's published DXF Reference, the Open Design Alliance's public DWG specification) and our own tests. Never copy or link GPL/LGPL/AGPL code (LibreDWG, LibreCAD, QCAD, FreeCAD's planegcs, SolveSpace, OpenCASCADE) — don't even read their sources.
-- **Assets.** RustDraft contains **no Autodesk, Adobe or Avid iconography, images, fonts, patterns or artwork — ever**, and no ArtCraft/CADCraft brand marks. Every icon is drawn in code (`crates/ui-egui/src/icons.rs`), every hatch pattern and linetype is our own definition (`crates/doc/src/library.rs`), the drafting font is our own (`crates/fonts/src/stroke.rs`). Any file asset must be original, public domain/CC0, OSI-licensed or redistributable Creative Commons, and **must have a row in `ATTRIBUTION.md`** with author, source and licence (`cargo xtask assets` enforces it).
+- **Assets.** DraftCraft contains **no Autodesk, Adobe or Avid iconography, images, fonts, patterns or artwork — ever**, and no brand marks other than DraftCraft's own. Every icon is drawn in code (`crates/ui-egui/src/icons.rs`), every hatch pattern and linetype is our own definition (`crates/doc/src/library.rs`), the drafting font is our own (`crates/fonts/src/stroke.rs`). Any file asset must be original, public domain/CC0, OSI-licensed or redistributable Creative Commons, and **must have a row in `ATTRIBUTION.md`** with author, source and licence (`cargo xtask assets` enforces it).
 - **Fonts** come from [`storytold/craft-fonts`](https://github.com/storytold/craft-fonts), an optional build input (`CRAFT_FONTS_DIR`, embedded by `crates/fonts/build.rs`), never a `Cargo.toml` dependency and never committed here. Code and tests must work without it.
 - **Everything is a command.** User-visible behaviour = a command in `crates/engine/src/cmd/*` (`CommandSpec`: id = AutoCAD's command name in lower case, label, menu path, shortcut, aliases, params doc, `enabled`, JSON `run`, optional `interactive` prompt machine) + tests. UI-only commands live in `crates/ui-egui/src/menus.rs` (`UI_COMMANDS`). The ribbon, menus, command line, scripts, CLI, control channel and MCP all reach the same commands.
 - **Programmatic calls never open dialogs.** `engine.execute` runs the JSON form with defaults; only ribbon/menu invocation starts the interactive prompt sequence.
@@ -37,14 +38,14 @@ People trust RustDraft with their drawings; a crash loses their work. **This out
   entries also need one in `zh.tsv` (a test checks it).
 
 ## Running and looking at the app
-- `cargo run --release -p rustdraft -- --sample --control PORT` (sample drawing + control channel). Pick a free port.
-- Drive it with JSON lines on `127.0.0.1:PORT`; each request carries the token from `~/.cache/rustdraft-control-PORT.token`:
+- `cargo run --release -p draftcraft -- --sample --control PORT` (sample drawing + control channel). Pick a free port.
+- Drive it with JSON lines on `127.0.0.1:PORT`; each request carries the token from `~/.cache/draftcraft-control-PORT.token`:
   - `{"id":1,"method":"cmdline.input","params":{"text":"circle 0,0 5"},"token":"…"}` — type at the command line exactly like a user.
   - `{"id":2,"method":"engine.execute","params":{"command":"line","params":{"points":[[0,0],[10,0]]}},"token":"…"}` — JSON form.
   - `{"id":3,"method":"ui.screenshot","params":{"path":"/tmp/shot.png"},"token":"…"}` then read the PNG.
   - Methods: `crates/ui-egui/src/control.rs`; protocol doc: `docs/control-protocol.md`.
-- **For UI work, look at the result** (screenshot, read the PNG). `RUSTDRAFT_CONFIG_DIR=<empty dir>` starts with fresh settings; `RUSTDRAFT_LOCALE=en` forces the language.
-- Headless: `rustdraft-cli run --sample --script 'LINE 0,0 10,10\n' --export out.png`; `rustdraft-cli info file.dxf`; `rustdraft-cli mcp`.
+- **For UI work, look at the result** (screenshot, read the PNG). `DRAFTCRAFT_CONFIG_DIR=<empty dir>` starts with fresh settings; `DRAFTCRAFT_LOCALE=en` forces the language.
+- Headless: `draftcraft-cli run --sample --script 'LINE 0,0 10,10\n' --export out.png`; `draftcraft-cli info file.dxf`; `draftcraft-cli mcp`.
 - Shell gotcha: `mv`/`cp` may be aliased interactive — use `/bin/mv -f` / `/bin/cp -f`.
 
 ## Quality gates
@@ -54,8 +55,3 @@ People trust RustDraft with their drawings; a crash loses their work. **This out
   installed Thai font (`thai_marks_stack_in_an_installed_font`).
 - `.github/workflows/ci.yml` runs the checks on every push; `.github/workflows/release.yml` builds every
   package (macOS DMG, Windows, Linux) when a `v*` tag is pushed (see `docs/releasing.md`).
-
-## Contributor credits
-The About window's Contributors tab lists the CADCraft contributors, compiled from
-`contributors/contributors.json` and `contributors/people.toml`. It credits the people who wrote the code
-RustDraft is based on: never edit, add or guess entries there.

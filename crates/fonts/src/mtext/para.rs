@@ -5,7 +5,7 @@
 //!
 //! Contents without any of these lay out exactly as in [`super::layout_mtext_with`]'s plain path.
 
-use rustdraft_geom::{Bounds2, Vec2};
+use draftcraft_geom::{Bounds2, Vec2};
 
 use super::{Atom, Fmt, MTextLayout, MTextParams, MTextPiece, Seg, arg, num, parse, seg_plain, seg_shape, seg_width, split_thai};
 

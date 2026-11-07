@@ -3,14 +3,14 @@
 //! `constraints.inspect` and `constraints.dof`, plus the post-command re-solve hook
 //! ([`after_command`]).
 //!
-//! The solver lives in `rustdraft-constraints`; this module turns picks and JSON parameters into
+//! The solver lives in `draftcraft-constraints`; this module turns picks and JSON parameters into
 //! constraint references and keeps the drawing's constraints satisfied after edits.
 
 use std::sync::Arc;
 
-use rustdraft_constraints as cs;
-use rustdraft_doc::{Constraint, ConstraintKind as K, DistAxis, Drawing, EntityKind, GeomRef, Handle, Sub};
-use rustdraft_geom::{Line, Vec2};
+use draftcraft_constraints as cs;
+use draftcraft_doc::{Constraint, ConstraintKind as K, DistAxis, Drawing, EntityKind, GeomRef, Handle, Sub};
+use draftcraft_geom::{Line, Vec2};
 use serde_json::{Value, json};
 
 use super::machines::{SelOutcome, SelectPhase};
@@ -156,7 +156,7 @@ fn char_points(kind: &EntityKind) -> Vec<(Sub, Vec2)> {
     match kind {
         EntityKind::Line(l) => vec![(Sub::Start, l.a.xy()), (Sub::End, l.b.xy()), (Sub::Mid, l.a.xy().mid(l.b.xy()))],
         EntityKind::Arc(a) => {
-            let g = rustdraft_geom::Arc::new(a.center.xy(), a.radius, a.start, a.end);
+            let g = draftcraft_geom::Arc::new(a.center.xy(), a.radius, a.start, a.end);
             vec![(Sub::Start, g.start_point()), (Sub::End, g.end_point()), (Sub::Mid, g.mid_point()), (Sub::Center, g.center)]
         }
         EntityKind::Circle(c) => vec![(Sub::Center, c.center.xy())],
@@ -1061,7 +1061,7 @@ fn infer_after(s: &mut Session, before: &Drawing) {
         return;
     }
     let Some(store) = d.space(&space) else { return };
-    let changed = |e: &Arc<rustdraft_doc::Entity>| before.entity(e.handle).is_none_or(|b| !Arc::ptr_eq(b, e) && **b != **e);
+    let changed = |e: &Arc<draftcraft_doc::Entity>| before.entity(e.handle).is_none_or(|b| !Arc::ptr_eq(b, e) && **b != **e);
     let placed: Vec<Handle> = store.iter().filter(|e| cs::supported(&e.kind) && changed(e)).map(|e| e.handle).take(MAX_INFER_PLACED + 1).collect();
     if placed.is_empty() || placed.len() > MAX_INFER_PLACED {
         return;
@@ -1099,7 +1099,7 @@ fn infer_after(s: &mut Session, before: &Drawing) {
         if placed.contains(&e.handle) || !cs::supported(&e.kind) || !d.is_visible(e) {
             continue;
         }
-        let b = rustdraft_doc::entity_bounds(d, e, 0).expand(tol);
+        let b = draftcraft_doc::entity_bounds(d, e, 0).expand(tol);
         if pts.iter().any(|p| b.contains(*p)) {
             if others.len() < 150 {
                 others.push(e.handle);

@@ -4,7 +4,7 @@
 
 use std::io::Cursor;
 
-use rustdraft_doc::Raster;
+use draftcraft_doc::Raster;
 
 use crate::{IoError, Result};
 

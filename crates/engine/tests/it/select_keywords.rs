@@ -1,8 +1,8 @@
 //! Keywords typed at "Select objects" (#428): BOX, SIngle, AUto, Multiple, Group, Add, Remove and
 //! Undo.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::EntityKind;
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::EntityKind;
 use serde_json::json;
 
 /// Three lines on the X axis: A 0–10, B 12–20, C 30–40.

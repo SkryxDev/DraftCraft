@@ -1,8 +1,8 @@
 //! HATCHEDIT refuses an explicit bad `scale` or `angle` before changing anything: no partial
 //! edit, no undo step, redo history kept.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::EntityKind;
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::EntityKind;
 use serde_json::{Value, json};
 
 fn fixture() -> (Session, String) {
@@ -33,7 +33,7 @@ fn assert_props(s: &Session, scale: f64, angle: f64) {
     assert!((sc - scale).abs() < 1e-9 && (an - angle).abs() < 1e-9, "scale {sc}, angle {an}");
 }
 
-fn edit(s: &mut Session, handle: &str, extra: Value) -> rustdraft_engine::Result<Value> {
+fn edit(s: &mut Session, handle: &str, extra: Value) -> draftcraft_engine::Result<Value> {
     let mut params = json!({ "handles": [handle] });
     for (k, v) in extra.as_object().unwrap() {
         params[k] = v.clone();

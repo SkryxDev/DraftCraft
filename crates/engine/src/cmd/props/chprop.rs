@@ -17,8 +17,8 @@
 
 use std::collections::HashSet;
 
-use rustdraft_color::Color;
-use rustdraft_doc::{Entity, Handle, Lineweight};
+use draftcraft_color::Color;
+use draftcraft_doc::{Entity, Handle, Lineweight};
 use serde_json::{Value, json};
 
 use super::super::curves::{KW, is_locked};

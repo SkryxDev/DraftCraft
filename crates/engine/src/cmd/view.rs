@@ -1,8 +1,8 @@
 //! View menu: ZOOM (with Realtime and Dynamic), PAN, REGEN, REDRAW, named views (VIEW), the view
 //! twist (DVIEW TWist), layout switching.
 
-use rustdraft_doc::{Space, entity_bounds};
-use rustdraft_geom::{Bounds2, Vec2};
+use draftcraft_doc::{Space, entity_bounds};
+use draftcraft_geom::{Bounds2, Vec2};
 use serde_json::{Value, json};
 
 use super::machines::{SelectRun, number};
@@ -293,7 +293,7 @@ fn run_view_set(s: &mut Session, p: &Value) -> Result<Value> {
             dview::set_twist(s, t, twist)?;
             s.state()?.view().twist
         }
-        Some(dview::Target::Model) => rustdraft_geom::norm_angle(twist),
+        Some(dview::Target::Model) => draftcraft_geom::norm_angle(twist),
         None => 0.0,
     };
     if !s.state_mut()?.set_view(View { center: c, height: h, twist }) {
@@ -558,7 +558,7 @@ impl Interactive for ZoomM {
             _ => Ok(Step::Continue),
         }
     }
-    fn preview(&self, _s: &Session, c: Vec2) -> Vec<rustdraft_doc::EntityKind> {
+    fn preview(&self, _s: &Session, c: Vec2) -> Vec<draftcraft_doc::EntityKind> {
         use super::helpers::{line, lwpoly, rect_vertices};
         let rect = |r: Bounds2| lwpoly(rect_vertices(r.min, r.max), true);
         if let ZoomStage::Dynamic(b) = self.stage {

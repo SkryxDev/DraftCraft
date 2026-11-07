@@ -1,9 +1,9 @@
 //! OLE objects (OLE2FRAME: a picture, a spreadsheet or a document embedded in the drawing)
-//! survive a DWG save. RustDraft doesn't model them and keeps them as read; the DWG bridge reads
+//! survive a DWG save. DraftCraft doesn't model them and keeps them as read; the DWG bridge reads
 //! them from our DXF into acadrust's own entity and writes them to DWG with their frame and the
 //! embedded object's bytes, so a drawing saved as DWG and reopened still has them.
 
-use rustdraft_doc::EntityKind;
+use draftcraft_doc::EntityKind;
 
 /// Stand-in OLE data as a DWG carries it: a two-byte marker, the frame's four corners (upper
 /// left, upper right, lower right, lower left; x, y, z doubles), then the object's bytes, here
@@ -85,28 +85,28 @@ fn assert_kept(rec: &[(String, String)]) {
 
 #[test]
 fn dwg_keeps_ole_objects() {
-    let d = rustdraft_io::read_dxf(dxf().as_bytes()).unwrap();
-    let ole = |d: &rustdraft_doc::Drawing| d.model.iter().filter(|e| matches!(&e.kind, EntityKind::Unknown(u) if u.dxf_type == "OLE2FRAME")).count();
+    let d = draftcraft_io::read_dxf(dxf().as_bytes()).unwrap();
+    let ole = |d: &draftcraft_doc::Drawing| d.model.iter().filter(|e| matches!(&e.kind, EntityKind::Unknown(u) if u.dxf_type == "OLE2FRAME")).count();
     assert_eq!(ole(&d), 1);
 
-    let dwg = rustdraft_io::write(&d, "x.dwg").unwrap();
-    let back = String::from_utf8(rustdraft_dwg::dwg_to_dxf(&dwg).unwrap()).unwrap();
+    let dwg = draftcraft_io::write(&d, "x.dwg").unwrap();
+    let back = String::from_utf8(draftcraft_dwg::dwg_to_dxf(&dwg).unwrap()).unwrap();
     let got = frames(&back);
     assert_eq!(got.len(), 1, "{got:?}");
     assert_kept(&got[0]);
 
-    // Reopened in RustDraft it is in model space again, and a second DWG save keeps it too.
-    let again = rustdraft_io::read(&dwg, "x.dwg").unwrap();
+    // Reopened in DraftCraft it is in model space again, and a second DWG save keeps it too.
+    let again = draftcraft_io::read(&dwg, "x.dwg").unwrap();
     assert_eq!(ole(&again), 1);
-    let dwg = rustdraft_io::write(&again, "x.dwg").unwrap();
-    let got = frames(&String::from_utf8(rustdraft_dwg::dwg_to_dxf(&dwg).unwrap()).unwrap());
+    let dwg = draftcraft_io::write(&again, "x.dwg").unwrap();
+    let got = frames(&String::from_utf8(draftcraft_dwg::dwg_to_dxf(&dwg).unwrap()).unwrap());
     assert_eq!(got.len(), 1, "{got:?}");
     assert_kept(&got[0]);
 
     // Older DWG versions keep it the same way.
-    for version in [rustdraft_io::Version::R2000, rustdraft_io::Version::R2010] {
-        let dwg = rustdraft_io::write_with(&d, "x.dwg", &rustdraft_io::SaveOptions { version: Some(version), binary: false }).unwrap();
-        let got = frames(&String::from_utf8(rustdraft_dwg::dwg_to_dxf(&dwg).unwrap()).unwrap());
+    for version in [draftcraft_io::Version::R2000, draftcraft_io::Version::R2010] {
+        let dwg = draftcraft_io::write_with(&d, "x.dwg", &draftcraft_io::SaveOptions { version: Some(version), binary: false }).unwrap();
+        let got = frames(&String::from_utf8(draftcraft_dwg::dwg_to_dxf(&dwg).unwrap()).unwrap());
         assert_eq!(got.len(), 1, "{version:?}: {got:?}");
         assert_kept(&got[0]);
     }

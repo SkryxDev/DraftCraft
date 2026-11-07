@@ -1,8 +1,8 @@
 //! #1667: a layout whose page setup plots a window (DXF plot type 4) lost the window corners
 //! (groups 48, 49, 140, 141) on save: they were written as zero.
 
-use rustdraft_doc::{Drawing, Layout, PageSetup};
-use rustdraft_io::{read, write_dxf};
+use draftcraft_doc::{Drawing, Layout, PageSetup};
+use draftcraft_io::{read, write_dxf};
 
 #[test]
 fn plot_window_corners_round_trip_through_dxf() {

@@ -1,9 +1,9 @@
 //! TOLERANCE (#420): feature control frames from the JSON form and the command line, edited by
 //! MOVE / ROTATE / MIRROR, exploded into plain geometry and text, hostile input refused.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{EntityKind, Tolerance};
-use rustdraft_engine::geom::Vec3;
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{EntityKind, Tolerance};
+use draftcraft_engine::geom::Vec3;
 use serde_json::json;
 
 fn tolerance(s: &Session) -> (String, Tolerance) {
@@ -145,7 +145,7 @@ fn hostile_params_are_refused_without_panicking() {
     ] {
         if s.execute("tolerance", &p).is_ok() {
             let t = tolerance(&s).1;
-            assert!(t.text.chars().count() <= rustdraft_engine::doc::MAX_FRAME_CHARS);
+            assert!(t.text.chars().count() <= draftcraft_engine::doc::MAX_FRAME_CHARS);
             let _ = s.execute("explode", &json!({ "handles": [tolerance(&s).0] }));
         }
     }

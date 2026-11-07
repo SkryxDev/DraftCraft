@@ -1,11 +1,11 @@
 //! Typed angles follow the drawing's angle settings: AUNITS for bare numbers, directions
 //! measured from ANGBASE in the ANGDIR sense, `<<` / `<<<` overrides.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::EntityKind;
-use rustdraft_engine::geom::Vec2;
-use rustdraft_engine::lisp::value::Value;
-use rustdraft_engine::units::AngleSettings;
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::EntityKind;
+use draftcraft_engine::geom::Vec2;
+use draftcraft_engine::lisp::value::Value;
+use draftcraft_engine::units::AngleSettings;
 use serde_json::json;
 
 fn setvar(s: &mut Session, name: &str, value: serde_json::Value) {
@@ -157,9 +157,9 @@ fn json_and_default_parsing_keep_degrees_from_east() {
         EntityKind::Line(l) => assert_near(l.b.xy(), 0.0, 10.0, "JSON @10<90"),
         k => panic!("expected a line, got {k:?}"),
     }
-    assert!((rustdraft_engine::units::parse_angle("90").unwrap() - std::f64::consts::FRAC_PI_2).abs() < 1e-12);
+    assert!((draftcraft_engine::units::parse_angle("90").unwrap() - std::f64::consts::FRAC_PI_2).abs() < 1e-12);
     // SETVAR reports ANGBASE in degrees.
-    let v = rustdraft_engine::sysvars::get(&s, "ANGBASE").unwrap();
+    let v = draftcraft_engine::sysvars::get(&s, "ANGBASE").unwrap();
     assert!((v.as_f64().unwrap() - 90.0).abs() < 1e-9, "{v}");
     let a = AngleSettings { aunits: 0, angbase: 0.0, clockwise: false };
     assert_eq!(a.direction(""), None);

@@ -1,9 +1,9 @@
 //! Dimension text formatting (issue #373): DIMRND rounds the measurement only, tolerances use
 //! DIMTZIN, alternate units DIMALTRND/DIMALTU/DIMALTZ, and DIMPOST is not added to angles.
 
-use rustdraft_doc::{DimKind, DimStyle, Dimension};
-use rustdraft_geom::Vec3;
-use rustdraft_render::dimension_geometry;
+use draftcraft_doc::{DimKind, DimStyle, Dimension};
+use draftcraft_geom::Vec3;
+use draftcraft_render::dimension_geometry;
 
 fn linear(len: f64) -> Dimension {
     Dimension {

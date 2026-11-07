@@ -2,7 +2,7 @@
 //! (kept in AFLAGS), the tag, prompt and default value (a constant attribute's value instead),
 //! then the text's point, justification, style, height and rotation.
 
-use rustdraft_doc::{AttribModes, HAlign, VAlign};
+use draftcraft_doc::{AttribModes, HAlign, VAlign};
 
 use super::{Accept, Attrib, EntityKind, Input, Interactive, Prompt, Result, Session, Step, Text, Vec2, number, v3};
 use crate::cmd::curves::KW;

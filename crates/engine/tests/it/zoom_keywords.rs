@@ -1,8 +1,8 @@
 //! Typed ZOOM Center, Scale, Dynamic and a plain scale factor do what they say, and ZOOM All /
 //! Extents in paper space fit the sheet (#388).
 
-use rustdraft_engine::{Session, View};
-use rustdraft_geom::Vec2;
+use draftcraft_engine::{Session, View};
+use draftcraft_geom::Vec2;
 use serde_json::json;
 
 fn view(s: &Session) -> View {

@@ -15,7 +15,7 @@ pub(super) fn run_ellipse(s: &mut Session, p: &Value) -> Result<Value> {
     }
     let start = f64_or(p, "start", 0.0).to_radians();
     let end = f64_or(p, "end", 360.0).to_radians();
-    added(s.add_entity(EntityKind::Ellipse(rustdraft_doc::Ellipse { center: v3(c), major: v3(m), ratio, start, end }))?)
+    added(s.add_entity(EntityKind::Ellipse(draftcraft_doc::Ellipse { center: v3(c), major: v3(m), ratio, start, end }))?)
 }
 
 /// ELLIPSE prompt machine starting in axis-end or center mode, optionally for an elliptical arc.
@@ -76,12 +76,12 @@ impl EllipseM {
             self.ellipse = Some(e);
             return Ok(Step::Continue);
         }
-        s.add_entity(EntityKind::Ellipse(rustdraft_doc::Ellipse {
+        s.add_entity(EntityKind::Ellipse(draftcraft_doc::Ellipse {
             center: v3(e.center),
             major: v3(e.major),
             ratio: e.ratio,
             start: 0.0,
-            end: rustdraft_geom::TAU,
+            end: draftcraft_geom::TAU,
         }))?;
         Ok(Step::Done)
     }
@@ -119,7 +119,7 @@ impl Interactive for EllipseM {
     }
     fn input(&mut self, s: &mut Session, i: Input) -> Result<Step> {
         if let Some(e) = self.ellipse {
-            let ge = Ellipse { start: 0.0, end: rustdraft_geom::TAU, ..e };
+            let ge = Ellipse { start: 0.0, end: draftcraft_geom::TAU, ..e };
             if self.included {
                 let incl = match i {
                     Input::Point(p) => (p - e.center).angle(),
@@ -131,7 +131,7 @@ impl Interactive for EllipseM {
                 // 232.716° ends the arc at 87.375° from the major axis).
                 let st = self.start.unwrap_or(0.0);
                 let end = ge.param_of(e.center + Vec2::from_angle((ge.at_param(st) - e.center).angle() + incl));
-                s.add_entity(EntityKind::Ellipse(rustdraft_doc::Ellipse {
+                s.add_entity(EntityKind::Ellipse(draftcraft_doc::Ellipse {
                     center: v3(e.center),
                     major: v3(e.major),
                     ratio: e.ratio,
@@ -151,12 +151,12 @@ impl Interactive for EllipseM {
                     return Ok(Step::Continue);
                 }
                 // A parameter is the angle from the major axis taken as the parameter itself.
-                Input::Point(p) if self.param => rustdraft_geom::norm_angle((p - e.center).angle() - e.major.angle()),
+                Input::Point(p) if self.param => draftcraft_geom::norm_angle((p - e.center).angle() - e.major.angle()),
                 Input::Point(p) => ge.param_of(p),
                 Input::Text(t) => {
                     let a = s.angle_settings().amount(&t).ok_or_else(|| crate::EngineError::Other("Requires an angle.".into()))?;
                     if self.param {
-                        rustdraft_geom::norm_angle(a)
+                        draftcraft_geom::norm_angle(a)
                     } else {
                         // A typed angle is a true angle from the major axis; convert it to an ellipse parameter like a picked point.
                         ge.param_of(e.center + Vec2::from_angle(a + e.major.angle()))
@@ -170,7 +170,7 @@ impl Interactive for EllipseM {
                     return Ok(Step::Continue);
                 }
                 Some(st) => {
-                    s.add_entity(EntityKind::Ellipse(rustdraft_doc::Ellipse {
+                    s.add_entity(EntityKind::Ellipse(draftcraft_doc::Ellipse {
                         center: v3(e.center),
                         major: v3(e.major),
                         ratio: e.ratio,
@@ -233,12 +233,12 @@ impl Interactive for EllipseM {
         }
         let e = if self.rotation { self.axis().and_then(|(ctr, _)| self.rotated((c - ctr).angle())) } else { self.build(c) };
         e.map(|e| {
-            vec![EntityKind::Ellipse(rustdraft_doc::Ellipse {
+            vec![EntityKind::Ellipse(draftcraft_doc::Ellipse {
                 center: v3(e.center),
                 major: v3(e.major),
                 ratio: e.ratio,
                 start: 0.0,
-                end: rustdraft_geom::TAU,
+                end: draftcraft_geom::TAU,
             })]
         })
         .unwrap_or_default()

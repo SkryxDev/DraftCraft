@@ -1,10 +1,10 @@
 //! Named views (#463): VIEW / -VIEW Save, Window, Restore, Delete, ? and the layer snapshot
 //! setting; Zoom Realtime and Dynamic; ZOOMFACTOR. (The DXF round trip of views is tested in
-//! `rustdraft-io`'s `view_tables_roundtrip`.)
+//! `draftcraft-io`'s `view_tables_roundtrip`.)
 
-use rustdraft_engine::doc::Space;
-use rustdraft_engine::geom::Vec2;
-use rustdraft_engine::{Session, View};
+use draftcraft_engine::doc::Space;
+use draftcraft_engine::geom::Vec2;
+use draftcraft_engine::{Session, View};
 use serde_json::json;
 
 fn session() -> Session {
@@ -101,7 +101,7 @@ fn a_window_saved_in_a_twisted_view_restores_whole() {
 #[test]
 fn layer_snapshot_restores_layers_and_the_setting_turns_it_off() {
     let mut s = session();
-    s.doc_mut().unwrap().layers.push(rustdraft_engine::doc::Layer { name: "Walls".into(), ..Default::default() });
+    s.doc_mut().unwrap().layers.push(draftcraft_engine::doc::Layer { name: "Walls".into(), ..Default::default() });
     let walls_on = |s: &Session| s.doc().unwrap().layer("Walls").map(|l| l.on);
     typed(&mut s, &["-view", "s", "All"]);
     s.doc_mut().unwrap().layer_mut("Walls").unwrap().on = false;

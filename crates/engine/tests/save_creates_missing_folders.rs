@@ -1,14 +1,14 @@
 //! A save to a folder that doesn't exist writes the file anyway and says what it created, so a
 //! mistyped path costs a stray folder, not the drawing (#2215).
 
-use rustdraft_engine::Session;
-use rustdraft_engine::cmd::file::{IoHooks, set_io};
-use rustdraft_engine::doc::Drawing;
+use draftcraft_engine::Session;
+use draftcraft_engine::cmd::file::{IoHooks, set_io};
+use draftcraft_engine::doc::Drawing;
 use serde_json::json;
 use std::path::PathBuf;
 
 fn scratch(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("rustdraft-new-folder-{}-{name}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("draftcraft-new-folder-{}-{name}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     dir

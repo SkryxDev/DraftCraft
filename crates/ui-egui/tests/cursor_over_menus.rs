@@ -1,13 +1,13 @@
 //! The OS cursor is hidden only over the drawing area (#1701): over the menu bar, a menu and the
 //! docked palettes the normal pointer comes back, so the user can see what they are pointing at.
 
+use draftcraft_engine::Session;
+use draftcraft_geom::Vec2;
+use draftcraft_ui_egui::{CadApp, Services};
 use egui::accesskit::Role;
 use egui::vec2;
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
-use rustdraft_engine::Session;
-use rustdraft_geom::Vec2;
-use rustdraft_ui_egui::{CadApp, Services};
 use serde_json::json;
 
 /// A 1280×760 app with the in-window menu bar shown, stepped a few frames so menus and palettes

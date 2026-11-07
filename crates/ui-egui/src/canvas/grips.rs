@@ -26,9 +26,9 @@ pub(super) fn click_grip(app: &mut CadApp, g: (Handle, usize), shift: bool) {
 }
 
 /// The multifunctional options of grip `g` (Add Vertex, Lengthen…; empty: Stretch only).
-pub(super) fn grip_options(app: &CadApp, (h, i): (Handle, usize)) -> Vec<rustdraft_engine::grips::GripAction> {
+pub(super) fn grip_options(app: &CadApp, (h, i): (Handle, usize)) -> Vec<draftcraft_engine::grips::GripAction> {
     let Ok(st) = app.session.state() else { return Vec::new() };
-    st.doc.entity(h).map(|e| rustdraft_engine::grips::grip_actions(&e.kind, i)).unwrap_or_default()
+    st.doc.entity(h).map(|e| draftcraft_engine::grips::grip_actions(&e.kind, i)).unwrap_or_default()
 }
 
 /// The menu of a multifunctional grip: Stretch and its options. A choice makes the grip hot and
@@ -36,10 +36,10 @@ pub(super) fn grip_options(app: &CadApp, (h, i): (Handle, usize)) -> Vec<rustdra
 pub(super) fn grip_menu(app: &mut CadApp, resp: &egui::Response) {
     let Some(g) = app.canvas.grip_menu else { return };
     let options = grip_options(app, g);
-    let mut chosen: Option<Option<rustdraft_engine::grips::GripAction>> = None;
+    let mut chosen: Option<Option<draftcraft_engine::grips::GripAction>> = None;
     let open = resp
         .context_menu(|ui| {
-            let vertex = options.contains(&rustdraft_engine::grips::GripAction::RemoveVertex);
+            let vertex = options.contains(&draftcraft_engine::grips::GripAction::RemoveVertex);
             if ui.button(crate::i18n::t(if vertex { "Stretch Vertex" } else { "Stretch" })).clicked() {
                 chosen = Some(None);
                 ui.close();
@@ -68,9 +68,9 @@ pub(super) fn grip_menu(app: &mut CadApp, resp: &egui::Response) {
 }
 
 /// Polyline segment midpoint grips are rectangular; vertex grips remain square.
-pub(super) fn grip_rect(kind: &rustdraft_doc::EntityKind, count: usize, index: usize, center: Pos2, size: f32) -> Rect {
+pub(super) fn grip_rect(kind: &draftcraft_doc::EntityKind, count: usize, index: usize, center: Pos2, size: f32) -> Rect {
     // The grip list interleaves vertices and available segment midpoints, then any remaining vertices.
-    let midpoint = matches!(kind, rustdraft_doc::EntityKind::LwPolyline(p) if index % 2 == 1 && index / 2 < count.saturating_sub(p.vertices.len()));
+    let midpoint = matches!(kind, draftcraft_doc::EntityKind::LwPolyline(p) if index % 2 == 1 && index / 2 < count.saturating_sub(p.vertices.len()));
     Rect::from_center_size(center, vec2(size * 2.0, if midpoint { size } else { size * 2.0 }))
 }
 

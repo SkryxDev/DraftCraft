@@ -1,10 +1,10 @@
 //! "Save changes?" is fully drawn, dim included, in the frame of the Close that asks it.
 
+use draftcraft_engine::Session;
+use draftcraft_ui_egui::{CadApp, Services, menus};
 use egui::epaint::Shape;
 use egui::vec2;
 use egui_kittest::Harness;
-use rustdraft_engine::Session;
-use rustdraft_ui_egui::{CadApp, Services, menus};
 use serde_json::json;
 
 /// The opacity of each painted text containing `needle`.

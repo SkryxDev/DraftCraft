@@ -1,9 +1,9 @@
 //! Object snaps find the geometry inside block references (#314).
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{Common, EntityKind, Insert, Space};
-use rustdraft_engine::geom::{Mat3, Vec2, Vec3};
-use rustdraft_engine::snap::{self, mode};
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{Common, EntityKind, Insert, Space};
+use draftcraft_engine::geom::{Mat3, Vec2, Vec3};
+use draftcraft_engine::snap::{self, mode};
 use serde_json::json;
 
 fn handle(s: &mut Session, cmd: &str, p: serde_json::Value) -> String {
@@ -119,7 +119,7 @@ fn snaps_inside_nested_and_arrayed_references_but_not_hidden_objects() {
 
     // Objects on a layer that is off don't snap.
     let mut s = Session::new();
-    let line = EntityKind::Line(rustdraft_engine::doc::Line { a: Vec3::new(0.0, 0.0, 0.0), b: Vec3::new(10.0, 0.0, 0.0) });
+    let line = EntityKind::Line(draftcraft_engine::doc::Line { a: Vec3::new(0.0, 0.0, 0.0), b: Vec3::new(10.0, 0.0, 0.0) });
     let common = Common { layer: "Hidden".into(), ..Common::default() };
     let l = s.doc_mut().unwrap().add(&Space::Model, common, line).unwrap().hex();
     s.execute("block", &json!({ "name": "H", "base": [0, 0], "handles": [l], "keep": "delete" })).unwrap();

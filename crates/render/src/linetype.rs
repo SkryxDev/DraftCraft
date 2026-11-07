@@ -1,7 +1,7 @@
 //! Apply a dash pattern along a polyline.
 
-use rustdraft_doc::Linetype;
-use rustdraft_geom::Vec2;
+use draftcraft_doc::Linetype;
+use draftcraft_geom::Vec2;
 
 /// Split `pts` into dashes. Dots come back as single-point runs. When the scaled pattern is
 /// shorter than `min_pattern` (sub-pixel), the polyline is returned whole.

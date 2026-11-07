@@ -1,9 +1,9 @@
 //! The update check (desktop only; the web build is always the latest). Once at startup, and again
 //! from Help ▸ Check for Updates…, a background thread asks GitHub for the newest release of
-//! RustDraft (`SkryxDev/RustDraft`). When it is newer than this build, a window offers it:
+//! DraftCraft (`SkryxDev/DraftCraft`). When it is newer than this build, a window offers it:
 //! Download opens the release page, Later closes the window until the next start, and Skip This
 //! Version stops the startup check offering that version. Nothing is downloaded or installed here.
-//! The asking and comparing are `craft_update::check_for_update`; `RUSTDRAFT_PRETEND_VERSION`
+//! The asking and comparing are `craft_update::check_for_update`; `DRAFTCRAFT_PRETEND_VERSION`
 //! makes this build count as another version (to try the prompt).
 
 use std::sync::Arc;
@@ -76,21 +76,21 @@ pub fn check_now(app: &mut CadApp) {
     app.updates_rt.check_requested = true;
 }
 
-/// GitHub's newest release of RustDraft, when it is newer than this build.
+/// GitHub's newest release of DraftCraft, when it is newer than this build.
 fn from_github() -> Result<Option<Offer>, String> {
-    let http = craft_update::Http::new(&format!("RustDraft/{VERSION}"))?;
+    let http = craft_update::Http::new(&format!("DraftCraft/{VERSION}"))?;
     let release = craft_update::check_for_update(&crate::UPDATE_APP, &http, VERSION)?;
     Ok(release.map(|r| Offer { version: r.version_label(), url: r.html_url, notes: r.notes.chars().take(NOTES_MAX).collect() }))
 }
 
-/// The version this build counts as: [`VERSION`], or `RUSTDRAFT_PRETEND_VERSION` when it is set
+/// The version this build counts as: [`VERSION`], or `DRAFTCRAFT_PRETEND_VERSION` when it is set
 /// (the version the check compares with).
 fn running_version() -> String {
     craft_update::self_update::current_version(&crate::UPDATE_APP, VERSION).map_or_else(|| VERSION.to_string(), |v| v.to_string())
 }
 
 fn skip_path() -> Option<std::path::PathBuf> {
-    rustdraft_engine::settings_dir::current().map(|d| d.join(SKIP_FILE))
+    draftcraft_engine::settings_dir::current().map(|d| d.join(SKIP_FILE))
 }
 
 fn read_skipped() -> Option<String> {
@@ -256,11 +256,11 @@ mod tests {
     use super::*;
 
     fn offer(v: &str) -> Offer {
-        Offer { version: v.into(), url: format!("https://github.com/SkryxDev/RustDraft/releases/tag/v{v}"), notes: "Conic arcs".into() }
+        Offer { version: v.into(), url: format!("https://github.com/SkryxDev/DraftCraft/releases/tag/v{v}"), notes: "Conic arcs".into() }
     }
 
     fn app_with(answer: Result<Option<Offer>, String>) -> CadApp {
-        let mut app = CadApp::new(rustdraft_engine::Session::new(), crate::Services::default());
+        let mut app = CadApp::new(draftcraft_engine::Session::new(), crate::Services::default());
         app.set_update_source(Arc::new(move || answer.clone()));
         app
     }

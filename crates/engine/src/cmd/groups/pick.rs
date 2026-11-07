@@ -4,7 +4,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use rustdraft_doc::Handle;
+use draftcraft_doc::Handle;
 use serde_json::{Value, json};
 
 use super::super::{CommandSpec, bad};

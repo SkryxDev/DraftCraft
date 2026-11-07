@@ -4,8 +4,8 @@
 
 use std::sync::Arc;
 
-use rustdraft_doc::{AssocSnap, DimAssoc, DimKind, Dimension, Drawing, EntityKind, Handle, Space};
-use rustdraft_geom::{Vec2, Vec3};
+use draftcraft_doc::{AssocSnap, DimAssoc, DimKind, Dimension, Drawing, EntityKind, Handle, Space};
+use draftcraft_geom::{Vec2, Vec3};
 
 /// Definition point names in the order they are tried.
 const POINTS: [&str; 5] = ["defpt", "p13", "p14", "p15", "p16"];
@@ -34,8 +34,8 @@ fn def_point_mut<'a>(d: &'a mut Dimension, name: &str) -> Option<&'a mut Vec3> {
     })
 }
 
-fn arc_geom(a: &rustdraft_doc::Arc) -> rustdraft_geom::Arc {
-    rustdraft_geom::Arc::new(a.center.xy(), a.radius, a.start, a.end)
+fn arc_geom(a: &draftcraft_doc::Arc) -> draftcraft_geom::Arc {
+    draftcraft_geom::Arc::new(a.center.xy(), a.radius, a.start, a.end)
 }
 
 /// Where a snap sits on an object now.
@@ -46,7 +46,7 @@ pub fn snap_point(d: &Drawing, a: &DimAssoc) -> Option<Vec2> {
         (EntityKind::Line(l), AssocSnap::End) => Some(l.b.xy()),
         (EntityKind::Line(l), AssocSnap::Mid) => Some(l.a.xy().mid(l.b.xy())),
         (EntityKind::Line(l), AssocSnap::Intersection { other }) => match &d.entity(*other)?.kind {
-            EntityKind::Line(m) => rustdraft_geom::line_line_infinite(l.a.xy(), l.b.xy(), m.a.xy(), m.b.xy()).map(|x| x.0),
+            EntityKind::Line(m) => draftcraft_geom::line_line_infinite(l.a.xy(), l.b.xy(), m.a.xy(), m.b.xy()).map(|x| x.0),
             _ => None,
         },
         (EntityKind::Arc(ar), AssocSnap::Start) => Some(arc_geom(ar).start_point()),

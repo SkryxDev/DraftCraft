@@ -1,5 +1,5 @@
 //! `cargo xtask parity`: compare the reference app's menu tree (feature names only, in
-//! `xtask/data/menu-catalog.txt`) with the live command registry (`rustdraft-cli commands`), and
+//! `xtask/data/menu-catalog.txt`) with the live command registry (`draftcraft-cli commands`), and
 //! write `docs/parity-checklist.md` (dated).
 
 use std::path::Path;
@@ -66,9 +66,9 @@ pub fn run(root: &Path) -> Result<(), String> {
     let catalog = std::fs::read_to_string(root.join("xtask/data/menu-catalog.txt")).map_err(|e| format!("menu catalog: {e}"))?;
     let out = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()))
         .current_dir(root)
-        .args(["run", "-q", "-p", "rustdraft-cli", "--", "commands"])
+        .args(["run", "-q", "-p", "draftcraft-cli", "--", "commands"])
         .output()
-        .map_err(|e| format!("rustdraft-cli: {e}"))?;
+        .map_err(|e| format!("draftcraft-cli: {e}"))?;
     let cmds: serde_json::Value = serde_json::from_slice(&out.stdout).map_err(|e| format!("commands JSON: {e}"))?;
     let paths: Vec<String> = cmds
         .as_array()
@@ -105,7 +105,7 @@ pub fn run(root: &Path) -> Result<(), String> {
     }
     let pct = |a: usize, b: usize| if b == 0 { 0.0 } else { 100.0 * a as f64 / b as f64 };
     let mut md = format!(
-        "# Parity checklist\n\n> **Generated:** {} by `cargo xtask parity`. Do not edit by hand.\n\nMenu-breadth parity: a reference menu item counts as covered when a RustDraft command is registered under the same menu label. It measures breadth, not depth.\n\n**Menu breadth: {hit} / {} items ({:.0}%)** · {} registered commands.\n\n| Menu | Items | Covered | % |\n|---|---|---|---|\n",
+        "# Parity checklist\n\n> **Generated:** {} by `cargo xtask parity`. Do not edit by hand.\n\nMenu-breadth parity: a reference menu item counts as covered when a DraftCraft command is registered under the same menu label. It measures breadth, not depth.\n\n**Menu breadth: {hit} / {} items ({:.0}%)** · {} registered commands.\n\n| Menu | Items | Covered | % |\n|---|---|---|---|\n",
         today(),
         ls.len(),
         pct(hit, ls.len()),

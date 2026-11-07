@@ -1180,6 +1180,231 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d8b14ccef22fc6f5a8f4d7d768562a182c04ce9a3b3157b91390b52ddfdf1a76"
 
 [[package]]
+name = "draftcraft"
+version = "2.0.0"
+dependencies = [
+ "chrono",
+ "clap",
+ "craft-ui",
+ "craft-update",
+ "craft-window",
+ "draftcraft-engine",
+ "draftcraft-io",
+ "draftcraft-mcp",
+ "draftcraft-ui-egui",
+ "eframe",
+ "egui",
+ "hidapi",
+ "log",
+ "muda",
+ "objc2-app-kit 0.3.2",
+ "rfd",
+ "ron",
+ "serde_json",
+ "sys-locale",
+ "thiserror 2.0.21",
+ "windows",
+ "winit",
+ "winresource",
+ "zbus",
+]
+
+[[package]]
+name = "draftcraft-cli"
+version = "2.0.0"
+dependencies = [
+ "clap",
+ "clap_complete",
+ "clap_mangen",
+ "draftcraft-engine",
+ "draftcraft-io",
+ "draftcraft-mcp",
+ "draftcraft-render",
+ "same-file",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "draftcraft-color"
+version = "2.0.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "draftcraft-constraints"
+version = "2.0.0"
+dependencies = [
+ "draftcraft-doc",
+ "draftcraft-geom",
+ "serde",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "draftcraft-doc"
+version = "2.0.0"
+dependencies = [
+ "draftcraft-color",
+ "draftcraft-geom",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "draftcraft-dwg"
+version = "2.0.0"
+dependencies = [
+ "acadrust",
+ "log",
+]
+
+[[package]]
+name = "draftcraft-dxf"
+version = "2.0.0"
+dependencies = [
+ "encoding_rs",
+ "log",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "draftcraft-engine"
+version = "2.0.0"
+dependencies = [
+ "craft-docpath",
+ "draftcraft-color",
+ "draftcraft-constraints",
+ "draftcraft-doc",
+ "draftcraft-dxf",
+ "draftcraft-fonts",
+ "draftcraft-geom",
+ "draftcraft-io",
+ "draftcraft-render",
+ "libc",
+ "log",
+ "rstar",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "draftcraft-fonts"
+version = "2.0.0"
+dependencies = [
+ "draftcraft-geom",
+ "encoding_rs",
+ "harfrust 0.14.0",
+ "icu_segmenter",
+ "skrifa 0.48.0",
+ "unicode-bidi",
+]
+
+[[package]]
+name = "draftcraft-geom"
+version = "2.0.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "draftcraft-io"
+version = "2.0.0"
+dependencies = [
+ "acadrust",
+ "craft-pdf",
+ "draftcraft-color",
+ "draftcraft-doc",
+ "draftcraft-dwg",
+ "draftcraft-dxf",
+ "draftcraft-fonts",
+ "draftcraft-geom",
+ "draftcraft-render",
+ "image",
+ "miniz_oxide 0.9.1",
+ "quick-xml 0.42.0",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tiny-skia",
+]
+
+[[package]]
+name = "draftcraft-mcp"
+version = "2.0.0"
+dependencies = [
+ "clap",
+ "draftcraft-engine",
+ "draftcraft-io",
+ "draftcraft-render",
+ "getrandom 0.4.3",
+ "log",
+ "serde_json",
+ "tiny-skia",
+]
+
+[[package]]
+name = "draftcraft-render"
+version = "2.0.0"
+dependencies = [
+ "draftcraft-color",
+ "draftcraft-doc",
+ "draftcraft-fonts",
+ "draftcraft-geom",
+ "lyon_tessellation",
+ "rayon",
+ "serde_json",
+ "tiny-skia",
+]
+
+[[package]]
+name = "draftcraft-ui-egui"
+version = "2.0.0"
+dependencies = [
+ "chrono",
+ "craft-ui",
+ "craft-update",
+ "craft-window",
+ "draftcraft-color",
+ "draftcraft-doc",
+ "draftcraft-engine",
+ "draftcraft-fonts",
+ "draftcraft-geom",
+ "draftcraft-render",
+ "egui",
+ "egui-wgpu",
+ "egui_extras",
+ "egui_kittest",
+ "image",
+ "log",
+ "naga",
+ "serde",
+ "serde_json",
+ "web-time",
+]
+
+[[package]]
+name = "draftcraft-web"
+version = "2.0.0"
+dependencies = [
+ "craft-web-host",
+ "draftcraft-engine",
+ "draftcraft-fonts",
+ "draftcraft-io",
+ "draftcraft-ui-egui",
+ "eframe",
+ "egui",
+ "log",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
 name = "dunce"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3865,232 +4090,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rustdraft"
-version = "1.1.0"
-dependencies = [
- "chrono",
- "clap",
- "craft-ui",
- "craft-update",
- "craft-window",
- "eframe",
- "egui",
- "hidapi",
- "log",
- "muda",
- "objc2-app-kit 0.3.2",
- "rfd",
- "ron",
- "rustdraft-engine",
- "rustdraft-io",
- "rustdraft-mcp",
- "rustdraft-ui-egui",
- "serde_json",
- "sys-locale",
- "thiserror 2.0.21",
- "windows",
- "winit",
- "winresource",
- "zbus",
-]
-
-[[package]]
-name = "rustdraft-cli"
-version = "1.1.0"
-dependencies = [
- "clap",
- "clap_complete",
- "clap_mangen",
- "rustdraft-engine",
- "rustdraft-io",
- "rustdraft-mcp",
- "rustdraft-render",
- "same-file",
- "serde_json",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "rustdraft-color"
-version = "1.1.0"
-dependencies = [
- "serde",
-]
-
-[[package]]
-name = "rustdraft-constraints"
-version = "1.1.0"
-dependencies = [
- "rustdraft-doc",
- "rustdraft-geom",
- "serde",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "rustdraft-doc"
-version = "1.1.0"
-dependencies = [
- "rustdraft-color",
- "rustdraft-geom",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "rustdraft-dwg"
-version = "1.1.0"
-dependencies = [
- "acadrust",
- "log",
-]
-
-[[package]]
-name = "rustdraft-dxf"
-version = "1.1.0"
-dependencies = [
- "encoding_rs",
- "log",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "rustdraft-engine"
-version = "1.1.0"
-dependencies = [
- "craft-docpath",
- "libc",
- "log",
- "rstar",
- "rustdraft-color",
- "rustdraft-constraints",
- "rustdraft-doc",
- "rustdraft-dxf",
- "rustdraft-fonts",
- "rustdraft-geom",
- "rustdraft-io",
- "rustdraft-render",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "rustdraft-fonts"
-version = "1.1.0"
-dependencies = [
- "encoding_rs",
- "harfrust 0.14.0",
- "icu_segmenter",
- "rustdraft-geom",
- "skrifa 0.48.0",
- "unicode-bidi",
-]
-
-[[package]]
-name = "rustdraft-geom"
-version = "1.1.0"
-dependencies = [
- "serde",
-]
-
-[[package]]
-name = "rustdraft-io"
-version = "1.1.0"
-dependencies = [
- "acadrust",
- "craft-pdf",
- "image",
- "miniz_oxide 0.9.1",
- "quick-xml 0.42.0",
- "rustdraft-color",
- "rustdraft-doc",
- "rustdraft-dwg",
- "rustdraft-dxf",
- "rustdraft-fonts",
- "rustdraft-geom",
- "rustdraft-render",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
- "tiny-skia",
-]
-
-[[package]]
-name = "rustdraft-mcp"
-version = "1.1.0"
-dependencies = [
- "clap",
- "getrandom 0.4.3",
- "log",
- "rustdraft-engine",
- "rustdraft-io",
- "rustdraft-render",
- "serde_json",
- "tiny-skia",
-]
-
-[[package]]
-name = "rustdraft-render"
-version = "1.1.0"
-dependencies = [
- "lyon_tessellation",
- "rayon",
- "rustdraft-color",
- "rustdraft-doc",
- "rustdraft-fonts",
- "rustdraft-geom",
- "serde_json",
- "tiny-skia",
-]
-
-[[package]]
-name = "rustdraft-ui-egui"
-version = "1.1.0"
-dependencies = [
- "chrono",
- "craft-ui",
- "craft-update",
- "craft-window",
- "egui",
- "egui-wgpu",
- "egui_extras",
- "egui_kittest",
- "image",
- "log",
- "naga",
- "rustdraft-color",
- "rustdraft-doc",
- "rustdraft-engine",
- "rustdraft-fonts",
- "rustdraft-geom",
- "rustdraft-render",
- "serde",
- "serde_json",
- "toml",
- "web-time",
-]
-
-[[package]]
-name = "rustdraft-web"
-version = "1.1.0"
-dependencies = [
- "craft-web-host",
- "eframe",
- "egui",
- "log",
- "rustdraft-engine",
- "rustdraft-fonts",
- "rustdraft-io",
- "rustdraft-ui-egui",
- "serde_json",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
-]
-
-[[package]]
 name = "rustix"
 version = "0.38.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5977,7 +5976,7 @@ checksum = "9440ea3e5aeabb0ac63af70daf835274065238cdd0cec83418f417eae38bacee"
 
 [[package]]
 name = "xtask"
-version = "1.1.0"
+version = "2.0.0"
 dependencies = [
  "chrono",
  "serde_json",

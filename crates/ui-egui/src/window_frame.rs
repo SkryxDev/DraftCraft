@@ -4,8 +4,8 @@
 //! window (a double-click maximizes it), and the window's edges and corners resize it. The menu
 //! bar no longer needs a row of its own under the ribbon.
 //!
-//! On by default on Windows. `RUSTDRAFT_TITLEBAR=system` keeps the desktop's title bar there;
-//! `RUSTDRAFT_TITLEBAR=app` draws this frame on any desktop (to try it). macOS keeps its own
+//! On by default on Windows. `DRAFTCRAFT_TITLEBAR=system` keeps the desktop's title bar there;
+//! `DRAFTCRAFT_TITLEBAR=app` draws this frame on any desktop (to try it). macOS keeps its own
 //! integrated title bar and Linux the desktop's.
 
 use egui::{Align2, Color32, CursorIcon, FontId, Rect, ResizeDirection, Sense, Stroke, StrokeKind, ViewportCommand, pos2, vec2};
@@ -22,7 +22,7 @@ const EDGE: f32 = 5.0;
 /// Corners reach this far along each edge.
 const CORNER: f32 = 12.0;
 
-/// Whether RustDraft draws its own window frame, given `RUSTDRAFT_TITLEBAR`: `app` draws it, and
+/// Whether DraftCraft draws its own window frame, given `DRAFTCRAFT_TITLEBAR`: `app` draws it, and
 /// `system` (or `desktop`) leaves the desktop's; otherwise it is drawn on Windows only.
 pub fn draws_own_frame(var: Option<&str>) -> bool {
     match var.map(|v| v.trim().to_ascii_lowercase()).as_deref() {
@@ -34,7 +34,7 @@ pub fn draws_own_frame(var: Option<&str>) -> bool {
 
 /// [`draws_own_frame`] for this process's environment.
 pub fn draws_own_frame_here() -> bool {
-    draws_own_frame(std::env::var("RUSTDRAFT_TITLEBAR").ok().as_deref())
+    draws_own_frame(std::env::var("DRAFTCRAFT_TITLEBAR").ok().as_deref())
 }
 
 /// The window buttons, left to right.
@@ -77,7 +77,7 @@ pub fn title_bar(app: &mut CadApp, ui: &mut egui::Ui) {
 }
 
 /// The app icon, 64 px, drawn in the title bar.
-const ICON_PNG: &[u8] = include_bytes!("../../../assets/app-icon/hicolor/64x64/apps/dev.skryx.rustdraft.png");
+const ICON_PNG: &[u8] = include_bytes!("../../../assets/app-icon/hicolor/64x64/apps/dev.skryx.draftcraft.png");
 
 /// The app icon as a texture, decoded once per context. `None` if it doesn't decode.
 fn icon_texture(ctx: &egui::Context) -> Option<egui::TextureHandle> {

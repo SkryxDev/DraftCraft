@@ -10,9 +10,9 @@ The built-in devices come first:
 
 | Device | Output |
 |---|---|
-| `RustDraft PDF` | vector PDF |
-| `RustDraft PNG` | raster PNG on white paper at the device resolution (300 dpi) |
-| `RustDraft SVG` | vector SVG |
+| `DraftCraft PDF` | vector PDF |
+| `DraftCraft PNG` | raster PNG on white paper at the device resolution (300 dpi) |
+| `DraftCraft SVG` | vector SVG |
 
 They offer the standard sizes:
 
@@ -23,16 +23,16 @@ They offer the standard sizes:
 ISO sheets have 5 mm margins. Inch sheets have quarter-inch (6.35 mm) margins. A page setup
 with the device `None` plots to PDF on the page setup's paper, as before.
 
-User devices are files in our own format, kept in the `plotters` folder of the RustDraft
+User devices are files in our own format, kept in the `plotters` folder of the DraftCraft
 settings directory:
 
 | System | Folder |
 |---|---|
-| Linux and FreeBSD | `$XDG_CONFIG_HOME/rustdraft/plotters` or `~/.config/rustdraft/plotters` |
-| macOS | `~/Library/Application Support/RustDraft/plotters` |
-| Windows | `%APPDATA%\RustDraft\plotters` |
+| Linux and FreeBSD | `$XDG_CONFIG_HOME/draftcraft/plotters` or `~/.config/draftcraft/plotters` |
+| macOS | `~/Library/Application Support/DraftCraft/plotters` |
+| Windows | `%APPDATA%\DraftCraft\plotters` |
 
-`RUSTDRAFT_CONFIG_DIR` replaces the settings directory; empty means none (`rustdraft-cli`:
+`DRAFTCRAFT_CONFIG_DIR` replaces the settings directory; empty means none (`draftcraft-cli`:
 `--config-dir`, which falls back to the same variable). On the web, devices last for the
 session unless the host provides storage (`cmd::plotters::set_plotter_store`). Binary `.pc3`
 files are not read; we haven't found a public specification of that format.
@@ -43,7 +43,7 @@ files are not read; we haven't found a public specification of that format.
 
 ```json
 {
-  "rustdraftPlotter": 1,
+  "draftcraftPlotter": 1,
   "name": "Office A3",
   "description": "Raster proofs",
   "output": "png",

@@ -1,9 +1,9 @@
 //! A point held by GCFIX stays where it is when its grip is dragged (#1134): the Fix locks the
 //! position the point had, not wherever the edit left it.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{EntityKind, Handle};
-use rustdraft_engine::geom::Vec2;
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{EntityKind, Handle};
+use draftcraft_engine::geom::Vec2;
 use serde_json::json;
 
 fn line(s: &mut Session, a: [f64; 2], b: [f64; 2]) -> Handle {

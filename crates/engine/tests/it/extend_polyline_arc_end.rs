@@ -3,9 +3,9 @@
 //! with the old bulge (which changed the arc's radius and centre, or missed the boundary). The
 //! polyline keeps its width, elevation and linetype generation.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{Common, Entity, EntityKind, Handle, LwPolyline};
-use rustdraft_engine::geom::{PolyVertex, Vec2};
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{Common, Entity, EntityKind, Handle, LwPolyline};
+use draftcraft_engine::geom::{PolyVertex, Vec2};
 use serde_json::json;
 
 const TOL: f64 = 1e-9;

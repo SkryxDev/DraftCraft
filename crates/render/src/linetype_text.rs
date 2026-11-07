@@ -13,14 +13,14 @@
 //! - font, width factor, oblique angle and mirroring from the text style (`340`).
 //!
 //! A shape comes from the SHX shape file its style (`340`) names, as the font table finds it
-//! ([`rustdraft_fonts::shx::find`]): an unnamed shape-file style is read as its file name, a
+//! ([`draftcraft_fonts::shx::find`]): an unnamed shape-file style is read as its file name, a
 //! named style by its font. It is drawn at the element's scale times the linetype scale per
 //! text height of the file (its font record's `above`, else one vector unit), rotated and
 //! offset like text. A shape whose file isn't found draws nothing and leaves its gap empty.
 
-use rustdraft_doc::{Drawing, Linetype};
-use rustdraft_fonts::{Shaped, TextParams};
-use rustdraft_geom::Vec2;
+use draftcraft_doc::{Drawing, Linetype};
+use draftcraft_fonts::{Shaped, TextParams};
+use draftcraft_geom::Vec2;
 
 /// Upper bound on the texts and shapes drawn along one run (hostile scales; `apply` caps the
 /// dashes).
@@ -85,11 +85,11 @@ fn point_count(s: &Shaped) -> usize {
 
 /// The shape element `el` at the origin (scaled by the element's and the linetype's scale), if
 /// its shape file is found and has the shape.
-fn shape(d: &Drawing, el: &rustdraft_doc::DashElement, scale: f64) -> Option<Shaped> {
+fn shape(d: &Drawing, el: &draftcraft_doc::DashElement, scale: f64) -> Option<Shaped> {
     let number = el.shape.filter(|n| *n != 0)?;
     let style = el.style.as_deref().map(str::trim).filter(|s| !s.is_empty())?;
     let file = d.text_style(style).map_or_else(|| style.to_string(), |ts| ts.font.clone());
-    let font = rustdraft_fonts::shx::find(&file)?;
+    let font = draftcraft_fonts::shx::find(&file)?;
     let glyph = font.glyph(number, false)?;
     let k = if el.scale.is_finite() && el.scale > 0.0 { el.scale } else { 1.0 } * scale / font.units_per_height();
     if !(k.is_finite() && k > 0.0) {
@@ -134,7 +134,7 @@ fn elements(d: &Drawing, lt: &Linetype, scale: f64) -> Vec<Element> {
             upside_down: ts.upside_down,
             ..TextParams::new(Vec2::ZERO, height)
         };
-        let (local, _) = rustdraft_fonts::place(&font, text, &params);
+        let (local, _) = draftcraft_fonts::place(&font, text, &params);
         out.push(Element {
             at,
             local,
@@ -179,7 +179,7 @@ impl Walk<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rustdraft_doc::DashElement;
+    use draftcraft_doc::DashElement;
 
     fn gas() -> Linetype {
         Linetype {
@@ -220,7 +220,7 @@ mod tests {
     /// A shape file written for this test: shape 130 a 2 x 2 box with its pen ending at x = 2.
     fn register_shapes() {
         let src = "*130,7,BOX\n1,020,024,028,02C,2,020,0\n";
-        rustdraft_fonts::shx::register("rustdraft-render-lt.shx", &rustdraft_fonts::shx::compile(src).unwrap()).unwrap();
+        draftcraft_fonts::shx::register("draftcraft-render-lt.shx", &draftcraft_fonts::shx::compile(src).unwrap()).unwrap();
     }
 
     fn fence(style: &str) -> Linetype {
@@ -240,24 +240,24 @@ mod tests {
         register_shapes();
         let d = Drawing::new_imperial();
         // An unnamed shape-file style reads as its file name (DXF); scale 0.1 per vector unit.
-        let t = texts(&d, &[Vec2::ZERO, Vec2::new(2.0, 0.0)], &fence("rustdraft-render-lt.shx"), 1.0, 0.0);
+        let t = texts(&d, &[Vec2::ZERO, Vec2::new(2.0, 0.0)], &fence("draftcraft-render-lt.shx"), 1.0, 0.0);
         assert_eq!(t.len(), 2);
         let x = starts(&t);
         assert!((x[0] - 0.7).abs() < 1e-9 && (x[1] - 1.65).abs() < 1e-9, "{x:?}");
         let ys = t[0].strokes.iter().flatten().fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.y), b.max(p.y)));
         assert!((ys.0).abs() < 1e-9 && (ys.1 - 0.2).abs() < 1e-9, "{ys:?}");
         // Along a vertical line the shape turns with it; absolute rotation keeps it level.
-        let t = texts(&d, &[Vec2::ZERO, Vec2::new(0.0, 2.0)], &fence("rustdraft-render-lt.shx"), 2.0, 0.0);
+        let t = texts(&d, &[Vec2::ZERO, Vec2::new(0.0, 2.0)], &fence("draftcraft-render-lt.shx"), 2.0, 0.0);
         assert_eq!(t.len(), 1);
         let xs = t[0].strokes.iter().flatten().fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.x), b.max(p.x)));
         assert!((xs.0 + 0.4).abs() < 1e-9 && xs.1.abs() < 1e-9, "{xs:?}");
         // A named style whose font is the shape file.
         let mut d = Drawing::new_imperial();
-        d.text_styles.push(rustdraft_doc::TextStyle { name: "SHAPES".into(), font: "rustdraft-render-lt.shx".into(), ..Default::default() });
+        d.text_styles.push(draftcraft_doc::TextStyle { name: "SHAPES".into(), font: "draftcraft-render-lt.shx".into(), ..Default::default() });
         assert_eq!(texts(&d, &[Vec2::ZERO, Vec2::new(2.0, 0.0)], &fence("SHAPES"), 1.0, 0.0).len(), 2);
         // A shape file that isn't found, or a shape it lacks, draws nothing.
-        assert!(texts(&d, &[Vec2::ZERO, Vec2::new(2.0, 0.0)], &fence("rustdraft-no-such-file.shx"), 1.0, 0.0).is_empty());
-        let mut lt = fence("rustdraft-render-lt.shx");
+        assert!(texts(&d, &[Vec2::ZERO, Vec2::new(2.0, 0.0)], &fence("draftcraft-no-such-file.shx"), 1.0, 0.0).is_empty());
+        let mut lt = fence("draftcraft-render-lt.shx");
         lt.pattern[1].shape = Some(131);
         assert!(texts(&d, &[Vec2::ZERO, Vec2::new(2.0, 0.0)], &lt, 1.0, 0.0).is_empty());
     }
@@ -267,9 +267,9 @@ mod tests {
         // A shape of 1,000 one-unit vectors there and back: about 1,000 points each time.
         let body: Vec<&str> = (0..500).flat_map(|_| ["010", "018"]).collect();
         let src = format!("*131,1002,ZIGZAG\n1,{},0\n", body.join(","));
-        rustdraft_fonts::shx::register("rustdraft-render-big.shx", &rustdraft_fonts::shx::compile(&src).unwrap()).unwrap();
+        draftcraft_fonts::shx::register("draftcraft-render-big.shx", &draftcraft_fonts::shx::compile(&src).unwrap()).unwrap();
         let d = Drawing::new_imperial();
-        let mut lt = fence("rustdraft-render-big.shx");
+        let mut lt = fence("draftcraft-render-big.shx");
         lt.pattern[1].shape = Some(131);
         // 3,000 repeats would hold about 3 million points.
         let t = texts(&d, &[Vec2::ZERO, Vec2::new(2850.0, 0.0)], &lt, 1.0, 0.0);
@@ -281,11 +281,11 @@ mod tests {
     fn text_in_an_shx_style_uses_the_font_metrics() {
         // A text font written for this test: A is 4 wide with a gap of 2, cap height 6.
         let src = "*0,4,render test\n6,2,0,0\n*65,7,UCA\n1,064,040,06C,2,020,0\n";
-        rustdraft_fonts::shx::register("rustdraft-render-text.shx", &rustdraft_fonts::shx::compile(src).unwrap()).unwrap();
+        draftcraft_fonts::shx::register("draftcraft-render-text.shx", &draftcraft_fonts::shx::compile(src).unwrap()).unwrap();
         let mut d = Drawing::new_imperial();
-        d.text_styles.push(rustdraft_doc::TextStyle { name: "SHX".into(), font: "rustdraft-render-text.shx".into(), ..Default::default() });
-        let t = rustdraft_doc::Text {
-            insert: rustdraft_geom::Vec3::new(0.0, 0.0, 0.0),
+        d.text_styles.push(draftcraft_doc::TextStyle { name: "SHX".into(), font: "draftcraft-render-text.shx".into(), ..Default::default() });
+        let t = draftcraft_doc::Text {
+            insert: draftcraft_geom::Vec3::new(0.0, 0.0, 0.0),
             align_pt: None,
             height: 3.0,
             value: "AA".into(),

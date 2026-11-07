@@ -2,11 +2,11 @@
 //! configurations: Restore shows one in the Model tab or starts placing it in a layout, and Delete
 //! deletes it.
 
+use draftcraft_engine::Session;
+use draftcraft_ui_egui::{CadApp, Services, dialogs, menus};
 use egui::vec2;
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
-use rustdraft_engine::Session;
-use rustdraft_ui_egui::{CadApp, Services, dialogs, menus};
 use serde_json::json;
 
 /// A drawing with "Two" (two tiles side by side) saved, showing one view, and the dialog open.

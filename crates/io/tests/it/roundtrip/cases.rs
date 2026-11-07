@@ -7,11 +7,11 @@ pub(super) mod complex;
 pub(super) mod geometry;
 pub(super) mod properties;
 
-use rustdraft_color::{Color, Rgb};
-use rustdraft_doc::{
+use draftcraft_color::{Color, Rgb};
+use draftcraft_doc::{
     AnnoScale, Circle, Common, Drawing, EntityKind, HAlign, Layer, Line, Linetype, Lineweight, RawTag, Space, Text, TextStyle, Transparency, VAlign,
 };
-use rustdraft_geom::Vec3;
+use draftcraft_geom::Vec3;
 
 pub(super) struct Case {
     pub name: String,
@@ -285,8 +285,8 @@ pub(super) fn text_alignment(with_point: bool) -> Vec<Case> {
                 if let Some(anchor) = align_pt
                     && !matches!(halign, HAlign::Aligned | HAlign::Fit)
                 {
-                    let (h, v) = rustdraft_render::text_align(halign, valign);
-                    let params = rustdraft_fonts::TextParams {
+                    let (h, v) = draftcraft_render::text_align(halign, valign);
+                    let params = draftcraft_fonts::TextParams {
                         insert: t.insert.xy(),
                         align_pt: Some(anchor.xy()),
                         height: t.height,
@@ -298,7 +298,7 @@ pub(super) fn text_alignment(with_point: bool) -> Vec<Case> {
                         backwards: false,
                         upside_down: false,
                     };
-                    t.insert = rustdraft_fonts::baseline_start(&rustdraft_fonts::TextFont::Stroke, &t.value, &params).to3(anchor.z);
+                    t.insert = draftcraft_fonts::baseline_start(&draftcraft_fonts::TextFont::Stroke, &t.value, &params).to3(anchor.z);
                 }
                 cases.push(entity_case(&format!("text/alignment/{halign:?}/{valign:?}/point={align_pt:?}"), Common::default(), EntityKind::Text(t)));
             }

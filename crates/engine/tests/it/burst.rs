@@ -1,9 +1,9 @@
 //! BURST (Express Tools): a block reference explodes like EXPLODE, its visible attributes become
 //! TEXT with their values, its invisible ones and the block's attribute definitions go.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::color::Color;
-use rustdraft_engine::doc::{Entity, EntityKind, Handle};
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::color::Color;
+use draftcraft_engine::doc::{Entity, EntityKind, Handle};
 use serde_json::{Value, json};
 
 /// Block B: attribute PART (on layer TAGS, height 1), NOTE (on layer 0, height 0.5), SECRET
@@ -142,8 +142,8 @@ fn burst_at_the_command_line_selects_then_bursts() {
     let (mut s, r) = drawing([0.0, 0.0], [1.0, 1.0]);
     s.cmdline("burst").unwrap();
     assert!(s.prompt_text().contains("Select objects"), "{}", s.prompt_text());
-    s.input(rustdraft_engine::Input::Pick(vec![r])).unwrap();
-    s.input(rustdraft_engine::Input::Enter).unwrap();
+    s.input(draftcraft_engine::Input::Pick(vec![r])).unwrap();
+    s.input(draftcraft_engine::Input::Enter).unwrap();
     assert_eq!(inserts(&s), ["N"]);
     assert_eq!(texts(&s).len(), 2);
 }

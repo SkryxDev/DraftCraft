@@ -2,11 +2,11 @@
 //! optional content groups, `layouts` plots several sheets into one file with page labels, and
 //! linked entities get link annotations. The tests read the written file back.
 
-use rustdraft_color::Color;
-use rustdraft_doc::{Block, Common, Drawing, Entity, EntityKind, Handle, Insert, Layer, Line, Space, Viewport};
-use rustdraft_geom::{Vec2, Vec3};
-use rustdraft_io::pdf::{MAX_PAGES, pdf_sheets};
-use rustdraft_io::{PdfOptions, plot};
+use draftcraft_color::Color;
+use draftcraft_doc::{Block, Common, Drawing, Entity, EntityKind, Handle, Insert, Layer, Line, Space, Viewport};
+use draftcraft_geom::{Vec2, Vec3};
+use draftcraft_io::pdf::{MAX_PAGES, pdf_sheets};
+use draftcraft_io::{PdfOptions, plot};
 use serde_json::json;
 
 use crate::pdf_read::{self, Doc};
@@ -184,7 +184,7 @@ fn several_sheets_in_one_file_with_page_labels() {
     assert_eq!(doc2.labels, ["Layout1", "Model"]);
     // Title: the first page's label unless given.
     assert_eq!(doc2.title.as_deref(), Some("Layout1"));
-    assert_eq!((doc2.creator.as_deref(), doc2.producer.as_deref()), (Some("RustDraft"), Some("RustDraft")));
+    assert_eq!((doc2.creator.as_deref(), doc2.producer.as_deref()), (Some("DraftCraft"), Some("DraftCraft")));
 }
 
 #[test]

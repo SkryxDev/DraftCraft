@@ -4,9 +4,9 @@
 
 use std::io::Cursor;
 
-use rustdraft_doc::{Common, Drawing, EntityKind, Layout, Line, Space};
-use rustdraft_geom::Vec3;
-use rustdraft_io::{SaveOptions, Version, read, write_with};
+use draftcraft_doc::{Common, Drawing, EntityKind, Layout, Line, Space};
+use draftcraft_geom::Vec3;
+use draftcraft_io::{SaveOptions, Version, read, write_with};
 
 fn three_sheets() -> Drawing {
     let mut d = Drawing::new_metric();

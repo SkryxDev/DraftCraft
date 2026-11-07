@@ -1,8 +1,8 @@
 //! QSELECT: build a selection set from an object type and a property filter
 //! (`property operator value`), and `qselect.info` for the Quick Select dialog.
 
-use rustdraft_color::Color;
-use rustdraft_doc::{Drawing, Entity, Handle};
+use draftcraft_color::Color;
+use draftcraft_doc::{Drawing, Entity, Handle};
 use serde_json::{Value, json};
 
 use super::{CommandSpec, bad, str_param};

@@ -15,8 +15,8 @@ pub enum EngineError {
     Internal(String, String),
 }
 
-impl From<rustdraft_doc::DocError> for EngineError {
-    fn from(e: rustdraft_doc::DocError) -> Self {
+impl From<draftcraft_doc::DocError> for EngineError {
+    fn from(e: draftcraft_doc::DocError) -> Self {
         EngineError::Other(e.to_string())
     }
 }

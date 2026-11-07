@@ -1,7 +1,7 @@
 //! MTEXT line spacing style (group 73: 1 at least, 2 exactly) round-trips through DXF (#408).
 
-use rustdraft_doc::{Common, Drawing, EntityKind, MText, Space};
-use rustdraft_geom::Vec3;
+use draftcraft_doc::{Common, Drawing, EntityKind, MText, Space};
+use draftcraft_geom::Vec3;
 
 #[test]
 fn line_spacing_style_roundtrips() {
@@ -20,8 +20,8 @@ fn line_spacing_style_roundtrips() {
             columns: None,
         };
         d.add(&Space::Model, Common::default(), EntityKind::MText(t.clone())).unwrap();
-        let bytes = rustdraft_io::write(&d, "a.dxf").unwrap();
-        let back = rustdraft_io::read(&bytes, "a.dxf").unwrap();
+        let bytes = draftcraft_io::write(&d, "a.dxf").unwrap();
+        let back = draftcraft_io::read(&bytes, "a.dxf").unwrap();
         let Some(EntityKind::MText(r)) = back.model.iter().map(|e| e.kind.clone()).next() else { panic!("no mtext") };
         assert_eq!(r.line_spacing_exact, exact);
         assert_eq!(r.line_spacing, 1.5);

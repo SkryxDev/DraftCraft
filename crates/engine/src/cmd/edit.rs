@@ -1,7 +1,7 @@
 //! Edit menu: undo/redo, clipboard, selection.
 
-use rustdraft_doc::{Entity, Handle, entity_bounds};
-use rustdraft_geom::{Bounds2, Mat3, Vec2};
+use draftcraft_doc::{Entity, Handle, entity_bounds};
+use draftcraft_geom::{Bounds2, Mat3, Vec2};
 use serde_json::{Value, json};
 
 use super::machines::{SelOutcome, SelectPhase, SelectRun};
@@ -535,7 +535,7 @@ fn run_pasteblock(s: &mut Session, p: &Value) -> Result<Value> {
     let at = point_param(p, "at").unwrap_or(s.clipboard_base);
     let h = clipboard::paste_block(s, at)?;
     let block = match s.doc()?.entity(h).map(|e| &e.kind) {
-        Some(rustdraft_doc::EntityKind::Insert(i)) => i.block.clone(),
+        Some(draftcraft_doc::EntityKind::Insert(i)) => i.block.clone(),
         _ => String::new(),
     };
     Ok(json!({ "handle": h.hex(), "block": block }))
@@ -653,7 +653,7 @@ impl Interactive for PasteM {
         }
         Some(crate::prompt::Drag { handles: Vec::new(), matrix: Mat3::translate(c - s.clipboard_base), extra: Vec::new(), clipboard: true })
     }
-    fn preview(&self, s: &Session, c: Vec2) -> Vec<rustdraft_doc::EntityKind> {
+    fn preview(&self, s: &Session, c: Vec2) -> Vec<draftcraft_doc::EntityKind> {
         let m = Mat3::translate(c - s.clipboard_base);
         s.clipboard
             .iter()

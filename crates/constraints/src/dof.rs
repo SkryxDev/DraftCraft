@@ -8,7 +8,7 @@
 
 use std::collections::HashSet;
 
-use rustdraft_doc::{Constraint, Drawing, Handle};
+use draftcraft_doc::{Constraint, Drawing, Handle};
 use serde::Serialize;
 
 use crate::model::{Model, Prep};
@@ -209,8 +209,8 @@ pub fn dof(d: &Drawing, handles: &[Handle]) -> Result<DofReport, SolveError> {
 mod budget_tests {
     use super::*;
     use crate::residual::{Built, Form};
-    use rustdraft_doc::{Common, ConstraintKind, EntityKind, GeomRef, Space};
-    use rustdraft_geom::{Spline, Vec2};
+    use draftcraft_doc::{Common, ConstraintKind, EntityKind, GeomRef, Space};
+    use draftcraft_geom::{Spline, Vec2};
 
     /// An expensive fit-spline endpoint residual produces unknown freedom before numerical differentiation.
     #[test]
@@ -242,8 +242,8 @@ mod budget_tests {
     /// and the solve is refused by its rebuild budget instead of running.
     #[test]
     fn repeated_spline_tangents_rebuild_once_and_solve_is_bounded() {
-        use rustdraft_doc::{Constraint, Line};
-        use rustdraft_geom::Vec3;
+        use draftcraft_doc::{Constraint, Line};
+        use draftcraft_geom::Vec3;
         let mut d = Drawing::default();
         let pts: Vec<_> = (0..400).map(|i| Vec2::new(i as f64, (i % 3) as f64)).collect();
         let h = d.add(&Space::Model, Common::default(), EntityKind::Spline(Spline::fit_with(&pts, false, Default::default()))).unwrap();

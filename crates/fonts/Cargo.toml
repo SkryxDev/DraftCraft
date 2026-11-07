@@ -1,6 +1,6 @@
 [package]
-name = "rustdraft-fonts"
-description = "RustDraft text: the built-in single-stroke drafting font and TEXT/MTEXT layout"
+name = "draftcraft-fonts"
+description = "DraftCraft text: the built-in single-stroke drafting font and TEXT/MTEXT layout"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,7 +9,7 @@ license.workspace = true
 workspace = true
 
 [dependencies]
-rustdraft-geom = { workspace = true }
+draftcraft-geom = { workspace = true }
 skrifa = { workspace = true }
 harfrust = { workspace = true }
 unicode-bidi = { workspace = true }

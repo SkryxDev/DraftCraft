@@ -1,10 +1,10 @@
 //! Dimension edits survive DXF: the oblique angle as group 52 (relative to the dimension line,
-//! DXF Reference), jogs, breaks and inspection frames as RustDraft xdata. Damaged xdata is
+//! DXF Reference), jogs, breaks and inspection frames as DraftCraft xdata. Damaged xdata is
 //! skipped.
 
-use rustdraft_doc::{Common, DimBreak, DimKind, DimMarks, Dimension, Drawing, EntityKind, Inspection, JoggedRadius, Space};
-use rustdraft_geom::Vec3;
-use rustdraft_io::{read_dxf, write_dxf};
+use draftcraft_doc::{Common, DimBreak, DimKind, DimMarks, Dimension, Drawing, EntityKind, Inspection, JoggedRadius, Space};
+use draftcraft_geom::Vec3;
+use draftcraft_io::{read_dxf, write_dxf};
 
 fn dim(kind: DimKind, marks: DimMarks) -> EntityKind {
     EntityKind::Dimension(Dimension {

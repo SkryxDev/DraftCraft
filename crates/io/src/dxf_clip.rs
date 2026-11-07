@@ -23,9 +23,9 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use rustdraft_doc::foreign::{Foreign, ForeignObject};
-use rustdraft_doc::{ClipBoundary, Drawing, EntityKind, Handle, MAX_CLIP_VERTICES, RawTag};
-use rustdraft_geom::{Mat3, Vec2};
+use draftcraft_doc::foreign::{Foreign, ForeignObject};
+use draftcraft_doc::{ClipBoundary, Drawing, EntityKind, Handle, MAX_CLIP_VERTICES, RawTag};
+use draftcraft_geom::{Mat3, Vec2};
 
 /// The filter's extension-dictionary entry of the reference app's inverted-clip record.
 const ROUNDTRIP_KEY: &str = "ACAD_XREC_ROUNDTRIP";
@@ -206,7 +206,7 @@ fn parse_filter(o: &ForeignObject, boundary: Option<&[Vec2]>) -> Option<ClipBoun
     }
     let inverted = boundary.is_some() || number(&o.tags, 290).is_some_and(|v| v != 0.0);
     let clip = ClipBoundary { points, enabled: number(&o.tags, 71).unwrap_or(1.0) != 0.0, inverted };
-    rustdraft_render::clip::PolyClip::new(&clip.polygon()).is_some().then_some(clip)
+    draftcraft_render::clip::PolyClip::new(&clip.polygon()).is_some().then_some(clip)
 }
 
 /// Put the planar filters of the file read into `d` on their references, taking them out of
@@ -231,12 +231,12 @@ pub(crate) fn read(d: &mut Drawing) {
     }
     let mut taken = Vec::new();
     for (h, clip) in found {
-        let set = |e: &mut rustdraft_doc::Entity| {
+        let set = |e: &mut draftcraft_doc::Entity| {
             if let EntityKind::Insert(i) = &mut e.kind {
                 i.clip = Some(clip.clone());
             }
         };
-        let is_insert = |e: &rustdraft_doc::Entity| matches!(e.kind, EntityKind::Insert(_));
+        let is_insert = |e: &draftcraft_doc::Entity| matches!(e.kind, EntityKind::Insert(_));
         let done = if d.entity(h).is_some_and(|e| is_insert(e)) {
             d.modify_entity(h, set).is_ok()
         } else {
@@ -357,7 +357,7 @@ fn roundtrip_record(h: Handle, owner: Handle, points: &[Vec2]) -> ForeignObject 
 /// filter kept from the file for it is replaced). `None` when no reference is clipped.
 pub(crate) fn prepare(d: &Drawing) -> Option<Drawing> {
     let mut clips: Vec<(Handle, ClipBoundary, Mat3)> = Vec::new();
-    let mut take = |e: &rustdraft_doc::Entity| {
+    let mut take = |e: &draftcraft_doc::Entity| {
         if let EntityKind::Insert(i) = &e.kind
             && let Some(c) = &i.clip
             && c.polygon().len() >= 3
@@ -456,11 +456,11 @@ mod tests {
     #[test]
     fn the_writer_starts_its_handles_past_the_clip_objects() {
         let mut d = Drawing::new_metric();
-        d.blocks.insert("B".into(), Arc::new(rustdraft_doc::Block::new("B")));
+        d.blocks.insert("B".into(), Arc::new(draftcraft_doc::Block::new("B")));
         for i in 0..3 {
             let clip = ClipBoundary::new(vec![Vec2::ZERO, Vec2::new(1.0, 0.0), Vec2::new(0.0, 1.0)]);
-            let ins = rustdraft_doc::Insert { block: "B".into(), clip: Some(ClipBoundary { inverted: i == 0, ..clip }), ..Default::default() };
-            d.add(&rustdraft_doc::Space::Model, rustdraft_doc::Common::default(), EntityKind::Insert(ins)).unwrap();
+            let ins = draftcraft_doc::Insert { block: "B".into(), clip: Some(ClipBoundary { inverted: i == 0, ..clip }), ..Default::default() };
+            d.add(&draftcraft_doc::Space::Model, draftcraft_doc::Common::default(), EntityKind::Insert(ins)).unwrap();
         }
         let out = prepare(&d).unwrap();
         let highest = out.foreign.objects.iter().map(|o| o.handle.0).max().unwrap();

@@ -6,8 +6,8 @@
 //! second's inside the first; intersect: the loops inside the other region). Overlapping
 //! boundaries need curve splitting and report "not available yet".
 
-use rustdraft_doc::{EntityKind, Handle, HatchLoop, MAX_REGION_LOOPS, Region};
-use rustdraft_geom::{Line, Vec2, line_line, point_in_polygon};
+use draftcraft_doc::{EntityKind, Handle, HatchLoop, MAX_REGION_LOOPS, Region};
+use draftcraft_geom::{Line, Vec2, line_line, point_in_polygon};
 use serde_json::{Value, json};
 
 use super::super::machines::{SelOutcome, SelectPhase, SelectRun};

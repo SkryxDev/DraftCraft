@@ -12,9 +12,9 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use rustdraft_doc::{Attrib, Drawing, Entity, EntityKind, Handle, Insert, MLeader, MLeaderStyle, MText};
-use rustdraft_dxf::Tag;
-use rustdraft_geom::Vec3;
+use draftcraft_doc::{Attrib, Drawing, Entity, EntityKind, Handle, Insert, MLeader, MLeaderStyle, MText};
+use draftcraft_dxf::Tag;
+use draftcraft_geom::Vec3;
 
 /// Most leader roots (landings) read per multileader.
 const MAX_ROOTS: usize = 256;

@@ -1,11 +1,11 @@
 //! Grip dimensional input (#519): while one grip is stretched, the dimensions it changes can be
 //! typed (DYNDIVIS, DYNDIGRIP).
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{EntityKind, Handle};
-use rustdraft_engine::geom::Vec2;
-use rustdraft_engine::grip_dims::{GripDimKind, grip_dims, resolve};
-use rustdraft_engine::{Input, sysvars};
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{EntityKind, Handle};
+use draftcraft_engine::geom::Vec2;
+use draftcraft_engine::grip_dims::{GripDimKind, grip_dims, resolve};
+use draftcraft_engine::{Input, sysvars};
 use serde_json::json;
 
 fn handle(r: serde_json::Value) -> Handle {

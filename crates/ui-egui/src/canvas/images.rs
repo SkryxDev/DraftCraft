@@ -9,10 +9,10 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::sync::{Arc, Mutex, Weak};
 
+use draftcraft_doc::Raster;
+use draftcraft_geom::{Bounds2, Vec2};
+use draftcraft_render::{DImage, DisplayList, Kind};
 use egui::{Color32, Mesh, Rect, Shape, TextureHandle, TextureOptions, epaint::Vertex, pos2};
-use rustdraft_doc::Raster;
-use rustdraft_geom::{Bounds2, Vec2};
-use rustdraft_render::{DImage, DisplayList, Kind};
 
 use super::Xf;
 
@@ -179,7 +179,7 @@ pub(super) fn draw(p: &egui::Painter, xf: &Xf, list: &DisplayList) {
 
 /// The image tiles uploaded so far, kept between frames.
 fn textures(ctx: &egui::Context) -> Textures {
-    ctx.data_mut(|d| d.get_temp_mut_or_default::<Textures>(egui::Id::unique("rustdraft-raster-textures")).clone())
+    ctx.data_mut(|d| d.get_temp_mut_or_default::<Textures>(egui::Id::unique("draftcraft-raster-textures")).clone())
 }
 
 /// Draw one image as textured meshes, one per tile on screen: its rectangle, or the outline it is
@@ -279,7 +279,7 @@ fn cut<'a>(img: &'a DImage, xf: &Xf, canvas: Rect) -> Cut<'a> {
 fn triangles(img: &DImage, outline: Option<&[Vec2]>) -> Vec<Vec2> {
     match outline {
         Some(o) => {
-            let mut t = rustdraft_render::triangulate_evenodd(&[o.to_vec()]);
+            let mut t = draftcraft_render::triangulate_evenodd(&[o.to_vec()]);
             t.truncate(t.len() - t.len() % 3);
             t
         }
@@ -293,10 +293,10 @@ fn triangles(img: &DImage, outline: Option<&[Vec2]>) -> Vec<Vec2> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use draftcraft_doc::{Common, Drawing, EntityKind, Image, Space};
+    use draftcraft_geom::Vec3;
+    use draftcraft_render::{Options, build};
     use egui::epaint::ClippedShape;
-    use rustdraft_doc::{Common, Drawing, EntityKind, Image, Space};
-    use rustdraft_geom::Vec3;
-    use rustdraft_render::{Options, build};
 
     fn v(x: f64, y: f64) -> Vec2 {
         Vec2::new(x, y)
@@ -512,7 +512,7 @@ mod tests {
     /// changes with it.
     #[test]
     fn on_screen_images_lie_under_the_lines_whatever_the_draw_order() {
-        use rustdraft_doc::Line;
+        use draftcraft_doc::Line;
         let line = EntityKind::Line(Line { a: Vec3::new(0.0, 5.0, 0.0), b: Vec3::new(10.0, 5.0, 0.0) });
         let image = EntityKind::Image(Image {
             u: Vec3::new(5.0, 0.0, 0.0),
@@ -533,7 +533,7 @@ mod tests {
             let xf = Xf { rect, center: v(5.0, 5.0), scale: 10.0, twist: 0.0 };
             let mut out = ctx.run_ui(egui::RawInput { screen_rect: Some(rect), ..Default::default() }, |ui| {
                 let painter = ui.ctx().layer_painter(egui::LayerId::background()).with_clip_rect(rect);
-                crate::canvas::draw_list(&painter, &xf, &l, rustdraft_color::Rgb(0, 0, 0), false);
+                crate::canvas::draw_list(&painter, &xf, &l, draftcraft_color::Rgb(0, 0, 0), false);
             });
             out.textures_delta.clear();
             let kinds: Vec<bool> = out.shapes.iter().map(|s| matches!(s.shape, Shape::Mesh(_))).collect();

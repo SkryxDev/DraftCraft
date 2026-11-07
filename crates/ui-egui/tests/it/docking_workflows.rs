@@ -1,11 +1,11 @@
 //! Panel moves use the real app shell, retain commands, and survive a complete UI-state reload.
 
 use craft_ui::docking::{Column, Divider, DockArea, Hit, Layout, Node, Side};
+use draftcraft_engine::Session;
+use draftcraft_ui_egui::{CadApp, Services, UiState, docking::Panel, menus};
 use egui::{Event, Modifiers, PointerButton, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
-use rustdraft_engine::Session;
-use rustdraft_ui_egui::{CadApp, Services, UiState, docking::Panel, menus};
 use serde_json::json;
 
 fn harness(state: Option<UiState>, width: f32, scale: f32) -> Harness<'static, CadApp> {
@@ -49,7 +49,7 @@ fn drag(harness: &mut Harness<'_, CadApp>, from: egui::Pos2, to: egui::Pos2) {
 }
 
 fn area() -> egui::Id {
-    egui::Id::unique("rustdraft-docking")
+    egui::Id::unique("draftcraft-docking")
 }
 
 /// The rect the dock area drew last frame for `hit`.
@@ -93,7 +93,7 @@ fn frames(layout: &Layout<Panel>) -> Vec<Vec<Panel>> {
 
 #[test]
 fn default_layout_is_tool_sets_left_and_the_palettes_right_in_dock_columns() {
-    use rustdraft_ui_egui::docking::{PALETTES_WIDTH, TOOL_SETS_WIDTH, default_workspace, validate};
+    use draftcraft_ui_egui::docking::{PALETTES_WIDTH, TOOL_SETS_WIDTH, default_workspace, validate};
     let workspace = default_workspace();
     validate(&workspace).unwrap();
     assert!(workspace.hidden.is_empty() && workspace.layout.floating.is_empty());
@@ -123,7 +123,7 @@ fn default_layout_is_tool_sets_left_and_the_palettes_right_in_dock_columns() {
 
 #[test]
 fn palette_icons_are_painted_in_code_and_shown_in_an_iconic_column() {
-    use rustdraft_ui_egui::docking::Panels;
+    use draftcraft_ui_egui::docking::Panels;
     let mut app = CadApp::new(Session::default(), Services::default());
     // The Windows layout keeps the Tool Sets and the docked palettes closed; these tests use them.
     app.ui.show_toolsets = true;
@@ -287,7 +287,7 @@ fn group_divider_resizes_by_pointer_and_keyboard_without_changing_the_drawing() 
 #[test]
 fn grouped_restore_preserves_order_and_rectangle_in_both_close_orders_after_reload() {
     use craft_ui::docking::{Action, Placement};
-    use rustdraft_ui_egui::docking::{default_workspace, permissions, reveal_panel};
+    use draftcraft_ui_egui::docking::{default_workspace, permissions, reveal_panel};
     for order in [[Panel::Layers, Panel::Properties], [Panel::Properties, Panel::Layers]] {
         let mut workspace = default_workspace();
         let rect = [50.0, 60.0, 320.0, 400.0];
@@ -343,7 +343,7 @@ fn palettes_off_and_on_restore_the_right_dock_column() {
 
 #[test]
 fn window_menu_reopens_closed_and_new_palettes_in_their_dock_groups() {
-    use rustdraft_ui_egui::docking::{PALETTES_WIDTH, TOOL_SETS_WIDTH};
+    use draftcraft_ui_egui::docking::{PALETTES_WIDTH, TOOL_SETS_WIDTH};
     let mut h = harness(None, 1280.0, 1.0);
     // A closed palette comes back where it was.
     h.state_mut().run("ui.dock", json!({"operation":"close","panel":"layers"})).unwrap();
@@ -366,8 +366,8 @@ fn window_menu_reopens_closed_and_new_palettes_in_their_dock_groups() {
     h.run_steps(3);
     assert_eq!(dock_panels(&h.state().ui.docking.layout, Side::End), [vec![vec![Panel::Layers], vec![Panel::Properties], vec![Panel::ExternalRefs]]]);
     // Tool Sets with no recorded place and no left dock makes one at its width.
-    let mut workspace = rustdraft_ui_egui::docking::default_workspace();
-    workspace.apply(craft_ui::docking::Action::Close { panel: Panel::ToolSets }, rustdraft_ui_egui::docking::permissions).unwrap();
+    let mut workspace = draftcraft_ui_egui::docking::default_workspace();
+    workspace.apply(craft_ui::docking::Action::Close { panel: Panel::ToolSets }, draftcraft_ui_egui::docking::permissions).unwrap();
     workspace.hidden.clear();
     h.state_mut().ui.docking = workspace;
     h.state_mut().ui.show_toolsets = false;
@@ -465,7 +465,7 @@ fn reset_typed_in_canvas_preserves_authoritative_workspace_replacement() {
     h.run_steps(3);
     let drawing = h.state().session.doc().unwrap().clone();
     type_command(&mut h, "ui.dock.reset");
-    let expected = rustdraft_ui_egui::docking::default_workspace();
+    let expected = draftcraft_ui_egui::docking::default_workspace();
     assert_eq!(h.state().ui.docking.layout, expected.layout);
     assert_eq!(h.state().ui.docking.hidden, expected.hidden);
     assert_eq!(h.state().session.doc().unwrap(), &drawing);
@@ -499,7 +499,7 @@ fn canvas_reset_during_column_drag_discards_old_resize_and_ends_gesture() {
     h.event(Event::Text("ui.dock.reset".into()));
     h.event(Event::Key { key: egui::Key::Enter, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE });
     h.run_steps(1);
-    let expected = rustdraft_ui_egui::docking::default_workspace();
+    let expected = draftcraft_ui_egui::docking::default_workspace();
     assert!(h.state().cmd.buffer.is_empty(), "Canvas submitted the actual reset command");
     assert_eq!(h.state().ui.docking.layout, expected.layout, "old-frame resize must not modify Reset's layout");
     assert_eq!(h.state().ui.docking.hidden, expected.hidden);

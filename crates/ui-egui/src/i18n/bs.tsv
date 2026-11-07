@@ -1,7 +1,7 @@
-# RustDraft Bosnian interface catalog — original translations by Nine (@nine-codes) with Claude Code (AI-assisted).
+# DraftCraft Bosnian interface catalog — original translations by Nine (@nine-codes) with Claude Code (AI-assisted).
 # SPDX-License-Identifier: MIT OR Apache-2.0
-# Written from the meaning of RustDraft English strings; no proprietary translations copied.
-# Latin script, Ijekavian; the wording is shared with storytold/craft-i18n (locales/bs/rustdraft.tsv
+# Written from the meaning of DraftCraft English strings; no proprietary translations copied.
+# Latin script, Ijekavian; the wording is shared with storytold/craft-i18n (locales/bs/draftcraft.tsv
 # and common.tsv). Not yet reviewed by a native speaker.
 # UTF-8: context<TAB>English source<TAB>Bosnian translation.
 # @plural = one|few|other forms for integer counts.

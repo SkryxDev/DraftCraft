@@ -1,11 +1,11 @@
 //! #1058: a layout whose page setup is in millimetres (plot paper units 1) has millimetre paper
 //! units even when the drawing's MEASUREMENT is 0, as drawings from AutoCAD often are.
-//! RustDraft read MEASUREMENT only, took the paper as inches and plotted everything 25.4 times too
+//! DraftCraft read MEASUREMENT only, took the paper as inches and plotted everything 25.4 times too
 //! large, off the page.
 
-use rustdraft_doc::{Common, Drawing, EntityKind, Layout, LwPolyline, PageSetup, Space};
-use rustdraft_geom::{PolyVertex, Vec2};
-use rustdraft_io::{PdfOptions, pdf, read, write_dxf};
+use draftcraft_doc::{Common, Drawing, EntityKind, Layout, LwPolyline, PageSetup, Space};
+use draftcraft_geom::{PolyVertex, Vec2};
+use draftcraft_io::{PdfOptions, pdf, read, write_dxf};
 
 /// An imperial drawing (MEASUREMENT 0) with an A4 landscape layout in millimetres and a frame
 /// 10 mm inside the sheet.
@@ -38,7 +38,7 @@ fn drawing() -> Drawing {
 #[test]
 fn a_millimetre_layout_plots_in_millimetres_whatever_measurement_says() {
     let d = drawing();
-    let sheet = rustdraft_render::sheet(&d, "SHEET").unwrap();
+    let sheet = draftcraft_render::sheet(&d, "SHEET").unwrap();
     assert_eq!(sheet.unit_mm, 1.0);
     assert!((sheet.size.x - 297.0).abs() < 1e-9 && (sheet.size.y - 210.0).abs() < 1e-9, "{:?}", sheet.size);
 
@@ -58,9 +58,9 @@ fn plot_paper_units_round_trip_through_dxf() {
     let back = read(write_dxf(&drawing()).as_bytes(), "x.dxf").unwrap();
     let page = &back.layouts.iter().find(|l| l.name == "SHEET").unwrap().page;
     assert!(page.paper_mm);
-    assert_eq!(rustdraft_render::sheet(&back, "SHEET").unwrap().unit_mm, 1.0);
+    assert_eq!(draftcraft_render::sheet(&back, "SHEET").unwrap().unit_mm, 1.0);
     // A metric drawing's layouts stay in millimetres even from files that say 72 = 0 (what
-    // earlier RustDraft versions wrote for every layout).
+    // earlier DraftCraft versions wrote for every layout).
     let mut metric = Drawing::new_metric();
     metric.header.set_i64("MEASUREMENT", 1);
     let written = write_dxf(&metric);
@@ -68,5 +68,5 @@ fn plot_paper_units_round_trip_through_dxf() {
     assert_ne!(text, written, "the layouts' 72 = 1 became 0");
     let back = read(text.as_bytes(), "old.dxf").unwrap();
     let name = back.layouts.first().unwrap().name.clone();
-    assert_eq!(rustdraft_render::sheet(&back, &name).unwrap().unit_mm, 1.0);
+    assert_eq!(draftcraft_render::sheet(&back, &name).unwrap().unit_mm, 1.0);
 }

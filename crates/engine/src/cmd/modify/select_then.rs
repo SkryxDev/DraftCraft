@@ -445,7 +445,7 @@ impl Interactive for SelectThen {
                 Ok(Step::Done)
             }
             (Op::Mirror, 1, Input::Point(p)) => {
-                if p.near(self.pts[0], rustdraft_geom::EPS) {
+                if p.near(self.pts[0], draftcraft_geom::EPS) {
                     return Err(EngineError::Other("Mirror line points must differ.".into()));
                 }
                 self.pts.push(p);

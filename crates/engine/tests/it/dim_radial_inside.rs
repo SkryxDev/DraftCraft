@@ -1,16 +1,16 @@
 //! DIMRADIUS / DIMDIAMETER: a dimension line location picked inside the circle puts the text
 //! there, on the dimension line; outside, the text stays beyond the arrowhead.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{Dimension, EntityKind};
-use rustdraft_engine::geom::Vec2;
-use rustdraft_engine::render::{DimGeometry, LineRole};
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{Dimension, EntityKind};
+use draftcraft_engine::geom::Vec2;
+use draftcraft_engine::render::{DimGeometry, LineRole};
 use serde_json::json;
 
 fn last_dim(s: &Session) -> (Dimension, DimGeometry) {
     let d = s.doc().unwrap();
     match &d.model.last().unwrap().kind {
-        EntityKind::Dimension(dm) => (dm.clone(), rustdraft_engine::render::dimension_in(d, dm)),
+        EntityKind::Dimension(dm) => (dm.clone(), draftcraft_engine::render::dimension_in(d, dm)),
         other => panic!("not a dimension: {other:?}"),
     }
 }

@@ -4,12 +4,12 @@
 
 use std::sync::{Arc, Mutex};
 
-use rustdraft_engine::Session;
-use rustdraft_engine::cmd::clipboard;
-use rustdraft_engine::cmd::file::{IoHooks, set_io};
-use rustdraft_engine::doc::color::Color;
-use rustdraft_engine::doc::{Block, Common, Drawing, Entity, EntityKind, Handle, Insert, Layer, Line};
-use rustdraft_engine::geom::{Vec2, Vec3};
+use draftcraft_engine::Session;
+use draftcraft_engine::cmd::clipboard;
+use draftcraft_engine::cmd::file::{IoHooks, set_io};
+use draftcraft_engine::doc::color::Color;
+use draftcraft_engine::doc::{Block, Common, Drawing, Entity, EntityKind, Handle, Insert, Layer, Line};
+use draftcraft_engine::geom::{Vec2, Vec3};
 use serde_json::json;
 
 fn line(d: &mut Drawing, layer: &str, a: (f64, f64), b: (f64, f64)) -> Entity {
@@ -131,7 +131,7 @@ fn pasteorig_pastes_only_into_another_drawing() {
     assert!(s.execute("pasteorig", &json!({})).is_err());
     assert!(s.start("pasteorig").is_err());
     assert_eq!(s.doc().unwrap().model.len(), 2);
-    let info = rustdraft_engine::find_command("pasteorig").unwrap().info(&s);
+    let info = draftcraft_engine::find_command("pasteorig").unwrap().info(&s);
     assert!(!info.enabled);
 
     // In another drawing it pastes at the same coordinates without asking.
@@ -145,7 +145,7 @@ fn pasteorig_pastes_only_into_another_drawing() {
     // PASTECLIP asks for the insertion point and places the base point there.
     s.start("pasteclip").unwrap();
     assert!(s.prompt_text().contains("insertion point"), "{}", s.prompt_text());
-    s.input(rustdraft_engine::Input::Point(Vec2::new(0.0, 0.0))).unwrap();
+    s.input(draftcraft_engine::Input::Point(Vec2::new(0.0, 0.0))).unwrap();
     assert!(s.running.is_none());
     let pasted = model(&s);
     assert_eq!(pasted.len(), 4);
@@ -221,10 +221,10 @@ fn cutting_only_locked_objects_keeps_the_clipboard() {
 
     // CUTBASE at the command line says so too.
     s.start("cutbase").unwrap();
-    s.input(rustdraft_engine::Input::Point(Vec2::new(3.0, 4.0))).unwrap();
+    s.input(draftcraft_engine::Input::Point(Vec2::new(3.0, 4.0))).unwrap();
     let wall = s.doc().unwrap().model.iter().next().unwrap().handle;
-    s.input(rustdraft_engine::Input::Pick(vec![wall])).unwrap();
-    s.input(rustdraft_engine::Input::Enter).unwrap();
+    s.input(draftcraft_engine::Input::Pick(vec![wall])).unwrap();
+    s.input(draftcraft_engine::Input::Enter).unwrap();
     assert!(s.running.is_none());
     assert!(s.log.iter().any(|l| l.contains("1 object was on a locked layer. Nothing was cut.")), "{:?}", s.log);
     assert_eq!(s.clipboard.len(), 1);
@@ -262,10 +262,10 @@ fn cutbase_asks_for_the_base_point_then_the_objects() {
     let undo_before = s.state().unwrap().undo.len();
     s.start("cutbase").unwrap();
     assert!(s.prompt_text().contains("Specify base point"), "{}", s.prompt_text());
-    s.input(rustdraft_engine::Input::Point(Vec2::new(3.0, 4.0))).unwrap();
+    s.input(draftcraft_engine::Input::Point(Vec2::new(3.0, 4.0))).unwrap();
     assert!(s.prompt_text().contains("Select objects"), "{}", s.prompt_text());
-    s.input(rustdraft_engine::Input::Pick(vec![hs[1]])).unwrap();
-    s.input(rustdraft_engine::Input::Enter).unwrap();
+    s.input(draftcraft_engine::Input::Pick(vec![hs[1]])).unwrap();
+    s.input(draftcraft_engine::Input::Enter).unwrap();
     assert!(s.running.is_none());
     assert_eq!(s.clipboard.len(), 1);
     assert_eq!(s.clipboard_base, Vec2::new(3.0, 4.0));
@@ -276,7 +276,7 @@ fn cutbase_asks_for_the_base_point_then_the_objects() {
     s.set_selection(vec![hs[0]]);
     s.start("cutbase").unwrap();
     assert!(s.prompt_text().contains("Specify base point"), "{}", s.prompt_text());
-    s.input(rustdraft_engine::Input::Point(Vec2::new(1.0, 2.0))).unwrap();
+    s.input(draftcraft_engine::Input::Point(Vec2::new(1.0, 2.0))).unwrap();
     assert!(s.running.is_none());
     assert!(s.doc().unwrap().model.is_empty());
     assert_eq!(s.clipboard_base, Vec2::new(1.0, 2.0));
@@ -312,7 +312,7 @@ fn clipboard_travels_as_text() {
     assert!(written.block("DOOR").is_some() && written.layer("HINGE").is_some());
     assert_eq!(written.header.point("INSBASE"), Some(Vec3::new(10.0, 0.0, 0.0)));
 
-    // Another RustDraft (here: a fresh session) pastes it, with its layers and blocks.
+    // Another DraftCraft (here: a fresh session) pastes it, with its layers and blocks.
     let mut t = Session::empty();
     t.open_drawing(drawing_b(), "B", None);
     assert!(!clipboard::load_system_text(&mut t, "just some words"));

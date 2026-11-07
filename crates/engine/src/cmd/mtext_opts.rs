@@ -1,8 +1,8 @@
 //! MTEXT's options before the text (Height, Justify, Line spacing, Rotation, Style, Width,
 //! Columns) for the prompt machine in `draw.rs`.
 
-use rustdraft_doc::{MText, MTextColumnType, MTextColumns};
-use rustdraft_geom::{Vec2, Vec3};
+use draftcraft_doc::{MText, MTextColumnType, MTextColumns};
+use draftcraft_geom::{Vec2, Vec3};
 
 use super::curves;
 use super::machines::number;
@@ -367,7 +367,7 @@ fn trim(v: f64) -> String {
 /// (drawing units; a list's default is 3 text heights), `tabs` (tab stops, drawing units) and `align` (`left`, `center`, `right`,
 /// `justify`, `distributed`) as a `\p` code in front of the text.
 pub(super) fn json_paragraphs(p: &serde_json::Value, text: String, height: f64) -> Result<String> {
-    use rustdraft_fonts::{ListStyle, ParaAlign, ParaProps, TabKind};
+    use draftcraft_fonts::{ListStyle, ParaAlign, ParaProps, TabKind};
     let bad = |m: &str| super::bad("mtext", m);
     let num = |k: &str| -> Result<Option<f64>> {
         match p.get(k) {
@@ -384,7 +384,7 @@ pub(super) fn json_paragraphs(p: &serde_json::Value, text: String, height: f64) 
             _ => return Err(bad("`list` must be bullet, number, lower or upper")),
         };
         let paras: Vec<&str> = text.split("\\P").collect();
-        return Ok(rustdraft_fonts::list_contents(&paras, style, num("indent")?.unwrap_or(3.0 * height)));
+        return Ok(draftcraft_fonts::list_contents(&paras, style, num("indent")?.unwrap_or(3.0 * height)));
     }
     let mut props = ParaProps {
         left: num("indent")?.unwrap_or(0.0).max(0.0),

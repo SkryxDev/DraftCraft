@@ -1,8 +1,8 @@
 //! OFFSET of a full ellipse goes to the side of the picked point (issue #501): an outside point
 //! gave an inward copy and an inside point an outward one.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::EntityKind;
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::EntityKind;
 use serde_json::json;
 
 fn last_handle(s: &Session) -> String {

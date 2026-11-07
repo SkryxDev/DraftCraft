@@ -2,9 +2,9 @@
 //! UNISOLATEOBJECTS (#428): JSON forms, typed forms, and hidden objects skipped by display and
 //! selection.
 
-use rustdraft_engine::doc::{Handle, Space};
-use rustdraft_engine::geom::{Bounds2, Vec2};
-use rustdraft_engine::{Session, render, select};
+use draftcraft_engine::doc::{Handle, Space};
+use draftcraft_engine::geom::{Bounds2, Vec2};
+use draftcraft_engine::{Session, render, select};
 use serde_json::json;
 
 /// Two lines and a circle on layer 0, a line and a circle on "Walls" (the last circle red).

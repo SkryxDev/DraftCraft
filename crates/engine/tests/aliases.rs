@@ -4,8 +4,8 @@
 
 use std::sync::Mutex;
 
-use rustdraft_engine::Session;
-use rustdraft_engine::cmd::resolve_alias;
+use draftcraft_engine::Session;
+use draftcraft_engine::cmd::resolve_alias;
 use serde_json::json;
 
 #[path = "support/temp_dir.rs"]

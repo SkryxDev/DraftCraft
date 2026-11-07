@@ -5,8 +5,8 @@
 //! and round-trip through the DXF VIEW table. Restoring one is a view change like ZOOM: it goes
 //! into the view history, not the undo stack (a layer snapshot it restores is an undo step).
 
-use rustdraft_doc::{LayerState, NamedView, Space};
-use rustdraft_geom::{Bounds2, Vec2};
+use draftcraft_doc::{LayerState, NamedView, Space};
+use draftcraft_geom::{Bounds2, Vec2};
 use serde_json::{Value, json};
 
 use super::super::qselect::wildcard;
@@ -190,7 +190,7 @@ fn restore(s: &mut Session, name: &str) -> Result<Value> {
             // In an unlocked MSPACE viewport the saved twist turns the viewport (an edit of the
             // viewport, recorded as the command's undo step).
             let aspect = st.zoom_aspect(w / h.max(1.0)).max(1e-9);
-            let twist = rustdraft_geom::norm_angle(v.twist);
+            let twist = draftcraft_geom::norm_angle(v.twist);
             st.set_zoom_frame(View { center: v.center, height: v.height.max(v.width / aspect), twist });
         }
     }
@@ -382,7 +382,7 @@ impl Interactive for ViewM {
             }
         }
     }
-    fn preview(&self, _s: &Session, c: Vec2) -> Vec<rustdraft_doc::EntityKind> {
+    fn preview(&self, _s: &Session, c: Vec2) -> Vec<draftcraft_doc::EntityKind> {
         match self.stage {
             Stage::WindowSecond(a) => vec![super::super::helpers::lwpoly(super::super::helpers::rect_vertices(a, c), true)],
             _ => Vec::new(),

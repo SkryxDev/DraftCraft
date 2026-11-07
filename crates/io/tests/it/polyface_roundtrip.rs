@@ -1,9 +1,9 @@
 //! A polyface mesh stays one object through DXF and DWG, instead of becoming loose 3D faces;
 //! its hidden edges stay hidden.
 
-use rustdraft_doc::{Drawing, EntityKind, PolyfaceMesh, Prim};
-use rustdraft_geom::Vec3;
-use rustdraft_io::{read_dxf, write_dxf};
+use draftcraft_doc::{Drawing, EntityKind, PolyfaceMesh, Prim};
+use draftcraft_geom::Vec3;
+use draftcraft_io::{read_dxf, write_dxf};
 
 /// A 10 × 10 square as two triangles; the diagonal (from vertex 3) is hidden in both.
 const POLYFACE_DXF: &str = "0\nSECTION\n2\nENTITIES\n\
@@ -55,15 +55,15 @@ fn polyface_mesh_round_trips_through_dxf_and_dwg() {
     assert_eq!(mesh(&read_dxf(text.as_bytes()).unwrap()), expected());
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let dwg = rustdraft_io::write(&d, "x.dwg").unwrap();
-        assert_eq!(mesh(&rustdraft_io::read(&dwg, "x.dwg").unwrap()), expected());
+        let dwg = draftcraft_io::write(&d, "x.dwg").unwrap();
+        assert_eq!(mesh(&draftcraft_io::read(&dwg, "x.dwg").unwrap()), expected());
     }
 }
 
 #[test]
 fn a_polyface_mesh_too_large_for_its_record_is_saved_as_3d_faces() {
-    use rustdraft_doc::{Common, Space};
-    use rustdraft_io::{SaveOptions, read, write_with};
+    use draftcraft_doc::{Common, Space};
+    use draftcraft_io::{SaveOptions, read, write_with};
     // 40,000 vertices: counts and indices past 32,767 don't fit the 16-bit groups 71–74.
     let vertices: Vec<Vec3> = (0..40_000).map(|i| Vec3::new(f64::from(i), 0.0, f64::from(i % 7))).collect();
     let mesh = PolyfaceMesh { vertices, faces: vec![[1, 2, 39_999, 0], [39_998, -39_999, 40_000, 3]] };
@@ -110,7 +110,7 @@ fn faces_naming_missing_vertices_are_dropped_on_read() {
 
 #[test]
 fn faces_naming_missing_vertices_are_not_written() {
-    use rustdraft_doc::{Common, Space};
+    use draftcraft_doc::{Common, Space};
     let mut m = expected();
     m.faces.push([1, 2, 9, 0]);
     let mut d = Drawing::new_metric();

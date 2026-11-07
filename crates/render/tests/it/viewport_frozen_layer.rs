@@ -1,9 +1,9 @@
 //! A layout viewport whose own layer is frozen shows neither its border nor its contents, on
 //! screen and when plotting; turned off, the layer hides only the border (issue #395).
 
-use rustdraft_doc::{Circle, Common, Drawing, EntityKind, Space, Viewport};
-use rustdraft_geom::{Vec2, Vec3};
-use rustdraft_render::{DisplayList, Options, VIEWPORT_CONTENT, build, build_plot};
+use draftcraft_doc::{Circle, Common, Drawing, EntityKind, Space, Viewport};
+use draftcraft_geom::{Vec2, Vec3};
+use draftcraft_render::{DisplayList, Options, VIEWPORT_CONTENT, build, build_plot};
 
 fn drawing() -> Drawing {
     let mut d = Drawing::new_imperial();

@@ -110,5 +110,5 @@ pub(super) fn ocs(c: &Common, p: Vec3) -> Vec3 {
 }
 
 pub(super) fn ocs_n(n: Vec3, p: Vec3) -> Vec3 {
-    if (n.z - 1.0).abs() < 1e-12 && n.x.abs() < 1e-12 && n.y.abs() < 1e-12 { p } else { rustdraft_geom::Mat4::ocs(n).apply(p) }
+    if (n.z - 1.0).abs() < 1e-12 && n.x.abs() < 1e-12 && n.y.abs() < 1e-12 { p } else { draftcraft_geom::Mat4::ocs(n).apply(p) }
 }

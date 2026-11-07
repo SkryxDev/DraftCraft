@@ -1,6 +1,6 @@
 //! UNDO takes the number of operations to undo; U (Edit > Undo, Cmd+Z) undoes one at once.
 
-use rustdraft_engine::Session;
+use draftcraft_engine::Session;
 
 fn count(s: &Session) -> usize {
     s.doc().unwrap().model.len()

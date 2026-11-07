@@ -1,13 +1,13 @@
 //! Dynamic blocks from another program: their parameters and actions are read into
-//! `rustdraft_doc::dynblock`, and survive a save unchanged.
+//! `draftcraft_doc::dynblock`, and survive a save unchanged.
 //!
 //! The fixture is synthetic, written for this test: a DOOR block whose BLOCK_RECORD carries an
 //! evaluation graph with a visibility parameter (Open, Closed), a linear parameter (Width, a list
 //! of values), a stretch action on it, a lookup parameter and its lookup table, and a grip.
 
-use rustdraft_doc::dynblock::{ActionKind, DynamicBlock, ParameterKind, dynamic_block};
-use rustdraft_doc::{Handle, RawTag};
-use rustdraft_io::{read_dxf, write_dxf};
+use draftcraft_doc::dynblock::{ActionKind, DynamicBlock, ParameterKind, dynamic_block};
+use draftcraft_doc::{Handle, RawTag};
+use draftcraft_io::{read_dxf, write_dxf};
 
 /// DXF text from lines of `code value` (the value may be empty).
 fn dxf(src: &str) -> String {
@@ -81,8 +81,8 @@ fn a_saved_drawing_keeps_the_dynamic_block_as_read() {
     assert_eq!(by_node(dynamic_block(&again, "Door").unwrap()), by_node(before.clone()));
     // And through DWG: the lookup parameter (AutoCAD writes its marker AcDbBlockLookUpParameter)
     // keeps its name and lookup action.
-    let dwg = rustdraft_io::write(&d, "x.dwg").unwrap();
-    let back = rustdraft_io::read(&dwg, "x.dwg").unwrap();
+    let dwg = draftcraft_io::write(&d, "x.dwg").unwrap();
+    let back = draftcraft_io::read(&dwg, "x.dwg").unwrap();
     assert_eq!(by_node(dynamic_block(&back, "Door").unwrap()), by_node(before));
 }
 
@@ -101,9 +101,9 @@ fn with_scale_action() -> String {
         .replacen("0 BLOCKLOOKUPPARAMETER\n", &format!("{action}0 BLOCKLOOKUPPARAMETER\n"), 1)
 }
 
-/// A scale action goes through RustDraft's own DWG save (the bridge DXF, then acadrust) whole:
+/// A scale action goes through DraftCraft's own DWG save (the bridge DXF, then acadrust) whole:
 /// the DWG holds it with its connections, and it reads back as the same action. AutoCAD refused
-/// such DWGs while acadrust left out the byte after its connections (rustdraft-dwg's
+/// such DWGs while acadrust left out the byte after its connections (draftcraft-dwg's
 /// `scale_actions_keep_the_byte_autocad_reads_after_their_connections` covers the byte).
 #[test]
 fn a_scale_action_survives_a_dwg_save() {
@@ -111,7 +111,7 @@ fn a_scale_action_survives_a_dwg_save() {
     let d = read_dxf(dxf(&with_scale_action()).as_bytes()).unwrap();
     let before = dynamic_block(&d, "Door").unwrap();
     assert!(before.actions.iter().any(|a| a.node == 7 && matches!(a.kind, ActionKind::Scale)), "{:?}", before.actions);
-    let dwg = rustdraft_io::write(&d, "x.dwg").unwrap();
+    let dwg = draftcraft_io::write(&d, "x.dwg").unwrap();
 
     let doc = acadrust::DwgReader::from_stream(std::io::Cursor::new(&dwg)).read().unwrap();
     let scale = doc.objects.values().find_map(|o| match o {
@@ -124,7 +124,7 @@ fn a_scale_action_survives_a_dwg_save() {
     assert_eq!(names(&scale.action.connections), [(2, "UpdatedBaseX".to_string()), (2, "UpdatedBaseY".into())]);
     assert_eq!(scale.dwg_tail_byte, 0);
 
-    let back = rustdraft_io::read(&dwg, "x.dwg").unwrap();
+    let back = draftcraft_io::read(&dwg, "x.dwg").unwrap();
     assert_eq!(by_node(dynamic_block(&back, "Door").unwrap()), by_node(before));
 }
 
@@ -245,8 +245,8 @@ fn with_references() -> String {
         )
 }
 
-fn props(d: &rustdraft_doc::Drawing, h: &str) -> (String, Vec<(String, String, Vec<String>)>) {
-    let (name, ps) = rustdraft_doc::dynblock::custom_properties(d, Handle::parse_hex(h).unwrap()).unwrap();
+fn props(d: &draftcraft_doc::Drawing, h: &str) -> (String, Vec<(String, String, Vec<String>)>) {
+    let (name, ps) = draftcraft_doc::dynblock::custom_properties(d, Handle::parse_hex(h).unwrap()).unwrap();
     (name, ps.into_iter().map(|p| (p.name, p.value, p.choices)).collect())
 }
 
@@ -269,7 +269,7 @@ fn dynamic_block_references_show_their_values() {
     );
 
     // An anonymous block with values of its own, scaled 2: lengths in drawing units.
-    let r = rustdraft_doc::dynblock::reference(&d, h("81")).unwrap();
+    let r = draftcraft_doc::dynblock::reference(&d, h("81")).unwrap();
     assert_eq!(r.definition, "Door");
     assert_eq!(r.values.len(), 3, "the action's record has no value");
     let (name, p) = props(&d, "81");
@@ -288,8 +288,8 @@ fn dynamic_block_references_show_their_values() {
     assert_eq!(p[2], ("Size".into(), "Custom".into(), s(&["Narrow", "Wide"])));
 
     // Other references and objects aren't dynamic block references.
-    assert!(rustdraft_doc::dynblock::reference(&d, h("30")).is_none(), "a line in the block");
-    assert!(rustdraft_doc::dynblock::reference(&d, h("FFFF")).is_none());
+    assert!(draftcraft_doc::dynblock::reference(&d, h("30")).is_none(), "a line in the block");
+    assert!(draftcraft_doc::dynblock::reference(&d, h("FFFF")).is_none());
 }
 
 #[test]
@@ -301,9 +301,9 @@ fn dynamic_block_references_survive_a_save() {
     }
 }
 
-fn block_of(d: &rustdraft_doc::Drawing, h: &str) -> String {
+fn block_of(d: &draftcraft_doc::Drawing, h: &str) -> String {
     match d.entity(Handle::parse_hex(h).unwrap()).map(|e| &e.kind) {
-        Some(rustdraft_doc::EntityKind::Insert(i)) => i.block.clone(),
+        Some(draftcraft_doc::EntityKind::Insert(i)) => i.block.clone(),
         _ => panic!("no reference {h}"),
     }
 }
@@ -312,7 +312,7 @@ fn block_of(d: &rustdraft_doc::Drawing, h: &str) -> String {
 fn changing_the_visibility_state_makes_a_new_anonymous_block() {
     let mut d = read_dxf(with_references().as_bytes()).unwrap();
     // Door's own reference to Closed: the swing (lines 31, 32) hidden, the leaf (30) shown.
-    rustdraft_doc::dynblock::set_property(&mut d, h("80"), "visibility1", "closed").unwrap();
+    draftcraft_doc::dynblock::set_property(&mut d, h("80"), "visibility1", "closed").unwrap();
     let name = block_of(&d, "80");
     assert!(name.starts_with("*U") && name != "*U1" && name != "*U2", "{name}");
     let shown: Vec<bool> = d.block(&name).unwrap().entities.iter().map(|e| e.common.visible).collect();
@@ -323,7 +323,7 @@ fn changing_the_visibility_state_makes_a_new_anonymous_block() {
 
     // A reference with values of its own (an anonymous block) back to Open: its value record is
     // updated, and its old anonymous block, used by nothing else, goes.
-    rustdraft_doc::dynblock::set_property(&mut d, h("81"), "Visibility1", "Open").unwrap();
+    draftcraft_doc::dynblock::set_property(&mut d, h("81"), "Visibility1", "Open").unwrap();
     assert_eq!(props(&d, "81").1[0].1, "Open");
     assert!(d.block("*U1").is_none(), "the old anonymous block is dropped");
     assert_eq!(props(&d, "81").1[1].1, "60.0000", "its other values stay");
@@ -340,39 +340,39 @@ fn changing_the_visibility_state_makes_a_new_anonymous_block() {
 fn bad_values_are_refused_and_change_nothing() {
     let mut d = read_dxf(with_references().as_bytes()).unwrap();
     let before = d.clone();
-    let ps = rustdraft_doc::dynblock::custom_properties(&d, h("80")).unwrap().1;
+    let ps = draftcraft_doc::dynblock::custom_properties(&d, h("80")).unwrap().1;
     let editable: Vec<(&str, bool)> = ps.iter().map(|p| (p.name.as_str(), p.editable)).collect();
     assert_eq!(editable, [("Visibility1", true), ("Width", true), ("Size", true)]);
     for (name, value) in
         [("Visibility1", "Ajar"), ("Size", "Huge"), ("Width", "wide"), ("Width", "0"), ("Width", "-3"), ("Width", "inf"), ("Nope", "x"), ("", "")]
     {
-        assert!(rustdraft_doc::dynblock::set_property(&mut d, h("80"), name, value).is_err(), "{name}={value}");
+        assert!(draftcraft_doc::dynblock::set_property(&mut d, h("80"), name, value).is_err(), "{name}={value}");
     }
-    assert!(rustdraft_doc::dynblock::set_property(&mut d, h("30"), "Visibility1", "Open").is_err(), "not a reference");
-    assert!(rustdraft_doc::dynblock::set_property(&mut d, h("FFFF"), "Visibility1", "Open").is_err());
+    assert!(draftcraft_doc::dynblock::set_property(&mut d, h("30"), "Visibility1", "Open").is_err(), "not a reference");
+    assert!(draftcraft_doc::dynblock::set_property(&mut d, h("FFFF"), "Visibility1", "Open").is_err());
     assert_eq!(d, before);
 }
 
 /// The ends of the lines of the block reference `insert` shows, in block coordinates.
-fn line_ends(d: &rustdraft_doc::Drawing, insert: &str) -> Vec<(f64, f64)> {
+fn line_ends(d: &draftcraft_doc::Drawing, insert: &str) -> Vec<(f64, f64)> {
     let b = d.block(&block_of(d, insert)).unwrap();
-    b.entities.iter().filter_map(|e| if let rustdraft_doc::EntityKind::Line(l) = &e.kind { Some((l.b.x, l.b.y)) } else { None }).collect()
+    b.entities.iter().filter_map(|e| if let draftcraft_doc::EntityKind::Line(l) = &e.kind { Some((l.b.x, l.b.y)) } else { None }).collect()
 }
 
 #[test]
 fn a_distance_stretches_the_block_and_snaps_to_its_values() {
     let mut d = read_dxf(with_references().as_bytes()).unwrap();
     // Width 36 → 30: the stretch moves the leaf's end (line 30, vertex 1) by -6 in x.
-    rustdraft_doc::dynblock::set_property(&mut d, h("80"), "Width", "30").unwrap();
+    draftcraft_doc::dynblock::set_property(&mut d, h("80"), "Width", "30").unwrap();
     assert_eq!(line_ends(&d, "80")[0], (30.0, 0.0));
     let p = props(&d, "80").1;
     assert_eq!((p[1].1.as_str(), p[2].1.as_str()), ("30.0000", "Narrow"), "the lookup follows");
     // 33 is not in Width's list (30, 32, 36): the nearest is taken.
-    rustdraft_doc::dynblock::set_property(&mut d, h("80"), "width", "33").unwrap();
+    draftcraft_doc::dynblock::set_property(&mut d, h("80"), "width", "33").unwrap();
     assert_eq!(line_ends(&d, "80")[0], (32.0, 0.0));
     assert_eq!(props(&d, "80").1[2].1, "Custom", "no Size row has 32");
     // Lengths are in drawing units: reference 81 is scaled 2, so 72 is Width 36.
-    rustdraft_doc::dynblock::set_property(&mut d, h("81"), "Width", "72").unwrap();
+    draftcraft_doc::dynblock::set_property(&mut d, h("81"), "Width", "72").unwrap();
     assert_eq!(props(&d, "81").1[1].1, "72.0000");
     // A save keeps the stretched geometry and the values.
     let again = read_dxf(write_dxf(&d).as_bytes()).unwrap();
@@ -383,7 +383,7 @@ fn a_distance_stretches_the_block_and_snaps_to_its_values() {
 #[test]
 fn a_lookup_value_sets_its_distance() {
     let mut d = read_dxf(with_references().as_bytes()).unwrap();
-    rustdraft_doc::dynblock::set_property(&mut d, h("80"), "Size", "narrow").unwrap();
+    draftcraft_doc::dynblock::set_property(&mut d, h("80"), "Size", "narrow").unwrap();
     assert_eq!(line_ends(&d, "80")[0], (30.0, 0.0));
     let p = props(&d, "80").1;
     assert_eq!((p[1].1.as_str(), p[2].1.as_str()), ("30.0000", "Narrow"));
@@ -412,10 +412,10 @@ fn parameters_in_a_stretch_selection_are_carried_along() {
     // A reference to Door with Door's own values.
     let at = d.model.iter().count();
     assert_eq!(at, 0);
-    let ins = rustdraft_doc::Insert {
+    let ins = draftcraft_doc::Insert {
         block: "Door".into(),
-        insert: rustdraft_doc::geom::Vec3::new(0.0, 0.0, 0.0),
-        scale: rustdraft_doc::geom::Vec3::new(1.0, 1.0, 1.0),
+        insert: draftcraft_doc::geom::Vec3::new(0.0, 0.0, 0.0),
+        scale: draftcraft_doc::geom::Vec3::new(1.0, 1.0, 1.0),
         rotation: 0.0,
         attribs: Vec::new(),
         cols: 1,
@@ -424,22 +424,22 @@ fn parameters_in_a_stretch_selection_are_carried_along() {
         row_spacing: 0.0,
         clip: None,
     };
-    let r = d.add(&rustdraft_doc::Space::Model, rustdraft_doc::Common::default(), rustdraft_doc::EntityKind::Insert(ins)).unwrap();
-    rustdraft_doc::dynblock::set_property(&mut d, r, "Width", "30").unwrap();
-    let ps = rustdraft_doc::dynblock::custom_properties(&d, r).unwrap().1;
+    let r = d.add(&draftcraft_doc::Space::Model, draftcraft_doc::Common::default(), draftcraft_doc::EntityKind::Insert(ins)).unwrap();
+    draftcraft_doc::dynblock::set_property(&mut d, r, "Width", "30").unwrap();
+    let ps = draftcraft_doc::dynblock::custom_properties(&d, r).unwrap().1;
     let pos: Vec<(&str, &str)> = ps.iter().filter(|p| p.name.starts_with("Position1")).map(|p| (p.name.as_str(), p.value.as_str())).collect();
     assert_eq!(pos, [("Position1 X", "29.0000"), ("Position1 Y", "0.0000")]);
     // Whether a parameter's point is in the stretch frame (34,-2)-(38,2) is decided where Door
     // has it, as AutoCAD evaluates from the block: moved out to x = 60 first, it still follows.
     {
         let mut d = d.clone();
-        rustdraft_doc::dynblock::set_property(&mut d, r, "Position1 X", "60").unwrap();
-        rustdraft_doc::dynblock::set_property(&mut d, r, "Width", "36").unwrap();
-        let ps = rustdraft_doc::dynblock::custom_properties(&d, r).unwrap().1;
+        draftcraft_doc::dynblock::set_property(&mut d, r, "Position1 X", "60").unwrap();
+        draftcraft_doc::dynblock::set_property(&mut d, r, "Width", "36").unwrap();
+        let ps = draftcraft_doc::dynblock::custom_properties(&d, r).unwrap().1;
         assert_eq!(ps.iter().find(|p| p.name == "Position1 X").map(|p| p.value.as_str()), Some("66.0000"));
     }
     // A position set directly is recorded as the drag of its grip (12), from where Door has it.
-    rustdraft_doc::dynblock::set_property(&mut d, r, "Position1 X", "20").unwrap();
+    draftcraft_doc::dynblock::set_property(&mut d, r, "Position1 X", "20").unwrap();
     let x = d.foreign.entities.get(&r).and_then(|x| x.xdict).unwrap();
     let cache = dict_entry(&d, x, "AcDbBlockRepresentation").and_then(|rep| dict_entry(&d, rep, "AppDataCache")).unwrap();
     let history = dict_entry(&d, cache, "ACAD_ENHANCEDBLOCKHISTORY").unwrap();
@@ -450,12 +450,12 @@ fn parameters_in_a_stretch_selection_are_carried_along() {
 }
 
 /// A reference to Door at the origin with Door's own values, in a drawing read from `src`.
-fn door_reference(src: &str) -> (rustdraft_doc::Drawing, Handle) {
+fn door_reference(src: &str) -> (draftcraft_doc::Drawing, Handle) {
     let mut d = read_dxf(dxf(src).as_bytes()).unwrap();
-    let ins = rustdraft_doc::Insert {
+    let ins = draftcraft_doc::Insert {
         block: "Door".into(),
-        insert: rustdraft_doc::geom::Vec3::new(0.0, 0.0, 0.0),
-        scale: rustdraft_doc::geom::Vec3::new(1.0, 1.0, 1.0),
+        insert: draftcraft_doc::geom::Vec3::new(0.0, 0.0, 0.0),
+        scale: draftcraft_doc::geom::Vec3::new(1.0, 1.0, 1.0),
         rotation: 0.0,
         attribs: Vec::new(),
         cols: 1,
@@ -464,18 +464,18 @@ fn door_reference(src: &str) -> (rustdraft_doc::Drawing, Handle) {
         row_spacing: 0.0,
         clip: None,
     };
-    let r = d.add(&rustdraft_doc::Space::Model, rustdraft_doc::Common::default(), rustdraft_doc::EntityKind::Insert(ins)).unwrap();
+    let r = d.add(&draftcraft_doc::Space::Model, draftcraft_doc::Common::default(), draftcraft_doc::EntityKind::Insert(ins)).unwrap();
     (d, r)
 }
 
 /// The points of the lines and polylines of reference `r`'s block, in its order.
-fn shapes(d: &rustdraft_doc::Drawing, r: Handle) -> Vec<Vec<(f64, f64)>> {
+fn shapes(d: &draftcraft_doc::Drawing, r: Handle) -> Vec<Vec<(f64, f64)>> {
     let b = d.block(&block_of(d, &r.hex())).unwrap();
     b.entities
         .iter()
         .filter_map(|e| match &e.kind {
-            rustdraft_doc::EntityKind::Line(l) => Some(vec![(l.a.x, l.a.y), (l.b.x, l.b.y)]),
-            rustdraft_doc::EntityKind::LwPolyline(p) => Some(p.vertices.iter().map(|v| (v.p.x, v.p.y)).collect()),
+            draftcraft_doc::EntityKind::Line(l) => Some(vec![(l.a.x, l.a.y), (l.b.x, l.b.y)]),
+            draftcraft_doc::EntityKind::LwPolyline(p) => Some(p.vertices.iter().map(|v| (v.p.x, v.p.y)).collect()),
             _ => None,
         })
         .collect()
@@ -497,7 +497,7 @@ fn a_stretch_moves_the_points_inside_its_frame_not_the_listed_ones() {
     let (mut d, r) = door_reference(&src);
     let ActionKind::Stretch { vertices, .. } = &dynamic_block(&d, "Door").unwrap().actions[0].kind else { panic!("a stretch action") };
     assert_eq!(vertices, &[(h("30"), vec![0]), (h("32"), vec![1]), (h("33"), vec![0])]);
-    rustdraft_doc::dynblock::set_property(&mut d, r, "Width", "30").unwrap();
+    draftcraft_doc::dynblock::set_property(&mut d, r, "Width", "30").unwrap();
     let want: Vec<Vec<(f64, f64)>> = vec![
         vec![(0.0, 0.0), (30.0, 0.0)],
         vec![(0.0, 0.0), (0.0, 36.0)],
@@ -518,7 +518,7 @@ fn a_zero_distance_multiplier_moves_as_one_without_its_angle_offset() {
         panic!("a stretch action")
     };
     assert_eq!((*multiplier, *angle_offset), (0.0, 1.0));
-    rustdraft_doc::dynblock::set_property(&mut d, r, "Width", "30").unwrap();
+    draftcraft_doc::dynblock::set_property(&mut d, r, "Width", "30").unwrap();
     assert_eq!(shapes(&d, r)[0], [(0.0, 0.0), (30.0, 0.0)]);
 }
 
@@ -539,7 +539,7 @@ fn a_point_on_the_edge_of_a_polygon_frame_is_inside_it() {
         let src = fixture().replace("72 2\n1011 34\n1021 -2\n1011 38\n1021 2\n", frame);
         assert_ne!(src, fixture());
         let (mut d, r) = door_reference(&src);
-        rustdraft_doc::dynblock::set_property(&mut d, r, "Width", "30").unwrap();
+        draftcraft_doc::dynblock::set_property(&mut d, r, "Width", "30").unwrap();
         assert_eq!(shapes(&d, r)[0], [(0.0, 0.0), (30.0, 0.0)], "{frame}");
     }
 }
@@ -553,7 +553,7 @@ fn a_point_just_outside_a_tiny_frame_is_outside_it() {
     let src = fixture().replace("72 2\n1011 34\n1021 -2\n1011 38\n1021 2\n", frame);
     assert_ne!(src, fixture());
     let (mut d, r) = door_reference(&src);
-    rustdraft_doc::dynblock::set_property(&mut d, r, "Width", "30").unwrap();
+    draftcraft_doc::dynblock::set_property(&mut d, r, "Width", "30").unwrap();
     assert_eq!(shapes(&d, r)[0], [(-6.0, 0.0), (30.0, 0.0)]);
 }
 
@@ -567,7 +567,7 @@ fn a_point_less_than_a_rounding_off_a_short_edge_is_outside_it() {
     let src = fixture().replace("72 2\n1011 34\n1021 -2\n1011 38\n1021 2\n", frame);
     assert_ne!(src, fixture());
     let (mut d, r) = door_reference(&src);
-    rustdraft_doc::dynblock::set_property(&mut d, r, "Width", "30").unwrap();
+    draftcraft_doc::dynblock::set_property(&mut d, r, "Width", "30").unwrap();
     assert_eq!(shapes(&d, r)[0], [(-6.0, 0.0), (30.0, 0.0)]);
 }
 
@@ -579,7 +579,7 @@ fn a_point_past_the_end_of_a_frame_edge_is_outside_it() {
     let src = fixture().replace("72 2\n1011 34\n1021 -2\n1011 38\n1021 2\n", frame);
     assert_ne!(src, fixture());
     let (mut d, r) = door_reference(&src);
-    rustdraft_doc::dynblock::set_property(&mut d, r, "Width", "30").unwrap();
+    draftcraft_doc::dynblock::set_property(&mut d, r, "Width", "30").unwrap();
     assert_eq!(shapes(&d, r)[0], [(-6.0, 0.0), (30.0, 0.0)]);
 }
 
@@ -608,7 +608,7 @@ fn a_tilted_polyline_keeps_the_stored_vertex_list() {
             ),
         );
     let (mut d, r) = door_reference(&src);
-    rustdraft_doc::dynblock::set_property(&mut d, r, "Width", "30").unwrap();
+    draftcraft_doc::dynblock::set_property(&mut d, r, "Width", "30").unwrap();
     let s = shapes(&d, r);
     assert_eq!(s[3], [(14.0, 1.0), (36.0, 1.0)]);
     assert_eq!(s[4], [(20.0, 1.0), (30.0, 1.0)]);
@@ -633,20 +633,20 @@ fn a_frame_with_too_many_points_to_test_one_by_one_keeps_the_stored_lists() {
         let (mut d, r) = door_reference(&src);
         let ActionKind::Stretch { frame, .. } = &dynamic_block(&d, "Door").unwrap().actions[0].kind else { panic!("a stretch action") };
         assert_eq!(frame.len(), n);
-        rustdraft_doc::dynblock::set_property(&mut d, r, "Width", "30").unwrap();
+        draftcraft_doc::dynblock::set_property(&mut d, r, "Width", "30").unwrap();
         assert_eq!(shapes(&d, r)[0], want, "{n} frame points");
     }
 }
 
 /// The object entry `key` of dictionary `dict` refers to.
-fn dict_entry(d: &rustdraft_doc::Drawing, dict: Handle, key: &str) -> Option<Handle> {
+fn dict_entry(d: &draftcraft_doc::Drawing, dict: Handle, key: &str) -> Option<Handle> {
     let o = d.foreign.objects.iter().find(|o| o.handle == dict)?;
     let at = o.tags.iter().position(|t| t.code == 3 && t.value == key)?;
     o.tags.get(at + 1).and_then(|t| Handle::parse_hex(&t.value))
 }
 
 /// The groups of the reference's AppDataCache entry `key` (an object or a dictionary's keys).
-fn cache_entry(d: &rustdraft_doc::Drawing, insert: &str, key: &str) -> Vec<(i32, String)> {
+fn cache_entry(d: &draftcraft_doc::Drawing, insert: &str, key: &str) -> Vec<(i32, String)> {
     let x = d.foreign.entities.get(&h(insert)).and_then(|x| x.xdict).expect("xdict");
     let cache = dict_entry(d, x, "AcDbBlockRepresentation").and_then(|r| dict_entry(d, r, "AppDataCache")).expect("cache");
     let Some(e) = dict_entry(d, cache, key) else { return Vec::new() };
@@ -663,7 +663,7 @@ fn a_change_is_recorded_in_the_references_history_and_data() {
     let pairs = |v: &[(i32, &str)]| v.iter().map(|(c, s)| (*c, s.to_string())).collect::<Vec<_>>();
 
     // Door's own reference: new data with a record for each one the other references have.
-    rustdraft_doc::dynblock::set_property(&mut d, h("80"), "Visibility1", "Closed").unwrap();
+    draftcraft_doc::dynblock::set_property(&mut d, h("80"), "Visibility1", "Closed").unwrap();
     let keys: Vec<String> = cache_entry(&d, "80", "ACAD_ENHANCEDBLOCKDATA").into_iter().filter(|(c, _)| *c == 3).map(|(_, k)| k).collect();
     assert_eq!(keys, ["1", "2", "3", "4"]);
     assert_eq!(cache_entry(&d, "80", "ACAD_ENHANCEDBLOCKHISTORY"), pairs(&[(1070, "3"), (1071, "1"), (300, "Visibility1"), (1, "Closed")]));
@@ -671,15 +671,15 @@ fn a_change_is_recorded_in_the_references_history_and_data() {
 
     // A distance as typed in Properties: by name, in block units; it replaces a drag of its
     // grips. Entries are replaced, not added.
-    rustdraft_doc::dynblock::set_property(&mut d, h("80"), "Width", "30").unwrap();
-    rustdraft_doc::dynblock::set_property(&mut d, h("80"), "Width", "32").unwrap();
-    rustdraft_doc::dynblock::set_property(&mut d, h("80"), "Visibility1", "Open").unwrap();
+    draftcraft_doc::dynblock::set_property(&mut d, h("80"), "Width", "30").unwrap();
+    draftcraft_doc::dynblock::set_property(&mut d, h("80"), "Width", "32").unwrap();
+    draftcraft_doc::dynblock::set_property(&mut d, h("80"), "Visibility1", "Open").unwrap();
     let want = pairs(&[(1070, "3"), (1071, "2"), (300, "Width"), (40, "32"), (1071, "1"), (300, "Visibility1"), (1, "Open")]);
     assert_eq!(cache_entry(&d, "80", "ACAD_ENHANCEDBLOCKHISTORY"), want);
 
     // A reference with data and no history gets one (81 is scaled 2: 64 is 32 in block units);
     // both survive a save.
-    rustdraft_doc::dynblock::set_property(&mut d, h("81"), "Width", "64").unwrap();
+    draftcraft_doc::dynblock::set_property(&mut d, h("81"), "Width", "64").unwrap();
     let again = read_dxf(write_dxf(&d).as_bytes()).unwrap();
     let saved = pairs(&[(1070, "3"), (1071, "2"), (300, "Width"), (40, "32.0")]);
     assert_eq!(cache_entry(&again, "81", "ACAD_ENHANCEDBLOCKHISTORY"), saved);
@@ -689,7 +689,7 @@ fn a_change_is_recorded_in_the_references_history_and_data() {
 
 /// Door with grips: Width's end grip (graph id 9, an object shown in the Open state; its base
 /// grip 8 has no object) and the visibility parameter's grip (10).
-fn with_grips() -> rustdraft_doc::Drawing {
+fn with_grips() -> draftcraft_doc::Drawing {
     let grip = "0 BLOCKLINEARGRIP\n5 68\n330 61\n100 AcDbEvalExpr\n90 9\n98 33\n99 232\n100 AcDbBlockElement\n300 End Grip\n98 33\n99 232\n1071 0\n";
     let src = fixture()
         .replace("170 4\n91 0\n91 0\n", "170 4\n91 8\n91 9\n")
@@ -702,11 +702,11 @@ fn with_grips() -> rustdraft_doc::Drawing {
 }
 
 /// A reference to Door at (100, 0), scale 1.
-fn door_at_100(d: &mut rustdraft_doc::Drawing) -> Handle {
-    let ins = rustdraft_doc::Insert {
+fn door_at_100(d: &mut draftcraft_doc::Drawing) -> Handle {
+    let ins = draftcraft_doc::Insert {
         block: "Door".into(),
-        insert: rustdraft_doc::geom::Vec3::new(100.0, 0.0, 0.0),
-        scale: rustdraft_doc::geom::Vec3::new(1.0, 1.0, 1.0),
+        insert: draftcraft_doc::geom::Vec3::new(100.0, 0.0, 0.0),
+        scale: draftcraft_doc::geom::Vec3::new(1.0, 1.0, 1.0),
         rotation: 0.0,
         attribs: Vec::new(),
         cols: 1,
@@ -715,12 +715,12 @@ fn door_at_100(d: &mut rustdraft_doc::Drawing) -> Handle {
         row_spacing: 0.0,
         clip: None,
     };
-    d.add(&rustdraft_doc::Space::Model, rustdraft_doc::Common::default(), rustdraft_doc::EntityKind::Insert(ins)).unwrap()
+    d.add(&draftcraft_doc::Space::Model, draftcraft_doc::Common::default(), draftcraft_doc::EntityKind::Insert(ins)).unwrap()
 }
 
 #[test]
 fn dynamic_references_show_the_grips_of_their_state() {
-    use rustdraft_doc::dynblock::{GripPart, GripShape, grips};
+    use draftcraft_doc::dynblock::{GripPart, GripShape, grips};
     let mut d = with_grips();
     let r = door_at_100(&mut d);
     let g = grips(&d, r);
@@ -735,7 +735,7 @@ fn dynamic_references_show_the_grips_of_their_state() {
     assert_eq!(g[0].choices, ["Open", "Closed"]);
     assert_eq!(g[1].property, "Width");
     // Closed lists no grips: only the visibility grip is left.
-    rustdraft_doc::dynblock::set_property(&mut d, r, "Visibility1", "Closed").unwrap();
+    draftcraft_doc::dynblock::set_property(&mut d, r, "Visibility1", "Closed").unwrap();
     assert_eq!(grips(&d, r).iter().map(|g| g.node).collect::<Vec<_>>(), [1]);
     // Not a dynamic block reference: no grips.
     assert!(grips(&d, h("30")).is_empty());
@@ -743,19 +743,19 @@ fn dynamic_references_show_the_grips_of_their_state() {
 
 #[test]
 fn dragging_a_distance_grip_changes_the_distance() {
-    use rustdraft_doc::dynblock::{GripPart, drag_grip};
-    use rustdraft_doc::geom::Vec2;
+    use draftcraft_doc::dynblock::{GripPart, drag_grip};
+    use draftcraft_doc::geom::Vec2;
     let mut d = with_grips();
     let r = door_at_100(&mut d);
     // The end arrow dragged to x = 130.4 (off the parameter's line too): Width 30.4 snaps to 30,
     // the stretch follows and so does the lookup.
     drag_grip(&mut d, r, 2, GripPart::End, Vec2::new(130.4, 7.0)).unwrap();
     assert_eq!(line_ends(&d, &r.hex())[0], (30.0, 0.0));
-    let p = rustdraft_doc::dynblock::custom_properties(&d, r).unwrap().1;
+    let p = draftcraft_doc::dynblock::custom_properties(&d, r).unwrap().1;
     assert_eq!((p[1].value.as_str(), p[2].value.as_str()), ("30.0000", "Narrow"));
     // The base grip: the distance from the new base to the end (32 here).
     drag_grip(&mut d, r, 2, GripPart::Base, Vec2::new(98.0, -4.0)).unwrap();
-    assert_eq!(rustdraft_doc::dynblock::custom_properties(&d, r).unwrap().1[1].value, "32.0000");
+    assert_eq!(draftcraft_doc::dynblock::custom_properties(&d, r).unwrap().1[1].value, "32.0000");
     // Past the other end, a non-finite point, a grip that doesn't drag: refused, nothing changes.
     let before = d.clone();
     for (node, part, to) in [

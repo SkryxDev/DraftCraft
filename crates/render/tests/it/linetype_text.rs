@@ -1,8 +1,8 @@
 //! Text embedded in complex linetypes is drawn along the line (issue #312).
 
-use rustdraft_doc::{Common, DashElement, Drawing, EntityKind, Line, Linetype, Space, library};
-use rustdraft_geom::{Bounds2, Vec2, Vec3};
-use rustdraft_render::{Kind, Options, build};
+use draftcraft_doc::{Common, DashElement, Drawing, EntityKind, Line, Linetype, Space, library};
+use draftcraft_geom::{Bounds2, Vec2, Vec3};
+use draftcraft_render::{Kind, Options, build};
 
 fn drawing(lt: Linetype, a: Vec2, b: Vec2) -> Drawing {
     let mut d = Drawing::new_imperial();

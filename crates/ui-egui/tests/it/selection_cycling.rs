@@ -2,12 +2,12 @@
 //! overlapping objects lists them and a click on a row selects that object; Shift+Space steps the
 //! highlight through them and a click selects the highlighted one.
 
+use draftcraft_doc::Handle;
+use draftcraft_engine::Session;
+use draftcraft_geom::Vec2;
+use draftcraft_ui_egui::{CadApp, Services};
 use egui::{Modifiers, Pos2, vec2};
 use egui_kittest::Harness;
-use rustdraft_doc::Handle;
-use rustdraft_engine::Session;
-use rustdraft_geom::Vec2;
-use rustdraft_ui_egui::{CadApp, Services};
 use serde_json::json;
 
 /// Two lines overlapping from x = 0 to 10 (the second on top), zoomed to fit; the lines'

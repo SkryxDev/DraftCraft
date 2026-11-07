@@ -9,9 +9,9 @@
 //! Both should land on the same circle with its two halves swapped, so the assertions below
 //! are the same: same center, same radius, and the start/end angles are exchanged.
 
-use rustdraft_engine::doc::EntityKind;
-use rustdraft_engine::geom::Vec2;
-use rustdraft_engine::{Input, Session};
+use draftcraft_engine::doc::EntityKind;
+use draftcraft_engine::geom::Vec2;
+use draftcraft_engine::{Input, Session};
 
 /// `(center, radius, start angle, end angle)` of the last arc in the model.
 fn last_arc(s: &Session) -> (Vec2, f64, f64, f64) {

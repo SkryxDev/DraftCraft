@@ -1,11 +1,11 @@
 //! Property, symbol-table and identity inputs. Values are authored before serialization;
 //! each family can fail independently without suppressing unrelated preservation checks.
 
-use rustdraft_color::{Color, Rgb};
-use rustdraft_doc::{
+use draftcraft_color::{Color, Rgb};
+use draftcraft_doc::{
     Common, DashElement, Entity, EntityKind, HAlign, Handle, Layer, Line, Lineweight, RawTag, Text, TextStyle, Transparency, VAlign,
 };
-use rustdraft_geom::{Vec2, Vec3};
+use draftcraft_geom::{Vec2, Vec3};
 
 use super::{Case, common_case, drawing, entity_case, text};
 
@@ -111,7 +111,7 @@ pub(crate) fn text_style_flags() -> Vec<Case> {
 
 pub(crate) fn text_style_fonts() -> Vec<Case> {
     // Names only; no font files are read or required.
-    [("RustDraft Stroke", ""), ("SyntheticSans.ttf", ""), ("synthetic.shx", "synthetic-big.shx")]
+    [("DraftCraft Stroke", ""), ("SyntheticSans.ttf", ""), ("synthetic.shx", "synthetic-big.shx")]
         .map(|(font, big_font)| {
             style_case(
                 &format!("style/font={font}/big={big_font}"),
@@ -321,8 +321,8 @@ pub(crate) fn alignment_style_interactions() -> Vec<Case> {
                 ..text()
             };
             if !matches!(halign, HAlign::Aligned | HAlign::Fit) {
-                let (h, v) = rustdraft_render::text_align(halign, valign);
-                let params = rustdraft_fonts::TextParams {
+                let (h, v) = draftcraft_render::text_align(halign, valign);
+                let params = draftcraft_fonts::TextParams {
                     insert: t.insert.xy(),
                     align_pt: Some(Vec2::ZERO),
                     height: t.height,
@@ -334,7 +334,7 @@ pub(crate) fn alignment_style_interactions() -> Vec<Case> {
                     backwards: style.backwards,
                     upside_down: style.upside_down,
                 };
-                t.insert = rustdraft_fonts::baseline_start(&rustdraft_fonts::TextFont::Stroke, &t.value, &params).to3(0.0);
+                t.insert = draftcraft_fonts::baseline_start(&draftcraft_fonts::TextFont::Stroke, &t.value, &params).to3(0.0);
             }
             let mut case = entity_case(&format!("text/alignment-style/{halign:?}/{valign:?}/flags={flags}"), Common::default(), EntityKind::Text(t));
             *case.drawing.text_styles.iter_mut().find(|s| s.name == "Notes").unwrap() = style;

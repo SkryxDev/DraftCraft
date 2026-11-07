@@ -6,7 +6,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use rustdraft_doc::{Drawing, Entity, EntityKind, EntityStore, Handle, Space};
+use draftcraft_doc::{Drawing, Entity, EntityKind, EntityStore, Handle, Space};
 use serde_json::{Value, json};
 
 use crate::{Result, Session};

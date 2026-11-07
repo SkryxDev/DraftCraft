@@ -1,6 +1,6 @@
 [package]
-name = "rustdraft-io"
-description = "RustDraft file formats: DXF read/write mapping, SVG, PNG and PDF export"
+name = "draftcraft-io"
+description = "DraftCraft file formats: DXF read/write mapping, SVG, PNG and PDF export"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,13 +9,13 @@ license.workspace = true
 workspace = true
 
 [dependencies]
-rustdraft-geom = { workspace = true }
-rustdraft-color = { workspace = true }
-rustdraft-doc = { workspace = true }
-rustdraft-dxf = { workspace = true }
-rustdraft-dwg = { workspace = true }
-rustdraft-render = { workspace = true }
-rustdraft-fonts = { workspace = true }
+draftcraft-geom = { workspace = true }
+draftcraft-color = { workspace = true }
+draftcraft-doc = { workspace = true }
+draftcraft-dxf = { workspace = true }
+draftcraft-dwg = { workspace = true }
+draftcraft-render = { workspace = true }
+draftcraft-fonts = { workspace = true }
 thiserror = { workspace = true }
 serde_json = { workspace = true }
 serde = { workspace = true }
@@ -25,7 +25,7 @@ quick-xml = { workspace = true }
 image = { workspace = true }
 
 [dev-dependencies]
-# Reads RustDraft's DWG output as written (tests only; the same version as rustdraft-dwg's).
+# Reads DraftCraft's DWG output as written (tests only; the same version as draftcraft-dwg's).
 acadrust = { git = "https://github.com/hakanaktt/acadrust", rev = "008c6391bbb5deb7baf4bd44495b7b1cfc53eceb" }
 tiny-skia = { workspace = true }
 # Reads plotted PDFs back.

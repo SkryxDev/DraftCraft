@@ -1,9 +1,9 @@
 //! MLEADER leader types (straight, spline, none) and block content, at the command line and in
 //! the JSON form (#408).
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{EntityKind, MLeader};
-use rustdraft_engine::geom::Vec2;
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{EntityKind, MLeader};
+use draftcraft_engine::geom::Vec2;
 use serde_json::json;
 
 fn last_mleader(s: &Session) -> MLeader {
@@ -129,7 +129,7 @@ fn mleader_sizes_ignore_dimscale() {
     let mut s = Session::new();
     s.execute("mleaderstyle", &json!({"name": "M5", "textHeight": 5, "arrowSize": 5, "current": true})).unwrap();
     s.execute("setvar", &json!({"name": "DIMSCALE", "value": 20})).unwrap();
-    s.execute("mleader", &json!({"points": [[0, 0], [30, 20]], "text": "RUSTDRAFT"})).unwrap();
+    s.execute("mleader", &json!({"points": [[0, 0], [30, 20]], "text": "DRAFTCRAFT"})).unwrap();
     let m = last_mleader(&s);
     assert_eq!(m.arrow_size, 5.0);
     let st = s.doc().unwrap().mleader_styles.iter().find(|x| x.name == "M5").unwrap().clone();

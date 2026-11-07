@@ -1,6 +1,6 @@
-# RustDraft Italian interface catalog — original translations by Emanuele Bottelli (AI-assisted, Claude).
+# DraftCraft Italian interface catalog — original translations by Emanuele Bottelli (AI-assisted, Claude).
 # License: MIT OR Apache-2.0 (the repository LICENSE-MIT and LICENSE-APACHE).
-# Written from RustDraft's English strings; no proprietary translations were copied.
+# Written from DraftCraft's English strings; no proprietary translations were copied.
 # UTF-8: context<TAB>English source<TAB>Italian translation.
 # Empty context = ordinary label; menu = menu-bar heading; @plural = one|other forms with {n}.
 # Keep command IDs, keywords, technology/product names and user data unchanged.
@@ -1397,7 +1397,7 @@ menu	Modify	Edita
 	Text to find	Text to find
 	Whole words	Whole words
 	Nothing found	Nothing found
-# RustDraft ribbon (Windows layout).
+# DraftCraft ribbon (Windows layout).
 	2-Point	2 punti
 	2D Wireframe	Wireframe 2D
 	3-Point	3 punti
@@ -1499,8 +1499,6 @@ menu	Modify	Edita
 	Viewport Configuration	Configurazione finestre
 	Viewport Tools	Strumenti finestra
 	Workspace	Area di lavoro
-	Based on CADCraft by the ArtCraft team and the CADCraft contributors.	Basato su CADCraft del team ArtCraft e dei contributori di CADCraft.
 	Ribbon	Barra multifunzione
 	{panel} panel	Pannello {panel}
 	Exit DraftCraft	Esci da DraftCraft
-	The contributors of CADCraft, the open-source project DraftCraft is based on.	I contributori di CADCraft, il progetto open source su cui si basa DraftCraft.

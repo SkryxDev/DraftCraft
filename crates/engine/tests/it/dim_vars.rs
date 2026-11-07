@@ -3,10 +3,10 @@
 //! DIMTVP, DIMTMOVE, DIMTOLJ, DIMAZIN, DIMARCSYM, DIMLDRBLK and the dimension and extension
 //! line linetypes and lineweights. They are SETVAR overrides, DIMOVERRIDE values and style fields.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{DimStyle, Dimension, EntityKind, Linetype};
-use rustdraft_engine::geom::Vec2;
-use rustdraft_engine::render::{DimGeometry, LineRole};
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{DimStyle, Dimension, EntityKind, Linetype};
+use draftcraft_engine::geom::Vec2;
+use draftcraft_engine::render::{DimGeometry, LineRole};
 use serde_json::{Value, json};
 
 fn set(s: &mut Session, name: &str, value: Value) {
@@ -24,7 +24,7 @@ fn last_dim(s: &Session) -> (Dimension, DimGeometry) {
         })
         .last()
         .unwrap();
-    let g = rustdraft_engine::render::dimension_in(d, &dm);
+    let g = draftcraft_engine::render::dimension_in(d, &dm);
     (dm, g)
 }
 
@@ -110,7 +110,7 @@ fn text_fill_variables_are_style_overrides() {
     linear(&mut s, 10.0);
     let (dm, g) = last_dim(&s);
     let st = DimStyle::default().with_overrides(&dm.overrides);
-    assert_eq!((st.text_fill, st.text_fill_color), (2, rustdraft_engine::doc::color::Color::Index(3)));
+    assert_eq!((st.text_fill, st.text_fill_color), (2, draftcraft_engine::doc::color::Color::Index(3)));
     assert_eq!(g.text_fill.len(), 4, "the new dimension has a text background");
     // DIMTFILL takes 0, 1 or 2.
     let mut st = DimStyle::default();
@@ -120,7 +120,7 @@ fn text_fill_variables_are_style_overrides() {
     s.execute("explode", &json!({ "handles": [h] })).unwrap();
     let d = s.doc().unwrap();
     let solid =
-        d.model.iter().position(|e| matches!(e.kind, EntityKind::Solid(_)) && e.common.color == rustdraft_engine::doc::color::Color::Index(3));
+        d.model.iter().position(|e| matches!(e.kind, EntityKind::Solid(_)) && e.common.color == draftcraft_engine::doc::color::Color::Index(3));
     let mtext = d.model.iter().position(|e| matches!(e.kind, EntityKind::MText(_)));
     assert!(solid.is_some() && solid < mtext, "{solid:?}, {mtext:?}");
     // The arrowheads (the other SOLIDs) come before the background, as the dimension draws them.
@@ -253,7 +253,7 @@ fn setvar_refuses_the_values_the_style_refuses() {
     set(&mut s, "DIMCLRT", json!(3));
     let o = s.doc().unwrap().dim_overrides();
     assert_eq!(o.get("textMove"), Some(&json!(2)));
-    assert_eq!(o.get("textColor"), serde_json::to_value(rustdraft_engine::doc::color::Color::Index(3)).ok().as_ref(), "{o:?}");
+    assert_eq!(o.get("textColor"), serde_json::to_value(draftcraft_engine::doc::color::Color::Index(3)).ok().as_ref(), "{o:?}");
 }
 
 #[test]
@@ -305,8 +305,8 @@ fn linetypes_and_lineweights_of_dimension_and_extension_lines() {
     let mut s = Session::new();
     s.doc_mut().unwrap().linetypes.push(Linetype::simple("DASHED", "", &[0.5, -0.25]));
     linear(&mut s, 10.0);
-    let opts = rustdraft_engine::render::Options { lineweights: true, ..Default::default() };
-    let count = |s: &Session| rustdraft_engine::render::build(s.doc().unwrap(), &rustdraft_engine::doc::Space::Model, &opts).prims.len();
+    let opts = draftcraft_engine::render::Options { lineweights: true, ..Default::default() };
+    let count = |s: &Session| draftcraft_engine::render::build(s.doc().unwrap(), &draftcraft_engine::doc::Space::Model, &opts).prims.len();
     let plain = count(&s);
     let h = s.doc().unwrap().model.last().unwrap().handle.hex();
     s.execute("dimoverride", &json!({ "handles": [h], "DIMLTEX2": "DASHED" })).unwrap();
@@ -317,8 +317,8 @@ fn linetypes_and_lineweights_of_dimension_and_extension_lines() {
     // Lineweights: 0.50 mm dimension lines, 0.13 mm extension lines.
     s.execute("dimoverride", &json!({ "handles": [h], "clear": true })).unwrap();
     s.execute("dimoverride", &json!({ "handles": [h], "DIMLWD": 50, "DIMLWE": 13 })).unwrap();
-    let dl = rustdraft_engine::render::build(s.doc().unwrap(), &rustdraft_engine::doc::Space::Model, &opts);
-    let lws: Vec<f32> = dl.prims.iter().filter(|p| p.kind == rustdraft_engine::render::Kind::Polyline).map(|p| p.lw).collect();
+    let dl = draftcraft_engine::render::build(s.doc().unwrap(), &draftcraft_engine::doc::Space::Model, &opts);
+    let lws: Vec<f32> = dl.prims.iter().filter(|p| p.kind == draftcraft_engine::render::Kind::Polyline).map(|p| p.lw).collect();
     assert!(lws.contains(&0.5) && lws.contains(&0.13), "{lws:?}");
 }
 
@@ -393,8 +393,8 @@ fn leaders_use_the_leader_arrow() {
     }
     s.execute("leader", &json!({ "points": [[0, 0], [5, 5]], "text": "A" })).unwrap();
     let tris = |s: &Session| {
-        let dl = rustdraft_engine::render::build(s.doc().unwrap(), &rustdraft_engine::doc::Space::Model, &Default::default());
-        dl.prims.iter().filter(|p| p.kind == rustdraft_engine::render::Kind::Tris).map(|p| p.len).sum::<u32>()
+        let dl = draftcraft_engine::render::build(s.doc().unwrap(), &draftcraft_engine::doc::Space::Model, &Default::default());
+        dl.prims.iter().filter(|p| p.kind == draftcraft_engine::render::Kind::Tris).map(|p| p.len).sum::<u32>()
     };
     // DIMLDRBLK "" is a closed filled arrow (one triangle) whatever DIMBLK is.
     assert_eq!(tris(&s), 3);

@@ -3,12 +3,12 @@
 
 use std::sync::Arc;
 
-use rustdraft_engine::Session;
-use rustdraft_engine::cmd::file::{IoHooks, base64_encode, set_io};
-use rustdraft_engine::doc::{
+use draftcraft_engine::Session;
+use draftcraft_engine::cmd::file::{IoHooks, base64_encode, set_io};
+use draftcraft_engine::doc::{
     AssocSnap, Block, Circle, Common, DimAssoc, Drawing, Entity, EntityKind, Group, HVal, Handle, Insert, Line, Space, Text,
 };
-use rustdraft_engine::geom::Vec3;
+use draftcraft_engine::geom::Vec3;
 use serde_json::{Value, json};
 
 fn line(a: (f64, f64), b: (f64, f64)) -> EntityKind {
@@ -190,8 +190,8 @@ fn a_clean_drawing_is_left_alone() {
     assert_eq!(s.state().unwrap().undo.len(), undo, "no undo step for nothing");
 
     // What the sample drawings and the drawing commands make is not an error.
-    for d in [rustdraft_engine::sample::bracket(), rustdraft_engine::sample::floor_plan()] {
-        let r = rustdraft_engine::audit::check(&d);
+    for d in [draftcraft_engine::sample::bracket(), draftcraft_engine::sample::floor_plan()] {
+        let r = draftcraft_engine::audit::check(&d);
         assert!(r.issues.is_empty(), "{}", r.message());
     }
     s.execute("dimlinear", &json!({"p1": [0, 0], "p2": [4, 0], "at": [2, 2]})).unwrap();
@@ -234,7 +234,7 @@ fn missing_standard_entries_and_layer_zero_are_recreated() {
     d.text_styles.clear();
     d.dim_styles.clear();
     d.linetypes.retain(|l| !l.name.eq_ignore_ascii_case("Continuous"));
-    d.layers.push(rustdraft_engine::doc::Layer { linetype: "Dashed9".into(), ..rustdraft_engine::doc::Layer::new("L1") });
+    d.layers.push(draftcraft_engine::doc::Layer { linetype: "Dashed9".into(), ..draftcraft_engine::doc::Layer::new("L1") });
     let r = s.execute("audit", &json!({"fix": true})).unwrap();
     assert!(r["errors"].as_u64().unwrap() >= 5, "{r:#}");
     let d = s.doc().unwrap();
@@ -284,7 +284,7 @@ fn recover_opens_the_file_with_the_fixes_applied() {
     assert_eq!(st.doc.model.len(), 1);
 
     // By path, typed at the command line.
-    let dir = std::env::temp_dir().join(format!("rustdraft-recover-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("draftcraft-recover-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("site.dxf");
     std::fs::write(&path, b"0\nEOF\n").unwrap();
@@ -312,7 +312,7 @@ fn auditctl_generates_adt_report_file() {
     s.execute("setvar", &json!({"name": "AUDITCTL", "value": 1})).unwrap();
     assert_eq!(s.execute("getvar", &json!({"name": "AUDITCTL"})).unwrap()["value"], json!(1));
 
-    let dir = std::env::temp_dir().join(format!("rustdraft-auditctl-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("draftcraft-auditctl-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let dxf_path = dir.join("drawing_test.dxf");
     std::fs::write(&dxf_path, b"dummy").unwrap();

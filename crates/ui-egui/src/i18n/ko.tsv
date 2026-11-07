@@ -1,6 +1,6 @@
-# RustDraft Korean interface catalog — original Korean translations.
+# DraftCraft Korean interface catalog — original Korean translations.
 # License: MIT OR Apache-2.0 (the repository LICENSE-MIT and LICENSE-APACHE).
-# Written from RustDraft English strings; no proprietary translations copied.
+# Written from DraftCraft English strings; no proprietary translations copied.
 # UTF-8: context<TAB>English source<TAB>Korean translation.
 # @plural uses a single Korean form with {n}.
 	Apply	적용

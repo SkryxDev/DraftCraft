@@ -1,10 +1,10 @@
 //! Draw order: DRAWORDER (Above objects / Under objects / Front / Back), TEXTTOFRONT and
 //! HATCHTOBACK. The order is the order of a space's entity store, which DXF files keep as the
-//! order of their entity records (`rustdraft-io` also applies a SORTENTSTABLE when it reads one).
+//! order of their entity records (`draftcraft-io` also applies a SORTENTSTABLE when it reads one).
 
 use std::collections::{HashMap, HashSet};
 
-use rustdraft_doc::{EntityKind, Handle};
+use draftcraft_doc::{EntityKind, Handle};
 use serde_json::{Value, json};
 
 use super::machines::{SelOutcome, SelectPhase, SelectRun};

@@ -15,12 +15,12 @@
 
 use std::collections::{BTreeMap, HashSet};
 
+use draftcraft_color::Color;
+use draftcraft_doc::{Circle, Common, Drawing, Ellipse, EntityKind, Layer, Line, LwPolyline, Space};
+use draftcraft_geom::{Mat3, PolyVertex, Spline, Vec2, Vec3};
 use quick_xml::Reader;
 use quick_xml::XmlVersion;
 use quick_xml::events::{BytesStart, Event};
-use rustdraft_color::Color;
-use rustdraft_doc::{Circle, Common, Drawing, Ellipse, EntityKind, Layer, Line, LwPolyline, Space};
-use rustdraft_geom::{Mat3, PolyVertex, Spline, Vec2, Vec3};
 
 use crate::{IoError, Result};
 
@@ -197,7 +197,7 @@ impl Parser {
             return None;
         }
         let list: Vec<String> = self.left_out.iter().map(|(k, n)| k.describe(*n)).collect();
-        Some(format!("SVG: RustDraft doesn't read these yet, so they were left out: {}", list.join(", ")))
+        Some(format!("SVG: DraftCraft doesn't read these yet, so they were left out: {}", list.join(", ")))
     }
 
     fn parse(&mut self, text: &str) -> Result<()> {

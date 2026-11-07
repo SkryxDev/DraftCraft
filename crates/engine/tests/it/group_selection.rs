@@ -1,9 +1,9 @@
 //! Groups (#417), part 2: PICKSTYLE group selection (clicks and "Select objects" prompts pick
 //! whole selectable groups; Ctrl+Shift+A toggles it) and the -GROUP options.
 
-use rustdraft_engine::doc::Handle;
-use rustdraft_engine::geom::Vec2;
-use rustdraft_engine::{Input, Session};
+use draftcraft_engine::doc::Handle;
+use draftcraft_engine::geom::Vec2;
+use draftcraft_engine::{Input, Session};
 use serde_json::json;
 
 /// Four horizontal lines at y = 0, 5, 10, 15; their handles.

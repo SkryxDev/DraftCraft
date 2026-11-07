@@ -2,9 +2,9 @@
 //! plots draw plot style ends, joins and fills as PDF does, and hyperlinks a drawing file gives
 //! its entities (`PE_URL` extended data) become PDF link annotations.
 
-use rustdraft_doc::{Common, Drawing, EndStyle, EntityKind, Line, PlotStyle, PlotStyleTable, Space};
-use rustdraft_geom::Vec3;
-use rustdraft_io::{plotter, read_dxf, write_dxf};
+use draftcraft_doc::{Common, Drawing, EndStyle, EntityKind, Line, PlotStyle, PlotStyleTable, Space};
+use draftcraft_geom::Vec3;
+use draftcraft_io::{plotter, read_dxf, write_dxf};
 use serde_json::{Value, json};
 
 fn line(d: &mut Drawing, a: (f64, f64), b: (f64, f64)) {

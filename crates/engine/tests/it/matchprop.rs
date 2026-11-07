@@ -1,9 +1,9 @@
 //! MATCHPROP (#439): the typed source/destination picker with Settings, and the JSON form with a
 //! property list.
 
-use rustdraft_engine::doc::color::Color;
-use rustdraft_engine::doc::{EntityKind, Handle};
-use rustdraft_engine::{Input, Session};
+use draftcraft_engine::doc::color::Color;
+use draftcraft_engine::doc::{EntityKind, Handle};
+use draftcraft_engine::{Input, Session};
 use serde_json::json;
 
 fn last(s: &Session) -> Handle {

@@ -1,11 +1,11 @@
 //! Object snap overrides typed at a point prompt (#393): `END`, `MID`, `CEN`, `PER` … apply to the
 //! next point only, `NON` turns snapping off for it, and they nest with FROM.
 
-use rustdraft_doc::EntityKind;
-use rustdraft_engine::pointmod::snap_candidates;
-use rustdraft_engine::snap::{self, mode};
-use rustdraft_engine::{Input, Session};
-use rustdraft_geom::Vec2;
+use draftcraft_doc::EntityKind;
+use draftcraft_engine::pointmod::snap_candidates;
+use draftcraft_engine::snap::{self, mode};
+use draftcraft_engine::{Input, Session};
+use draftcraft_geom::Vec2;
 
 /// A session with a line 0,0–10,0, a line 10,0–10,10 and a circle at 20,20 radius 3. The
 /// default view and window put the snap aperture at 0.125 drawing units.

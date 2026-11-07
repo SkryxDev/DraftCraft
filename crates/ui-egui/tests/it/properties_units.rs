@@ -2,12 +2,12 @@
 //! them (feet and inches included), distances are shown in the drawing's units, and text that
 //! isn't a number is reported instead of being dropped.
 
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::EntityKind;
+use draftcraft_ui_egui::{CadApp, Services, theme};
 use egui::{Key, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{Queryable, by};
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::EntityKind;
-use rustdraft_ui_egui::{CadApp, Services, theme};
 use serde_json::json;
 
 /// A selected TEXT 2.5 high, with lengths in `lunits`.
@@ -24,7 +24,7 @@ fn palettes(lunits: i64) -> Harness<'static, CadApp> {
     let mut h = Harness::builder().with_size(vec2(400.0, 1400.0)).with_context_setup(|ctx| theme::install_fonts(ctx, "en")).build_ui_state(
         |ui, app: &mut CadApp| {
             app.logic(&ui.ctx().clone());
-            rustdraft_ui_egui::palettes::right_palettes(app, ui);
+            draftcraft_ui_egui::palettes::right_palettes(app, ui);
         },
         app,
     );

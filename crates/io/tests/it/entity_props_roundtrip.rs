@@ -2,10 +2,10 @@
 //! hatch origin/background/elevation, xref blocks, the built-in font name, and polyface /
 //! polygon mesh POLYLINEs from other programs.
 
-use rustdraft_color::{Color, Rgb};
-use rustdraft_doc::*;
-use rustdraft_geom::{PolyVertex, Vec2, Vec3};
-use rustdraft_io::{read_dxf, write_dxf};
+use draftcraft_color::{Color, Rgb};
+use draftcraft_doc::*;
+use draftcraft_geom::{PolyVertex, Vec2, Vec3};
+use draftcraft_io::{read_dxf, write_dxf};
 
 fn roundtrip(d: &Drawing) -> Drawing {
     read_dxf(write_dxf(d).as_bytes()).expect("reopen")
@@ -38,8 +38,8 @@ fn line_extrusion_roundtrips_with_world_endpoints() {
     let e = get(&back, h);
     assert_eq!(e.common.extrusion, Vec3::new(0.0, 0.0, -1.0));
     assert_eq!(e.kind, EntityKind::Line(line.clone()));
-    let dwg = rustdraft_io::write(&d, "x.dwg").expect("dwg");
-    let back = rustdraft_io::read(&dwg, "x.dwg").expect("reopen dwg");
+    let dwg = draftcraft_io::write(&d, "x.dwg").expect("dwg");
+    let back = draftcraft_io::read(&dwg, "x.dwg").expect("reopen dwg");
     let Some(e) = back.model.iter().find(|e| matches!(e.kind, EntityKind::Line(_))) else { panic!("no line") };
     assert_eq!(e.common.extrusion, Vec3::new(0.0, 0.0, -1.0), "through DWG");
     assert_eq!(e.kind, EntityKind::Line(line));
@@ -211,7 +211,7 @@ fn builtin_font_name_roundtrips_and_other_readers_get_txt() {
     assert_eq!(file, Some("txt"), "font file group stays a file other readers have");
     let r = read_dxf(text.as_bytes()).expect("reopen");
     let font = |n: &str| r.text_styles.iter().find(|s| s.name == n).map(|s| s.font.clone());
-    assert_eq!(font("Standard").as_deref(), Some("RustDraft Stroke"));
+    assert_eq!(font("Standard").as_deref(), Some("DraftCraft Stroke"));
     assert_eq!(font("Notes").as_deref(), Some("romans.shx"));
 
     // Another program that changed the font file wins over the stale xdata.

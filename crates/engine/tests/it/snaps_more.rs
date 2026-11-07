@@ -1,10 +1,10 @@
 //! The remaining object snaps (#519, gaps.md U8): Insertion on attribute definitions and
 //! multileaders, Geometric Center on closed splines, and no Midpoint on closed curves.
 
-use rustdraft_doc::{EntityKind, Space};
-use rustdraft_engine::Session;
-use rustdraft_engine::snap::{self, mode};
-use rustdraft_geom::Vec2;
+use draftcraft_doc::{EntityKind, Space};
+use draftcraft_engine::Session;
+use draftcraft_engine::snap::{self, mode};
+use draftcraft_geom::Vec2;
 use serde_json::json;
 
 /// The snap of `modes` near `p` (a hair off it, inside a 0.1 aperture).

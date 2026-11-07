@@ -1,11 +1,11 @@
-# RustDraft roadmap
+# DraftCraft roadmap
 
-RustDraft **1.1.0** is out for macOS (Apple silicon), Windows (x64 and ARM64) and Linux (x64). It is a
+DraftCraft **2.0.0** is out for macOS (Apple silicon), Windows (x64 and ARM64) and Linux (x64 AppImage). It is a
 young project: good for 2D drafting, dimensioning and plotting, and still missing parts of what a full
 CAD suite does. This page says what works today, what is known to be missing and what comes next.
 
 Something not listed here is broken, or missing something you need?
-[Open an issue](https://github.com/SkryxDev/RustDraft/issues/new) — or a pull request.
+[Open an issue](https://github.com/SkryxDev/DraftCraft/issues/new) — or a pull request.
 
 ## What works today
 
@@ -21,12 +21,12 @@ Something not listed here is broken, or missing something you need?
 | Parametric | Geometric and dimensional constraints, AUTOCONSTRAIN, parameters with expressions |
 | Layouts and output | Paper-space layouts, viewports, page setups, plot styles, PLOT and EXPORTPDF, SVG and PNG export |
 | Files | DWG and DXF reading and writing, at a chosen file version; AUDIT and RECOVER; autosave and drawing recovery |
-| Automation | MCP server, JSON control channel, `rustdraft-cli`, AutoLISP, scripts and alias files |
+| Automation | MCP server, JSON control channel, `draftcraft-cli`, AutoLISP, scripts and alias files |
 
 ## Known gaps
 
 - **3D** — there is no 3D modelling yet (no EXTRUDE, REVOLVE, solids or surfaces).
-- **File round-trips** — some objects that RustDraft doesn't model can be lost when a DWG or DXF is
+- **File round-trips** — some objects that DraftCraft doesn't model can be lost when a DWG or DXF is
   saved. Keep a copy of drawings that come from other programs before saving over them.
 - **Ribbon** — no contextual tabs yet (for example a Text Editor tab while editing MTEXT) and no
   slide-out panels; collapsed panels open a plain list of their commands.
@@ -40,4 +40,4 @@ Something not listed here is broken, or missing something you need?
 3. Signed and notarized builds, a Windows installer, and a Linux ARM build.
 4. The first 3D commands.
 
-Want something higher on this list? Say so in an [issue](https://github.com/SkryxDev/RustDraft/issues).
+Want something higher on this list? Say so in an [issue](https://github.com/SkryxDev/DraftCraft/issues).

@@ -1,11 +1,11 @@
 //! Isometric drafting: ISODRAFT and ISOPLANE (SNAPSTYL, SNAPISOPAIR), the isometric snap
 //! lattice, ortho along the isometric plane's axes and ELLIPSE's Isocircle option.
 
-use rustdraft_doc::EntityKind;
-use rustdraft_engine::Session;
-use rustdraft_engine::geom::Vec2;
-use rustdraft_engine::snap::iso::{self, IsoPlane};
-use rustdraft_engine::snap::tracking::CursorQuery;
+use draftcraft_doc::EntityKind;
+use draftcraft_engine::Session;
+use draftcraft_engine::geom::Vec2;
+use draftcraft_engine::snap::iso::{self, IsoPlane};
+use draftcraft_engine::snap::tracking::CursorQuery;
 use serde_json::{Value, json};
 
 fn v(x: f64, y: f64) -> Vec2 {
@@ -17,14 +17,14 @@ fn deg(a: f64) -> Vec2 {
 }
 
 fn getvar(s: &Session, name: &str) -> Value {
-    rustdraft_engine::sysvars::get(s, name).unwrap_or(Value::Null)
+    draftcraft_engine::sysvars::get(s, name).unwrap_or(Value::Null)
 }
 
-fn setvar(s: &mut Session, name: &str, value: Value) -> rustdraft_engine::Result<Value> {
+fn setvar(s: &mut Session, name: &str, value: Value) -> draftcraft_engine::Result<Value> {
     s.execute("setvar", &json!({ "name": name, "value": value }))
 }
 
-fn last_ellipse(s: &Session) -> rustdraft_doc::Ellipse {
+fn last_ellipse(s: &Session) -> draftcraft_doc::Ellipse {
     match s.doc().unwrap().model.iter().last().map(|e| e.kind.clone()) {
         Some(EntityKind::Ellipse(e)) => e,
         other => panic!("not an ellipse: {other:?}"),
@@ -32,7 +32,7 @@ fn last_ellipse(s: &Session) -> rustdraft_doc::Ellipse {
 }
 
 /// Whether `p` lies on the full ellipse.
-fn on_ellipse(e: &rustdraft_doc::Ellipse, p: Vec2) -> bool {
+fn on_ellipse(e: &draftcraft_doc::Ellipse, p: Vec2) -> bool {
     let (c, m) = (e.center.xy(), e.major.xy());
     let (a, b) = (m.len(), m.len() * e.ratio);
     let u = m.normalized();
@@ -211,7 +211,7 @@ fn ellipse_isocircle_in_each_plane() {
     s.cmdline("ellipse a i 0,0 1 0 90").unwrap();
     assert!(s.running.is_none());
     let e = last_ellipse(&s);
-    assert!((e.end - e.start).abs() > 1e-6 && (e.end - e.start).abs() < rustdraft_geom::TAU - 1e-6);
+    assert!((e.end - e.start).abs() > 1e-6 && (e.end - e.start).abs() < draftcraft_geom::TAU - 1e-6);
 
     // JSON form.
     let r = s.execute("ellipse", &json!({ "isocircle": { "center": [1, 1], "radius": 1, "plane": "top" } })).unwrap();
@@ -233,9 +233,9 @@ fn hostile_isometric_inputs_never_panic() {
         let p = iso::lattice_snap(v(f64::MAX, -f64::MAX), d, Vec2::ZERO, f64::NAN);
         let _ = p;
     }
-    let view = rustdraft_geom::Bounds2 { min: v(-1e12, -1e12), max: v(1e12, 1e12) };
+    let view = draftcraft_geom::Bounds2 { min: v(-1e12, -1e12), max: v(1e12, 1e12) };
     assert!(iso::grid_lines(view, 1.0, Vec2::ZERO, 0.0, 5).is_empty(), "too many lines");
-    let view = rustdraft_geom::Bounds2 { min: v(-10.0, -10.0), max: v(10.0, 10.0) };
+    let view = draftcraft_geom::Bounds2 { min: v(-10.0, -10.0), max: v(10.0, 10.0) };
     let lines = iso::grid_lines(view, 1.0, Vec2::ZERO, 0.3, 0);
     assert!(!lines.is_empty() && lines.len() <= 3 * (iso::MAX_GRID_LINES + 1));
     for plane in IsoPlane::ALL {

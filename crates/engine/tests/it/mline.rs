@@ -1,10 +1,10 @@
 //! Multilines (#510): the MLINE entity with its style's elements, MLSTYLE, MLEDIT, and the
 //! edits, grips, snaps, selection and rendering every object gets.
 
-use rustdraft_doc::{EntityKind, Handle, MLine, Space};
-use rustdraft_engine::Session;
-use rustdraft_engine::snap::{self, mode};
-use rustdraft_geom::Vec2;
+use draftcraft_doc::{EntityKind, Handle, MLine, Space};
+use draftcraft_engine::Session;
+use draftcraft_engine::snap::{self, mode};
+use draftcraft_geom::Vec2;
 use serde_json::{Value, json};
 
 fn h(v: &Value) -> Handle {
@@ -233,7 +233,7 @@ fn transforms_grips_explode() {
     // Grips are the vertices.
     let k = s.doc().unwrap().entity(a).unwrap().kind.clone();
     assert!(near(&k.grips(), &mline(&s, a).points()));
-    let moved = rustdraft_engine::grips::stretch_grip(&k, 1, Vec2::new(5.0, 21.0)).unwrap();
+    let moved = draftcraft_engine::grips::stretch_grip(&k, 1, Vec2::new(5.0, 21.0)).unwrap();
     let EntityKind::MLine(m) = moved else { panic!() };
     assert_eq!(m.points()[1], Vec2::new(5.0, 21.0));
 
@@ -250,7 +250,7 @@ fn transforms_grips_explode() {
     let lines = d.model.iter().filter(|e| matches!(e.kind, EntityKind::Line(_))).count();
     let arcs = d.model.iter().filter(|e| matches!(e.kind, EntityKind::Arc(_))).count();
     assert_eq!((lines, arcs), (3, 1));
-    assert!(d.model.iter().any(|e| e.common.color == rustdraft_color::Color::Index(1)));
+    assert!(d.model.iter().any(|e| e.common.color == draftcraft_color::Color::Index(1)));
     assert!(!d.model.iter().any(|e| matches!(e.kind, EntityKind::MLine(_))));
 }
 
@@ -266,15 +266,15 @@ fn snaps_selection_extents_and_render() {
     let hit = snap::osnap(d, &Space::Model, Vec2::new(5.05, 0.45), 0.3, mode::MID, None, false).unwrap();
     assert_eq!(hit.point, Vec2::new(5.0, 0.5));
     // Picking an element picks the multiline.
-    assert_eq!(rustdraft_engine::select::pick(d, &Space::Model, Vec2::new(3.0, 0.52), 0.1), Some(a));
+    assert_eq!(draftcraft_engine::select::pick(d, &Space::Model, Vec2::new(3.0, 0.52), 0.1), Some(a));
     let ext = d.extents(&Space::Model);
     assert!(ext.min.near(Vec2::new(0.0, -0.5), 1e-9) && ext.max.near(Vec2::new(10.0, 0.5), 1e-9), "{ext:?}");
     // Drawn: the fill, and each element in its own colour.
-    let list = rustdraft_render::build(d, &Space::Model, &rustdraft_render::Options::default());
-    let red = rustdraft_color::aci_rgb(1);
-    let blue = rustdraft_color::aci_rgb(5);
-    assert!(list.prims.iter().any(|p| p.color == red && matches!(p.kind, rustdraft_render::Kind::Polyline)));
-    assert!(list.prims.iter().any(|p| p.color == blue && matches!(p.kind, rustdraft_render::Kind::Tris)));
+    let list = draftcraft_render::build(d, &Space::Model, &draftcraft_render::Options::default());
+    let red = draftcraft_color::aci_rgb(1);
+    let blue = draftcraft_color::aci_rgb(5);
+    assert!(list.prims.iter().any(|p| p.color == red && matches!(p.kind, draftcraft_render::Kind::Polyline)));
+    assert!(list.prims.iter().any(|p| p.color == blue && matches!(p.kind, draftcraft_render::Kind::Tris)));
 }
 
 #[test]
@@ -305,5 +305,5 @@ fn hostile_mline_params_never_panic() {
     }
     // Everything left draws.
     let d = s.doc().unwrap();
-    let _ = rustdraft_render::build(d, &Space::Model, &rustdraft_render::Options::default());
+    let _ = draftcraft_render::build(d, &Space::Model, &draftcraft_render::Options::default());
 }

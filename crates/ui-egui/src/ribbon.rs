@@ -1,7 +1,7 @@
 //! The Windows-style window top: the application bar (application button, Quick Access
 //! Toolbar, workspace, title and search) and the ribbon — tabs (Home, Insert, Annotate, …) of
 //! panels whose large, small and split buttons start the same commands as the menus and the
-//! command line. Icons are RustDraft's own (`icons.rs`); only the arrangement follows the
+//! command line. Icons are DraftCraft's own (`icons.rs`); only the arrangement follows the
 //! Windows workspace.
 
 use egui::{Align2, Color32, FontId, Rect, Sense, Stroke, pos2, vec2};
@@ -621,7 +621,7 @@ struct Scratch {
 }
 
 fn known(id: &str) -> bool {
-    rustdraft_engine::find_command(id).is_some() || crate::menus::is_ui_command(id)
+    draftcraft_engine::find_command(id).is_some() || crate::menus::is_ui_command(id)
 }
 
 fn label_font() -> FontId {
@@ -802,7 +802,7 @@ fn tool_menu(ui: &mut egui::Ui, tools: &[Tool]) -> Option<&'static str> {
 }
 
 /// A picture of an ARC or CIRCLE method in a 24-point box: the curve, and the points the method
-/// asks for (RustDraft's own drawing). False for any other command.
+/// asks for (DraftCraft's own drawing). False for any other command.
 fn paint_variant(p: &egui::Painter, r: Rect, cmd: &str) -> bool {
     let t = Tokens::get();
     let s = r.width() / 24.0;
@@ -1416,8 +1416,8 @@ fn props_lists(app: &CadApp, ui: &mut egui::Ui, r: Rect, id: egui::Id, out: &mut
             0 => {
                 paint_color_wheel(&p, icon_c, 8.0);
                 let resp = list_box(ui, lr, id.with("color"), "Object Color");
-                let color = rustdraft_color::Color::from_aci(cecolor.clamp(0, 256) as i16);
-                let rgb = color.resolve(rustdraft_color::Color::Index(7), rustdraft_color::Color::Index(7));
+                let color = draftcraft_color::Color::from_aci(cecolor.clamp(0, 256) as i16);
+                let rgb = color.resolve(draftcraft_color::Color::Index(7), draftcraft_color::Color::Index(7));
                 let sw = Rect::from_min_size(pos2(lr.left() + 5.0, lr.center().y - 6.0), vec2(14.0, 12.0));
                 p.rect_filled(sw, 1.0, Color32::from_rgb(rgb.0, rgb.1, rgb.2));
                 let name = COLORS.iter().find(|c| c.1 == cecolor).map(|c| crate::i18n::t(c.0).to_string()).unwrap_or_else(|| color.name());
@@ -1513,7 +1513,7 @@ fn layer_list(app: &CadApp, ui: &mut egui::Ui, rect: Rect, id: egui::Id) -> Opti
         .layers
         .iter()
         .map(|l| {
-            let rgb = l.color.resolve(rustdraft_color::Color::Index(7), rustdraft_color::Color::Index(7));
+            let rgb = l.color.resolve(draftcraft_color::Color::Index(7), draftcraft_color::Color::Index(7));
             (l.name.clone(), l.on, l.frozen, l.locked, Color32::from_rgb(rgb.0, rgb.1, rgb.2))
         })
         .collect();
@@ -1591,7 +1591,7 @@ mod tests {
 
     #[test]
     fn the_windows_layout_is_the_default() {
-        let app = crate::CadApp::new(rustdraft_engine::Session::default(), Default::default());
+        let app = crate::CadApp::new(draftcraft_engine::Session::default(), Default::default());
         assert!(app.ui.show_toolbar, "the ribbon is shown");
         assert!(!app.ui.show_toolsets && !app.ui.show_palettes, "no Tool Sets or docked palettes");
         assert_eq!(app.ui.ribbon_tab, "Home");

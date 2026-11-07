@@ -1,7 +1,7 @@
 //! Interactive commands: prompts, inputs and the command-line coordinate grammar.
 
-use rustdraft_doc::{EntityKind, Handle};
-use rustdraft_geom::{Mat3, Vec2};
+use draftcraft_doc::{EntityKind, Handle};
+use draftcraft_geom::{Mat3, Vec2};
 use serde::Serialize;
 
 use crate::{Result, Session};
@@ -277,7 +277,7 @@ pub trait Interactive: Send {
     /// Preview objects drawn with their own properties (colour, layer, linetype) rather than
     /// the current layer's, as [`Interactive::preview`]'s are: a block reference re-evaluated
     /// under the cursor, drawn as it will look. Drawn under the rubber band.
-    fn preview_objects(&self, _s: &Session, _cursor: Vec2) -> Vec<rustdraft_doc::Entity> {
+    fn preview_objects(&self, _s: &Session, _cursor: Vec2) -> Vec<draftcraft_doc::Entity> {
         Vec::new()
     }
     /// The preview as existing objects under one transform, when it is that (MOVE, COPY,
@@ -288,7 +288,7 @@ pub trait Interactive: Send {
     }
     /// The multiline text being typed (MTEXT, once its box is known) with empty contents: where
     /// the UI places its in-place editor and with which height, width and justification.
-    fn editing_mtext(&self) -> Option<rustdraft_doc::MText> {
+    fn editing_mtext(&self) -> Option<draftcraft_doc::MText> {
         None
     }
     /// What the drawing area shows in place of the drawing while the command runs (DVIEW draws
@@ -306,7 +306,7 @@ pub struct DisplayOnly {
     pub handles: Vec<Handle>,
     /// Geometry that is not in the drawing (DVIEW's sample house, or an insert of the drawing's
     /// DVIEWBLOCK block), with its own properties.
-    pub extra: Vec<rustdraft_doc::Entity>,
+    pub extra: Vec<draftcraft_doc::Entity>,
 }
 
 /// See [`Interactive::drag`].

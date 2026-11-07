@@ -1,10 +1,10 @@
 //! Helices (#510): HELIX makes a helix object drawn as a spline, which edits, grips, snaps and
 //! explodes like other curves.
 
-use rustdraft_doc::{EntityKind, Handle, Helix, Space};
-use rustdraft_engine::Session;
-use rustdraft_engine::snap::{self, mode};
-use rustdraft_geom::{Spline, Vec2};
+use draftcraft_doc::{EntityKind, Handle, Helix, Space};
+use draftcraft_engine::Session;
+use draftcraft_engine::snap::{self, mode};
+use draftcraft_geom::{Spline, Vec2};
 use serde_json::{Value, json};
 
 fn h(v: &Value) -> Handle {
@@ -67,9 +67,9 @@ fn helix_edits_grips_snaps_and_explode() {
     // Grips: centre, base radius, top radius.
     let k = s.doc().unwrap().entity(a).unwrap().kind.clone();
     assert_eq!(k.grips().len(), 3);
-    let EntityKind::Helix(y) = rustdraft_engine::grips::stretch_grip(&k, 2, Vec2::new(-10.0, 1.0)).unwrap() else { panic!() };
+    let EntityKind::Helix(y) = draftcraft_engine::grips::stretch_grip(&k, 2, Vec2::new(-10.0, 1.0)).unwrap() else { panic!() };
     assert!((y.top_radius - 1.0).abs() < 1e-9 && (y.base_radius - 4.0).abs() < 1e-9);
-    let EntityKind::Helix(y) = rustdraft_engine::grips::stretch_grip(&k, 0, Vec2::new(0.0, 0.0)).unwrap() else { panic!() };
+    let EntityKind::Helix(y) = draftcraft_engine::grips::stretch_grip(&k, 0, Vec2::new(0.0, 0.0)).unwrap() else { panic!() };
     assert_eq!(y.center.xy(), Vec2::ZERO);
 
     // The start point snaps as an endpoint; picking the curve picks the helix.
@@ -77,7 +77,7 @@ fn helix_edits_grips_snaps_and_explode() {
     let start = x.start_point().xy();
     let hit = snap::osnap(d, &Space::Model, start + Vec2::new(0.05, 0.02), 0.3, mode::END, None, false).unwrap();
     assert!(hit.point.near(start, 1e-9));
-    assert_eq!(rustdraft_engine::select::pick(d, &Space::Model, start, 0.1), Some(a));
+    assert_eq!(draftcraft_engine::select::pick(d, &Space::Model, start, 0.1), Some(a));
     let ext = d.extents(&Space::Model);
     assert!(ext.min.x > -14.2 && ext.max.x < -5.8 && ext.min.x < -13.9, "{ext:?}");
 
@@ -109,5 +109,5 @@ fn helix_command_line_preview_and_hostile_values() {
         let _ = s.execute("helix", &p);
     }
     let d = s.doc().unwrap();
-    let _ = rustdraft_render::build(d, &Space::Model, &rustdraft_render::Options::default());
+    let _ = draftcraft_render::build(d, &Space::Model, &draftcraft_render::Options::default());
 }

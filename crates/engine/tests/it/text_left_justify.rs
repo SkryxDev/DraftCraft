@@ -1,8 +1,8 @@
 //! Properties moves justified TEXT by its alignment point: a TL text (placed by its alignment
 //! point, #342) lands where its new position says.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{EntityKind, entity_bounds};
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{EntityKind, entity_bounds};
 use serde_json::json;
 
 #[test]

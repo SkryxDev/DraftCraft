@@ -2,12 +2,12 @@
 //! are autosaved at once instead of SAVETIME minutes later, and a notice says what happened.
 //! SAVEFILEPATH is process-wide, so everything runs in one test.
 
+use draftcraft_engine::Session;
+use draftcraft_engine::cmd::file::{IoHooks, set_io};
+use draftcraft_engine::doc::Drawing;
+use draftcraft_ui_egui::gpu::GpuFaults;
+use draftcraft_ui_egui::{CadApp, Services};
 use egui_wgpu::wgpu::DeviceLostReason;
-use rustdraft_engine::Session;
-use rustdraft_engine::cmd::file::{IoHooks, set_io};
-use rustdraft_engine::doc::Drawing;
-use rustdraft_ui_egui::gpu::GpuFaults;
-use rustdraft_ui_egui::{CadApp, Services};
 
 /// The text the notice paints (the second frame: a new window sizes itself in the first).
 fn painted_text(app: &mut CadApp, ctx: &egui::Context) -> String {
@@ -23,7 +23,7 @@ fn painted_text(app: &mut CadApp, ctx: &egui::Context) -> String {
     }
     let mut text = String::new();
     for _ in 0..2 {
-        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| rustdraft_ui_egui::autosave::gpu_notice(app, ui.ctx()));
+        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| draftcraft_ui_egui::autosave::gpu_notice(app, ui.ctx()));
         out.textures_delta.clear(); // no renderer here
         text.clear();
         out.shapes.iter().for_each(|s| collect(&s.shape, &mut text));
@@ -47,7 +47,7 @@ fn faults_are_recorded_autosaved_and_shown() {
     assert!(f.take().is_some_and(|g| g.lost && g.message == "driver reset"));
 
     set_io(IoHooks { read: |_, _| Ok(Drawing::new_metric()), write: |_, _| Ok(b"0\nEOF\n".to_vec()), plot: None });
-    let dir = std::env::temp_dir().join(format!("rustdraft-gpu-faults-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("draftcraft-gpu-faults-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     let mut app = CadApp::new(Session::new(), Services::default());
     app.enable_autosave(&dir);

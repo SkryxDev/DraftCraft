@@ -1,10 +1,10 @@
 //! #1645: a diameter dimension's text in its `*D` block, and in the MTEXT EXPLODE leaves, holds
-//! the diameter sign as `%%c`, as RustDraft's own TEXT and MTEXT keep it. The decoded ⌀ (U+2300)
+//! the diameter sign as `%%c`, as DraftCraft's own TEXT and MTEXT keep it. The decoded ⌀ (U+2300)
 //! is in no SHX font, so other programs plotted the dimension in an SHX style ("romans.shx")
-//! without its sign. RustDraft still draws and reads the sign.
+//! without its sign. DraftCraft still draws and reads the sign.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{EntityKind, Handle};
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{EntityKind, Handle};
 use serde_json::{Value, json};
 
 fn h(v: &Value) -> Handle {
@@ -47,14 +47,14 @@ fn the_dimension_block_writes_the_sign_as_a_code() {
     let (s, dim) = session();
     let d = s.doc().unwrap();
     let EntityKind::Dimension(dm) = &d.entity(dim).unwrap().kind else { panic!("not a dimension") };
-    assert!(matches!(dm.kind, rustdraft_engine::doc::DimKind::Diameter));
-    let texts = dblock_texts(&rustdraft_io::write_dxf(d));
+    assert!(matches!(dm.kind, draftcraft_engine::doc::DimKind::Diameter));
+    let texts = dblock_texts(&draftcraft_io::write_dxf(d));
     assert_eq!(texts, vec!["%%c60".to_string()], "the *D block's MTEXT");
-    // Read back, RustDraft still shows the sign.
-    let read = rustdraft_io::read_dxf(rustdraft_io::write_dxf(d).as_bytes()).unwrap();
+    // Read back, DraftCraft still shows the sign.
+    let read = draftcraft_io::read_dxf(draftcraft_io::write_dxf(d).as_bytes()).unwrap();
     let dm = read.model.iter().find_map(|e| if let EntityKind::Dimension(dm) = &e.kind { Some(dm.clone()) } else { None }).unwrap();
     let st = read.dim_styles.iter().find(|x| x.name.eq_ignore_ascii_case(&dm.style)).cloned().unwrap_or_default();
-    assert_eq!(rustdraft_render::dimension_geometry(&dm, &st, 1.0).value, "⌀60");
+    assert_eq!(draftcraft_render::dimension_geometry(&dm, &st, 1.0).value, "⌀60");
 }
 
 #[test]
@@ -65,6 +65,6 @@ fn exploding_keeps_the_sign_as_a_code() {
     let texts: Vec<String> =
         d.model.iter().filter_map(|e| if let EntityKind::MText(m) = &e.kind { Some(m.contents.clone()) } else { None }).collect();
     assert_eq!(texts, vec!["%%c60".to_string()]);
-    let saved = rustdraft_io::write_dxf(d);
+    let saved = draftcraft_io::write_dxf(d);
     assert!(!saved.contains('⌀'), "no U+2300 is saved");
 }

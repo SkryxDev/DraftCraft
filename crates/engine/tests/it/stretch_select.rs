@@ -1,9 +1,9 @@
 //! STRETCH with polygon and fence selection: a crossing or window polygon marks the area whose
 //! vertices move; a fence marks none, so what it crosses moves whole.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{EntityKind, Handle};
-use rustdraft_engine::geom::Vec2;
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{EntityKind, Handle};
+use draftcraft_engine::geom::Vec2;
 use serde_json::json;
 
 fn line(s: &mut Session, a: [f64; 2], b: [f64; 2]) -> String {

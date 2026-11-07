@@ -1,8 +1,8 @@
 //! Programmatic SPLINE keeps the degree within 1..=10 like the Degree prompt (issue #268): a high
 //! degree on many control points made tessellation and extents take minutes.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::EntityKind;
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::EntityKind;
 use serde_json::json;
 
 #[test]

@@ -1,9 +1,9 @@
 //! DIMTEDIT at the command line and in scripts: "Select dimension", then a new text location or
 //! Left/Right/Center/Home/Angle.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{Dimension, EntityKind};
-use rustdraft_engine::geom::Vec2;
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{Dimension, EntityKind};
+use draftcraft_engine::geom::Vec2;
 
 fn the_dim(s: &Session) -> Dimension {
     s.doc()

@@ -3,10 +3,10 @@
 //! grip begins, with the reference re-evaluated under the cursor as its preview. Typing a number
 //! at a distance's grip sets the distance.
 
-use rustdraft_doc::color::Color;
-use rustdraft_doc::dynblock::{self, GripPart, GripShape};
-use rustdraft_doc::{Common, Drawing, Entity, EntityKind, Handle, Lineweight, Transparency};
-use rustdraft_geom::Vec2;
+use draftcraft_doc::color::Color;
+use draftcraft_doc::dynblock::{self, GripPart, GripShape};
+use draftcraft_doc::{Common, Drawing, Entity, EntityKind, Handle, Lineweight, Transparency};
+use draftcraft_geom::Vec2;
 use serde_json::{Value, json};
 
 use crate::cmd::{bad, point_param, str_param};

@@ -30,7 +30,7 @@ pub enum Kind {
 /// A raster image placed in the world.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DImage {
-    pub raster: std::sync::Arc<rustdraft_doc::Raster>,
+    pub raster: std::sync::Arc<draftcraft_doc::Raster>,
     /// Where the top-left corner of the top-left pixel is.
     pub origin: Vec2,
     /// One pixel to the right and one pixel down, in world units.
@@ -128,7 +128,7 @@ pub struct PlotText {
     pub verts: u32,
     pub bounds: Bounds2,
     /// The glyph; its origin and em axes are in world coordinates.
-    pub glyph: rustdraft_fonts::TextGlyph,
+    pub glyph: draftcraft_fonts::TextGlyph,
 }
 
 impl PlotText {
@@ -140,7 +140,7 @@ impl PlotText {
 impl DPrim {
     /// The colour to draw with on `background`.
     pub fn display_rgb(&self, background: Rgb) -> Rgb {
-        rustdraft_color::display_rgb(self.color, self.aci7, background)
+        draftcraft_color::display_rgb(self.color, self.aci7, background)
     }
     /// The opacity to draw with: 255 when opaque, down to 26 at 90 % transparency.
     pub fn alpha(&self) -> u8 {

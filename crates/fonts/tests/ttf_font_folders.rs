@@ -5,7 +5,7 @@
 
 use std::path::{Path, PathBuf};
 
-use rustdraft_fonts::ttf;
+use draftcraft_fonts::ttf;
 
 /// A TrueType file from the system's fonts to copy, if there is one (a bounded walk).
 fn a_system_ttf() -> Option<PathBuf> {
@@ -32,34 +32,34 @@ fn a_system_ttf() -> Option<PathBuf> {
 }
 
 fn copy_into(src: &Path, dir: &Path) -> bool {
-    std::fs::create_dir_all(dir).is_ok() && std::fs::copy(src, dir.join("RustdraftTestFace.ttf")).is_ok()
+    std::fs::create_dir_all(dir).is_ok() && std::fs::copy(src, dir.join("DraftcraftTestFace.ttf")).is_ok()
 }
 
 #[test]
 fn a_font_in_a_user_folder_is_found_listed_and_dropped_with_the_folder() {
     let Some(src) = a_system_ttf() else { return };
-    let dir = std::env::temp_dir().join(format!("rustdraft-fontdir-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("draftcraft-fontdir-{}", std::process::id()));
     if !copy_into(&src, &dir) {
         return;
     }
     // A font registered by name, with a file of the same stem in the folder: looking for fonts
     // again (twice, as the folder comes and goes) keeps the registered bytes.
     let Ok(bytes) = std::fs::read(&src) else { return };
-    let _ = std::fs::copy(&src, dir.join("RustdraftRegistered.ttf"));
-    ttf::register("RustdraftRegistered.ttf", bytes);
+    let _ = std::fs::copy(&src, dir.join("DraftcraftRegistered.ttf"));
+    ttf::register("DraftcraftRegistered.ttf", bytes);
     let before = ttf::generation();
     ttf::set_font_dirs(&[dir.to_string_lossy().to_string()]);
     assert!(ttf::generation() > before);
-    assert!(ttf::find("RustdraftTestFace.ttf").is_some());
+    assert!(ttf::find("DraftcraftTestFace.ttf").is_some());
     let listed = ttf::installed();
-    let entry = listed.iter().find(|f| f.name == "RustdraftTestFace.ttf");
+    let entry = listed.iter().find(|f| f.name == "DraftcraftTestFace.ttf");
     assert!(entry.is_some_and(|f| f.user && f.family.is_some()), "{entry:?}");
     assert!(listed.first().is_some_and(|f| f.user), "the user's fonts come first");
     if let Some(family) = entry.and_then(|f| f.family.clone()) {
         assert!(ttf::find(&family).is_some(), "found by its family name: {family}");
     }
     ttf::set_font_dirs::<&str>(&[]);
-    assert!(ttf::find("RustdraftTestFace.ttf").is_none());
-    assert!(ttf::find("RustdraftRegistered.ttf").is_some(), "a registered font outlives a rescan");
+    assert!(ttf::find("DraftcraftTestFace.ttf").is_none());
+    assert!(ttf::find("DraftcraftRegistered.ttf").is_some(), "a registered font outlives a rescan");
     let _ = std::fs::remove_dir_all(&dir);
 }

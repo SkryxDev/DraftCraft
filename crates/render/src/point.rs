@@ -1,6 +1,6 @@
 //! POINT display figures: point style (`PDMODE`) and size (`PDSIZE`).
 
-use rustdraft_geom::{Circle, Vec2};
+use draftcraft_geom::{Circle, Vec2};
 
 /// The figure a POINT draws.
 #[derive(Debug, Default, PartialEq)]

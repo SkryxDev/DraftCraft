@@ -7,8 +7,8 @@
 //! the text ([`ATOM_BASE`] + n) that [`Formatted::to_contents`] writes back as the original
 //! code, so opening and closing the editor never loses them.
 
-use rustdraft_fonts::ParaProps;
-pub use rustdraft_fonts::{ListStyle, MTextColor, ParaAlign, TabKind};
+use draftcraft_fonts::ParaProps;
+pub use draftcraft_fonts::{ListStyle, MTextColor, ParaAlign, TabKind};
 
 /// Largest paragraph indent or tab stop, in drawing units.
 const MAX_INDENT: f64 = 1e6;

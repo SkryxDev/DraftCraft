@@ -1,8 +1,8 @@
 //! Portable fonts: a drawing saved with them gets the Windows font for each Linux font in its
-//! STYLE table, keeps its own in RustDraft xdata, and reopens with it, from DXF and DWG.
+//! STYLE table, keeps its own in DraftCraft xdata, and reopens with it, from DXF and DWG.
 
-use rustdraft_doc::{Drawing, TextStyle};
-use rustdraft_io::{read, read_dxf, write, write_dxf};
+use draftcraft_doc::{Drawing, TextStyle};
+use draftcraft_io::{read, read_dxf, write, write_dxf};
 
 fn drawing(portable_fonts: bool) -> Drawing {
     let mut d = Drawing { portable_fonts, ..Drawing::new_metric() };
@@ -22,7 +22,7 @@ fn fonts(d: &Drawing) -> Vec<(String, String)> {
 fn style_files(dxf: &str) -> Vec<(String, String)> {
     let mut out: Vec<(String, String)> = Vec::new();
     let mut style = false;
-    for t in rustdraft_dxf::parse(dxf.as_bytes()).unwrap() {
+    for t in draftcraft_dxf::parse(dxf.as_bytes()).unwrap() {
         match t.code {
             0 => style = t.str() == "STYLE",
             2 if style => out.push((t.str(), String::new())),

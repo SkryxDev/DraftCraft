@@ -7,7 +7,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use rustdraft_geom::{Vec2, Vec3};
+use draftcraft_geom::{Vec2, Vec3};
 use serde::Serialize;
 
 use super::{DynamicBlock, ParameterKind, Value, custom_properties, dynamic_block, reference};

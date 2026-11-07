@@ -1,12 +1,12 @@
 //! The real app's painted geometry at native and compact window sizes. Layout tabs stay anchored
 //! to the status bar independently of palette visibility and docking, and remain interactive.
 
+use draftcraft_engine::Session;
+use draftcraft_geom::Vec2;
+use draftcraft_ui_egui::{CadApp, Services};
 use egui::{Rect, Shape, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
-use rustdraft_engine::Session;
-use rustdraft_geom::Vec2;
-use rustdraft_ui_egui::{CadApp, Services};
 
 fn harness(width: f32, height: f32, scale: f32, message: bool) -> Harness<'static, CadApp> {
     let mut app = CadApp::new(Session::default(), Services::default());
@@ -122,19 +122,19 @@ fn layout_tabs_and_add_button_work_with_toolsets_shown_or_hidden() {
         h.run_steps(5);
         h.get_by_role_and_label(egui::accesskit::Role::Tab, "Layout1").click();
         h.run_steps(3);
-        assert_eq!(h.state().session.state().unwrap().space, rustdraft_engine::doc::Space::Paper("Layout1".into()));
+        assert_eq!(h.state().session.state().unwrap().space, draftcraft_engine::doc::Space::Paper("Layout1".into()));
         h.get_by_role_and_label(egui::accesskit::Role::Tab, "Model").click();
         h.run_steps(3);
-        assert_eq!(h.state().session.state().unwrap().space, rustdraft_engine::doc::Space::Model);
+        assert_eq!(h.state().session.state().unwrap().space, draftcraft_engine::doc::Space::Model);
         // There are two add buttons; exercise the one between Model and the paper-layout tabs.
         let model = h.get_by_role_and_label(egui::accesskit::Role::Tab, "Model").rect();
         h.get_all_by_label("New layout").find(|node| node.rect().left() > model.right()).unwrap().click();
         h.run_steps(3);
-        assert_eq!(h.state().session.state().unwrap().space, rustdraft_engine::doc::Space::Paper("Layout3".into()));
+        assert_eq!(h.state().session.state().unwrap().space, draftcraft_engine::doc::Space::Paper("Layout3".into()));
         assert_eq!(h.state().session.doc().unwrap().layouts.len(), 3);
         h.get_by_role_and_label(egui::accesskit::Role::Tab, "Layout2").click();
         h.run_steps(3);
-        assert_eq!(h.state().session.state().unwrap().space, rustdraft_engine::doc::Space::Paper("Layout2".into()));
+        assert_eq!(h.state().session.state().unwrap().space, draftcraft_engine::doc::Space::Paper("Layout2".into()));
     }
 }
 
@@ -147,7 +147,7 @@ fn compact_ribbon_keeps_collapsed_panels_reachable() {
     h.run_steps(3);
     h.get_by_label("QuickCalc").click();
     h.run_steps(3);
-    assert!(h.state().ui.docking.layout.contains(&rustdraft_ui_egui::docking::Panel::QuickCalc));
+    assert!(h.state().ui.docking.layout.contains(&draftcraft_ui_egui::docking::Panel::QuickCalc));
 }
 
 #[test]

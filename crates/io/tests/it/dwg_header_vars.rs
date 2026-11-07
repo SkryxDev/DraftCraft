@@ -2,8 +2,8 @@
 //! reopening. The DWG bridge converts with acadrust, whose DXF writer leaves some header
 //! variables out; the snap grid's origin and rotation live in the `*ACTIVE` VPORT record.
 
-use rustdraft_doc::{Drawing, HVal};
-use rustdraft_geom::Vec3;
+use draftcraft_doc::{Drawing, HVal};
+use draftcraft_geom::Vec3;
 
 fn drawing() -> Drawing {
     let mut d = Drawing::new_metric();
@@ -48,15 +48,15 @@ fn check(name: &str, r: &Drawing) {
 #[test]
 fn header_settings_round_trip_through_dxf() {
     let d = drawing();
-    let r = rustdraft_io::read_dxf(rustdraft_io::write_dxf(&d).as_bytes()).unwrap();
+    let r = draftcraft_io::read_dxf(draftcraft_io::write_dxf(&d).as_bytes()).unwrap();
     check("DXF", &r);
 }
 
 #[test]
 fn header_settings_round_trip_through_dwg() {
     let d = drawing();
-    let dwg = rustdraft_io::write(&d, "x.dwg").unwrap();
-    let r = rustdraft_io::read(&dwg, "x.dwg").unwrap();
+    let dwg = draftcraft_io::write(&d, "x.dwg").unwrap();
+    let r = draftcraft_io::read(&dwg, "x.dwg").unwrap();
     check("DWG", &r);
 }
 
@@ -66,12 +66,12 @@ fn header_settings_round_trip_through_dwg() {
 #[test]
 fn plot_style_mode_round_trips() {
     let dxf = "0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1032\n9\n$PSTYLEMODE\n290\n0\n0\nENDSEC\n0\nEOF\n";
-    let d = rustdraft_io::read_dxf(dxf.as_bytes()).unwrap();
+    let d = draftcraft_io::read_dxf(dxf.as_bytes()).unwrap();
     assert_eq!(d.header.i64("PSTYLEMODE", -1), 0, "read");
-    let as_dxf = rustdraft_io::read_dxf(rustdraft_io::write_dxf(&d).as_bytes()).unwrap();
+    let as_dxf = draftcraft_io::read_dxf(draftcraft_io::write_dxf(&d).as_bytes()).unwrap();
     assert_eq!(as_dxf.header.i64("PSTYLEMODE", -1), 0, "DXF");
-    let dwg = rustdraft_io::write(&d, "x.dwg").unwrap();
-    let as_dwg = rustdraft_io::read(&dwg, "x.dwg").unwrap();
+    let dwg = draftcraft_io::write(&d, "x.dwg").unwrap();
+    let as_dwg = draftcraft_io::read(&dwg, "x.dwg").unwrap();
     assert_eq!(as_dwg.header.i64("PSTYLEMODE", -1), 0, "DWG");
 }
 
@@ -81,12 +81,12 @@ fn plot_style_mode_round_trips() {
 fn the_current_layer_round_trips_through_dwg() {
     for name in ["Survey_B", "Survey_\u{c4}"] {
         let mut d = Drawing::new_metric();
-        d.layers.push(rustdraft_doc::Layer::new(name));
+        d.layers.push(draftcraft_doc::Layer::new(name));
         d.header.set_str("CLAYER", name);
-        let dxf = rustdraft_io::read_dxf(rustdraft_io::write_dxf(&d).as_bytes()).unwrap();
+        let dxf = draftcraft_io::read_dxf(draftcraft_io::write_dxf(&d).as_bytes()).unwrap();
         assert_eq!(dxf.header.str("CLAYER", "?"), name, "DXF keeps it");
-        let dwg = rustdraft_io::write(&d, "x.dwg").unwrap();
-        let r = rustdraft_io::read(&dwg, "x.dwg").unwrap();
+        let dwg = draftcraft_io::write(&d, "x.dwg").unwrap();
+        let r = draftcraft_io::read(&dwg, "x.dwg").unwrap();
         assert_eq!(r.header.str("CLAYER", "?"), name, "DWG");
     }
 }
@@ -96,9 +96,9 @@ fn the_current_layer_round_trips_through_dwg() {
 #[test]
 fn a_current_layer_in_other_case_resolves_to_the_layer() {
     let mut d = Drawing::new_metric();
-    d.layers.push(rustdraft_doc::Layer::new("Survey_\u{c4}"));
+    d.layers.push(draftcraft_doc::Layer::new("Survey_\u{c4}"));
     d.header.set_str("CLAYER", "Survey_\u{e4}");
-    let dwg = rustdraft_io::write(&d, "x.dwg").unwrap();
-    let r = rustdraft_io::read(&dwg, "x.dwg").unwrap();
+    let dwg = draftcraft_io::write(&d, "x.dwg").unwrap();
+    let r = draftcraft_io::read(&dwg, "x.dwg").unwrap();
     assert_eq!(r.header.str("CLAYER", "?"), "Survey_\u{c4}");
 }

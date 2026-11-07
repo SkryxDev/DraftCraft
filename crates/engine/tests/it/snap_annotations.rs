@@ -1,9 +1,9 @@
 //! Snaps on dimensions, justified text and hatches; the snap grid's base and angle (#334).
 
-use rustdraft_doc::{Common, EntityKind, HAlign, Space, Text, VAlign};
-use rustdraft_engine::Session;
-use rustdraft_engine::snap::{self, mode};
-use rustdraft_geom::{Vec2, Vec3};
+use draftcraft_doc::{Common, EntityKind, HAlign, Space, Text, VAlign};
+use draftcraft_engine::Session;
+use draftcraft_engine::snap::{self, mode};
+use draftcraft_geom::{Vec2, Vec3};
 use serde_json::json;
 
 /// The snap of `modes` near `p` (a hair off it, inside a 0.1 aperture).

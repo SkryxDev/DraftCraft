@@ -6,11 +6,11 @@
 //! https://ezdxf.readthedocs.io/en/stable/concepts/true_color.html
 //! https://ezdxf.readthedocs.io/en/stable/concepts/transparency.html
 
-use rustdraft_color::{Color, Rgb};
-use rustdraft_doc::{Common, Drawing, EntityKind, Layer, Lineweight, Transparency};
-use rustdraft_dxf::{Tag, records, sections};
-use rustdraft_geom::Vec3;
-use rustdraft_io::{SaveOptions, Version, read, write_with};
+use draftcraft_color::{Color, Rgb};
+use draftcraft_doc::{Common, Drawing, EntityKind, Layer, Lineweight, Transparency};
+use draftcraft_dxf::{Tag, records, sections};
+use draftcraft_geom::Vec3;
+use draftcraft_io::{SaveOptions, Version, read, write_with};
 
 fn fixture(properties: &str) -> Drawing {
     let records = [
@@ -45,7 +45,7 @@ fn output(common: &Common, version: Version, binary: bool) -> Vec<(String, Vec<T
         drawing.model.modify(handle, |e| e.common = common.clone());
     }
     let bytes = write_with(&drawing, "memory.dxf", &SaveOptions { version: Some(version), binary }).unwrap();
-    let tags = rustdraft_dxf::parse(&bytes).unwrap();
+    let tags = draftcraft_dxf::parse(&bytes).unwrap();
     let sections = sections(&tags);
     let entities = records(&sections.iter().find(|s| s.name == "ENTITIES").unwrap().tags);
     assert_eq!(entities.iter().map(|(kind, _)| kind.as_str()).collect::<Vec<_>>(), ["LINE", "CIRCLE", "TEXT"]);

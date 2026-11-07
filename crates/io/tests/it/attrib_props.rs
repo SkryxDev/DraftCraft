@@ -3,10 +3,10 @@
 
 use std::sync::Arc;
 
-use rustdraft_color::{Color, Rgb};
-use rustdraft_doc::*;
-use rustdraft_geom::Vec3;
-use rustdraft_io::{read_dxf, write_dxf};
+use draftcraft_color::{Color, Rgb};
+use draftcraft_doc::*;
+use draftcraft_geom::Vec3;
+use draftcraft_io::{read_dxf, write_dxf};
 
 fn text(x: f64, value: &str) -> Text {
     Text {

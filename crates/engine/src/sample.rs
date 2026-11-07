@@ -1,8 +1,8 @@
-//! Sample drawings generated in code (original RustDraft content, used for demos and tests).
+//! Sample drawings generated in code (original DraftCraft content, used for demos and tests).
 
-use rustdraft_color::Color;
-use rustdraft_doc::{Common, DimKind, Dimension, Drawing, EntityKind, Hatch, HatchLoop, Layer, Lineweight, MText, Space, Text};
-use rustdraft_geom::{PolyVertex, Vec2, Vec3, arc_to_bulge};
+use draftcraft_color::Color;
+use draftcraft_doc::{Common, DimKind, Dimension, Drawing, EntityKind, Hatch, HatchLoop, Layer, Lineweight, MText, Space, Text};
+use draftcraft_geom::{PolyVertex, Vec2, Vec3, arc_to_bulge};
 
 use crate::cmd::helpers::{arc, circle, line, lwpoly, rect_vertices, v3};
 
@@ -55,7 +55,7 @@ fn text(at: Vec2, h: f64, s: &str) -> EntityKind {
 /// centre lines, hidden lines, a section hatch and a title block. Units: inches.
 pub fn bracket() -> Drawing {
     let mut d = Drawing::new_imperial();
-    d.linetypes.extend(rustdraft_doc::library::standard_linetypes());
+    d.linetypes.extend(draftcraft_doc::library::standard_linetypes());
     d.layers.extend([
         layer("Outline", 7, "Continuous", 50),
         layer("Center", 1, "CENTER", 18),
@@ -222,7 +222,7 @@ pub fn bracket() -> Drawing {
     add(on("Title"), line(tb0 + Vec2::new(0.0, 0.6), tb0 + Vec2::new(4.0, 0.6)));
     add(on("Title"), line(tb0 + Vec2::new(2.0, 0.0), tb0 + Vec2::new(2.0, 0.6)));
     add(on("Title"), text(tb0 + Vec2::new(0.15, 1.5), 0.22, "MOUNTING BRACKET"));
-    add(on("Title"), text(tb0 + Vec2::new(0.15, 0.82), 0.12, "RUSTDRAFT SAMPLE  DWG NO. CC-0001"));
+    add(on("Title"), text(tb0 + Vec2::new(0.15, 0.82), 0.12, "DRAFTCRAFT SAMPLE  DWG NO. DC-0001"));
     add(on("Title"), text(tb0 + Vec2::new(0.15, 0.22), 0.12, "SCALE 1:1"));
     add(on("Title"), text(tb0 + Vec2::new(2.15, 0.22), 0.12, "SHEET 1 OF 1"));
     // Drawing border.
@@ -234,7 +234,7 @@ pub fn bracket() -> Drawing {
 /// A small architectural floor plan (feet-inches, drawn in inches).
 pub fn floor_plan() -> Drawing {
     let mut d = Drawing::new_imperial();
-    d.linetypes.extend(rustdraft_doc::library::standard_linetypes());
+    d.linetypes.extend(draftcraft_doc::library::standard_linetypes());
     d.layers.extend([
         layer("A-WALL", 7, "Continuous", 50),
         layer("A-DOOR", 3, "Continuous", 25),
@@ -258,7 +258,7 @@ pub fn floor_plan() -> Drawing {
     // Door swing.
     let hinge = Vec2::new(14.0 * ft + 4.0, 6.0 * ft);
     add(on("A-DOOR"), line(hinge, hinge + Vec2::X * 36.0));
-    add(on("A-DOOR"), arc(&rustdraft_geom::Arc::new(hinge, 36.0, 0.0, std::f64::consts::FRAC_PI_2)));
+    add(on("A-DOOR"), arc(&draftcraft_geom::Arc::new(hinge, 36.0, 0.0, std::f64::consts::FRAC_PI_2)));
     // Windows.
     for x in [5.0, 20.0] {
         add(on("A-GLAZ"), line(Vec2::new(x * ft, 0.0), Vec2::new(x * ft + 48.0, 0.0)));

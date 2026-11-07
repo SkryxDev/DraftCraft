@@ -1,8 +1,8 @@
 //! -ATTDEF at the command line, as AutoCAD 2024 runs it (accoreconsole: these scripts with
 //! TEXTSIZE 2.5 and AFLAGS 16, the drawing and AFLAGS read back afterwards).
 
-use rustdraft_engine::doc::{Attrib, EntityKind, HAlign, VAlign};
-use rustdraft_engine::{Session, sysvars};
+use draftcraft_engine::doc::{Attrib, EntityKind, HAlign, VAlign};
+use draftcraft_engine::{Session, sysvars};
 use serde_json::json;
 
 fn session() -> Session {

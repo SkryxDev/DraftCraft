@@ -1,8 +1,8 @@
 //! LOOPS: implied closed loops from loose LINE and ARC chains (#1437).
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::geom::{PolyVertex, Vec2, Vec3};
-use rustdraft_engine::doc::{Arc, Common, EntityKind, Line, LwPolyline, Space};
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::geom::{PolyVertex, Vec2, Vec3};
+use draftcraft_engine::doc::{Arc, Common, EntityKind, Line, LwPolyline, Space};
 use serde_json::{Value, json};
 
 fn handle(v: &Value) -> String {

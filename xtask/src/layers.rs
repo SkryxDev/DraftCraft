@@ -30,7 +30,7 @@ impl Class {
     }
 }
 
-/// The layering table. Names are package names without the `rustdraft-`
+/// The layering table. Names are package names without the `draftcraft-`
 /// prefix.
 pub const TABLE: &[(&str, Class)] = &[
     ("geom", Class::Layer(0)),
@@ -47,7 +47,7 @@ pub const TABLE: &[(&str, Class)] = &[
     ("mcp", Class::Layer(5)),
     ("testkit", Class::Testkit),
     // apps and tooling
-    ("rustdraft", Class::Exempt),
+    ("draftcraft", Class::Exempt),
     ("cli", Class::Exempt),
     ("web", Class::Exempt),
     ("xtask", Class::Exempt),
@@ -75,7 +75,7 @@ pub const UI_CRATES: &[&str] = &["craft-ui", "egui", "eframe", "egui-wgpu", "wgp
 pub const UI_MIN_LAYER: u8 = 5;
 
 pub fn short_name(pkg: &str) -> &str {
-    pkg.strip_prefix("rustdraft-").unwrap_or(pkg)
+    pkg.strip_prefix("draftcraft-").unwrap_or(pkg)
 }
 
 pub fn classify(pkg: &str) -> Option<Class> {
@@ -133,7 +133,7 @@ impl std::fmt::Display for Violation {
                 write!(f, "{krate}: standalone crate must not depend on workspace crate {dep}")
             }
             Violation::TestkitAsNormalDep { krate } => {
-                write!(f, "{krate}: rustdraft-testkit may only be a dev-dependency")
+                write!(f, "{krate}: draftcraft-testkit may only be a dev-dependency")
             }
             Violation::UiBelowL6 { krate, dep, layer } => {
                 write!(f, "{krate} (L{layer}) depends on UI crate `{dep}`; UI toolkits are only allowed in L6+")
@@ -241,74 +241,74 @@ mod tests {
     #[test]
     fn clean_downward_graph_passes() {
         let g = [
-            c("rustdraft-geom", &[("kurbo", Normal, false)]),
-            c("rustdraft-doc", &[("rustdraft-geom", Normal, true)]),
-            c("rustdraft-engine", &[("rustdraft-doc", Normal, true), ("rustdraft-testkit", Dev, true)]),
-            c("rustdraft-ui-egui", &[("rustdraft-engine", Normal, true), ("egui", Normal, false)]),
-            c("rustdraft-cli", &[("rustdraft-ui-egui", Normal, true)]),
+            c("draftcraft-geom", &[("kurbo", Normal, false)]),
+            c("draftcraft-doc", &[("draftcraft-geom", Normal, true)]),
+            c("draftcraft-engine", &[("draftcraft-doc", Normal, true), ("draftcraft-testkit", Dev, true)]),
+            c("draftcraft-ui-egui", &[("draftcraft-engine", Normal, true), ("egui", Normal, false)]),
+            c("draftcraft-cli", &[("draftcraft-ui-egui", Normal, true)]),
         ];
         assert!(check(&g).is_empty(), "{:?}", check(&g));
     }
 
     #[test]
     fn upward_dependency_flagged() {
-        let v = check(&[c("rustdraft-doc", &[("rustdraft-engine", Normal, true)])]);
+        let v = check(&[c("draftcraft-doc", &[("draftcraft-engine", Normal, true)])]);
         assert!(matches!(v[..], [Violation::Upward { from: 1, to: 4, .. }]));
     }
 
     #[test]
     fn sideways_dependency_flagged() {
-        let v = check(&[c("rustdraft-fonts", &[("rustdraft-render", Normal, true)])]);
+        let v = check(&[c("draftcraft-fonts", &[("draftcraft-render", Normal, true)])]);
         assert!(matches!(v[..], [Violation::Upward { from: 2, to: 2, .. }]));
     }
 
     #[test]
     fn l0_foundation_chain_allowed_one_way() {
-        assert!(check(&[c("rustdraft-color", &[("rustdraft-geom", Normal, true)])]).is_empty());
-        let v = check(&[c("rustdraft-geom", &[("rustdraft-color", Normal, true)])]);
+        assert!(check(&[c("draftcraft-color", &[("draftcraft-geom", Normal, true)])]).is_empty());
+        let v = check(&[c("draftcraft-geom", &[("draftcraft-color", Normal, true)])]);
         assert!(matches!(v[..], [Violation::Upward { from: 0, to: 0, .. }]));
     }
 
     #[test]
     fn self_dev_dependency_ignored() {
-        assert!(check(&[c("rustdraft-doc", &[("rustdraft-doc", Dev, true)])]).is_empty());
+        assert!(check(&[c("draftcraft-doc", &[("draftcraft-doc", Dev, true)])]).is_empty());
     }
 
     #[test]
     fn upward_dev_dependency_flagged() {
-        let v = check(&[c("rustdraft-geom", &[("rustdraft-doc", Dev, true)])]);
+        let v = check(&[c("draftcraft-geom", &[("draftcraft-doc", Dev, true)])]);
         assert!(matches!(v[..], [Violation::Upward { kind: Dev, .. }]));
     }
 
     #[test]
     fn ui_crates_below_l6_flagged() {
         for dep in ["craft-ui", "egui", "eframe", "winit", "egui_kittest", "rfd", "bevy_ecs", "bevy"] {
-            let v = check(&[c("rustdraft-engine", &[(dep, Normal, false)])]);
+            let v = check(&[c("draftcraft-engine", &[(dep, Normal, false)])]);
             assert!(matches!(v[..], [Violation::UiBelowL6 { layer: 4, .. }]), "{dep}");
         }
-        assert!(check(&[c("rustdraft-engine", &[("egui_extras_not", Normal, false)])]).is_empty());
-        assert!(check(&[c("rustdraft-mcp", &[("winit", Normal, false)])]).is_empty());
+        assert!(check(&[c("draftcraft-engine", &[("egui_extras_not", Normal, false)])]).is_empty());
+        assert!(check(&[c("draftcraft-mcp", &[("winit", Normal, false)])]).is_empty());
     }
 
     #[test]
     fn unregistered_crate_is_error() {
-        let v = check(&[c("rustdraft-mystery", &[])]);
-        assert!(matches!(&v[..], [Violation::Unregistered { krate }] if krate == "rustdraft-mystery"));
+        let v = check(&[c("draftcraft-mystery", &[])]);
+        assert!(matches!(&v[..], [Violation::Unregistered { krate }] if krate == "draftcraft-mystery"));
         assert!(v[0].to_string().contains("register"));
     }
 
     #[test]
     fn testkit_only_as_dev_dependency() {
-        let v = check(&[c("rustdraft-render", &[("rustdraft-testkit", Normal, true)])]);
+        let v = check(&[c("draftcraft-render", &[("draftcraft-testkit", Normal, true)])]);
         assert!(matches!(v[..], [Violation::TestkitAsNormalDep { .. }]));
-        assert!(check(&[c("rustdraft-render", &[("rustdraft-testkit", Dev, true)])]).is_empty());
-        assert!(check(&[c("rustdraft-testkit", &[("rustdraft-engine", Normal, true)])]).is_empty());
+        assert!(check(&[c("draftcraft-render", &[("draftcraft-testkit", Dev, true)])]).is_empty());
+        assert!(check(&[c("draftcraft-testkit", &[("draftcraft-engine", Normal, true)])]).is_empty());
     }
 
     #[test]
     fn apps_and_xtask_exempt() {
-        for app in ["rustdraft", "rustdraft-cli", "rustdraft-web", "xtask"] {
-            assert!(check(&[c(app, &[("egui", Normal, false), ("rustdraft-ui-egui", Normal, true)])]).is_empty());
+        for app in ["draftcraft", "draftcraft-cli", "draftcraft-web", "xtask"] {
+            assert!(check(&[c(app, &[("egui", Normal, false), ("draftcraft-ui-egui", Normal, true)])]).is_empty());
         }
     }
 
@@ -316,17 +316,17 @@ mod tests {
     fn metadata_parsing() {
         let meta: Value = serde_json::from_str(
             r#"{"packages":[
-                {"name":"rustdraft-doc","dependencies":[
-                    {"name":"rustdraft-geom","kind":null,"path":"/x/crates/geom"},
+                {"name":"draftcraft-doc","dependencies":[
+                    {"name":"draftcraft-geom","kind":null,"path":"/x/crates/geom"},
                     {"name":"serde","kind":null},
                     {"name":"proptest","kind":"dev"}]},
-                {"name":"rustdraft-geom","dependencies":[]}
+                {"name":"draftcraft-geom","dependencies":[]}
             ]}"#,
         )
         .unwrap();
         let g = from_metadata(&meta).unwrap();
         assert_eq!(g.len(), 2);
-        let doc = g.iter().find(|c| c.name == "rustdraft-doc").unwrap();
+        let doc = g.iter().find(|c| c.name == "draftcraft-doc").unwrap();
         assert!(doc.deps[0].workspace && !doc.deps[1].workspace);
         assert_eq!(doc.deps[2].kind, Dev);
         assert!(check(&g).is_empty());

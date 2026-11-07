@@ -2,8 +2,8 @@
 //! error that changes nothing (issue #935: a misspelt value erased the objects without making a
 //! reference to the new block).
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{EntityKind, Handle};
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{EntityKind, Handle};
 use serde_json::{Value, json};
 
 fn line(s: &mut Session) -> Value {

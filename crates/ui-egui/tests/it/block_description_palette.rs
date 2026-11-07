@@ -1,11 +1,11 @@
 //! Properties in the Block Editor: with nothing selected it shows the edited block's name and
 //! description, and a description typed there is saved into the block by BSAVE.
 
+use draftcraft_engine::Session;
+use draftcraft_ui_egui::{CadApp, Services};
 use egui::{Key, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{Queryable, by};
-use rustdraft_engine::Session;
-use rustdraft_ui_egui::{CadApp, Services};
 use serde_json::json;
 
 /// Block "Door", described "Hinged door", open in the Block Editor.
@@ -20,7 +20,7 @@ fn palettes() -> Harness<'static, CadApp> {
     let mut h = Harness::builder().with_size(vec2(400.0, 1400.0)).build_ui_state(
         |ui, app: &mut CadApp| {
             app.logic(&ui.ctx().clone());
-            rustdraft_ui_egui::palettes::right_palettes(app, ui);
+            draftcraft_ui_egui::palettes::right_palettes(app, ui);
         },
         app,
     );

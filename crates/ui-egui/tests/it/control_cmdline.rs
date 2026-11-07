@@ -1,9 +1,9 @@
 //! The app's control channel answers `cmdline.input` and `app.open` with the same reply shape as
-//! the headless MCP backend (`rustdraft_mcp::Headless`, tested in `crates/mcp/tests/it/cmdline_parity.rs`).
+//! the headless MCP backend (`draftcraft_mcp::Headless`, tested in `crates/mcp/tests/it/cmdline_parity.rs`).
 
-use rustdraft_engine::Session;
-use rustdraft_ui_egui::control::{ControlRequest, Outcome, handle};
-use rustdraft_ui_egui::{CadApp, Services};
+use draftcraft_engine::Session;
+use draftcraft_ui_egui::control::{ControlRequest, Outcome, handle};
+use draftcraft_ui_egui::{CadApp, Services};
 use serde_json::{Value, json};
 
 const STATE_KEYS: [&str; 7] = ["prompt", "running", "keywords", "accept", "buffer", "history", "historyExpanded"];

@@ -5,9 +5,9 @@
 use std::cell::RefCell;
 use std::sync::Arc;
 
+use draftcraft_engine::geom::Vec2;
+use draftcraft_engine::{Input, PatternChoice, Picker, pattern_choices};
 use egui::{Align2, Rect, Sense, Stroke, pos2, vec2};
-use rustdraft_engine::geom::Vec2;
-use rustdraft_engine::{Input, PatternChoice, Picker, pattern_choices};
 
 use crate::CadApp;
 use crate::theme::Tokens;
@@ -52,7 +52,7 @@ fn swatches() -> Arc<Vec<Swatch>> {
 
 fn swatch(c: PatternChoice) -> Swatch {
     let solid = c.lines.is_empty();
-    Swatch { runs: rustdraft_engine::render::pattern_swatch(&c.lines, 1.0), name: c.name, description: c.description, solid }
+    Swatch { runs: draftcraft_engine::render::pattern_swatch(&c.lines, 1.0), name: c.name, description: c.description, solid }
 }
 
 /// Draw one swatch in `r` (the square and the name under it).

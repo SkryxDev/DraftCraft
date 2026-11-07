@@ -2,9 +2,9 @@
 //! once and wheel scrolling doesn't glide. View ▸ Accessibility ▸ Animation Effects follows the OS
 //! by default, or turns them on or off whatever it says.
 
-use rustdraft_engine::Session;
-use rustdraft_ui_egui::animation::AnimationPref;
-use rustdraft_ui_egui::{CadApp, Services, UiState, menus};
+use draftcraft_engine::Session;
+use draftcraft_ui_egui::animation::AnimationPref;
+use draftcraft_ui_egui::{CadApp, Services, UiState, menus};
 use serde_json::json;
 
 fn app() -> CadApp {

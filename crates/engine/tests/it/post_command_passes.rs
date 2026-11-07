@@ -2,9 +2,9 @@
 //! dimension updates) run the same whether a command is executed programmatically or typed and
 //! finished interactively, and their edits share that command's undo step.
 
-use rustdraft_engine::doc::{ConstraintKind, EntityKind, Handle};
-use rustdraft_engine::geom::{Bounds2, Polyline, Vec2};
-use rustdraft_engine::{Input, Session};
+use draftcraft_engine::doc::{ConstraintKind, EntityKind, Handle};
+use draftcraft_engine::geom::{Bounds2, Polyline, Vec2};
+use draftcraft_engine::{Input, Session};
 use serde_json::{Value, json};
 
 fn handle(v: &Value) -> Handle {

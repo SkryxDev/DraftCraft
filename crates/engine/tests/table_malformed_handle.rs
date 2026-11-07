@@ -1,8 +1,8 @@
 //! A malformed `handle` on a table edit command or TABLEEXPORT is an error. It never falls back
 //! to the selected table (#934, follow-up to #330).
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{EntityKind, Handle};
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{EntityKind, Handle};
 use serde_json::json;
 
 fn cell_text(s: &Session, h: &str) -> String {

@@ -1,9 +1,9 @@
 //! SHAPES: perimeter, area, centroid, winding, self-intersection and duplicate vertices of the
 //! closed shapes in a drawing (#1436).
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::geom::{PolyVertex, Vec2, Vec3};
-use rustdraft_engine::doc::{Common, EntityKind, Face3d, LwPolyline, Space};
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::geom::{PolyVertex, Vec2, Vec3};
+use draftcraft_engine::doc::{Common, EntityKind, Face3d, LwPolyline, Space};
 use serde_json::{Value, json};
 
 const EPS: f64 = 1e-9;

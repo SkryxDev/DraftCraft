@@ -9,11 +9,11 @@
 
 use std::sync::Arc;
 
-use rustdraft_doc::Drawing;
+use draftcraft_doc::Drawing;
 
 /// Whether a symbol name belongs to an attached xref (`xref|name`).
 pub(crate) fn dependent(name: &str) -> bool {
-    rustdraft_doc::foreign::xref_dependent(name)
+    draftcraft_doc::foreign::xref_dependent(name)
 }
 
 /// The drawing as it is saved: xref blocks emptied, xref-dependent symbols other than layers and

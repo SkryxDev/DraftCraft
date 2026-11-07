@@ -1,11 +1,11 @@
 //! Picking (and the hover highlight, which picks the same way) finds dimensions and multileaders
 //! anywhere on their words, as plain text is found anywhere inside its box.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{EntityKind, Handle, Space};
-use rustdraft_engine::geom::{Bounds2, Vec2};
-use rustdraft_engine::render;
-use rustdraft_engine::select::pick;
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{EntityKind, Handle, Space};
+use draftcraft_engine::geom::{Bounds2, Vec2};
+use draftcraft_engine::render;
+use draftcraft_engine::select::pick;
 use serde_json::json;
 
 /// The last entity of `kind` and the box (centre, half size along the text, angle) of its words.
@@ -89,9 +89,9 @@ fn a_dimension_drawn_from_its_block_is_picked_on_the_block_text() {
     let text = d.model.iter().find(|e| matches!(e.kind, EntityKind::MText(_))).unwrap().as_ref().clone();
     let dim = d.model.iter().find(|e| matches!(e.kind, EntityKind::Dimension(_))).unwrap().handle;
     d.model.remove(text.handle);
-    let mut entities = rustdraft_engine::doc::EntityStore::new();
+    let mut entities = draftcraft_engine::doc::EntityStore::new();
     entities.push(text);
-    let block = rustdraft_engine::doc::Block {
+    let block = draftcraft_engine::doc::Block {
         xref_overlay: false,
         xref_status: Default::default(),
         name: "*D1".into(),

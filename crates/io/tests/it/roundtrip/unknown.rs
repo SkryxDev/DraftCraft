@@ -3,10 +3,10 @@
 //! owner handles may be reallocated, but the DXF owner must still resolve to model space.
 //! DWG may explicitly refuse an unregistered class; a successful save must not silently drop it.
 
-use rustdraft_doc::{Common, Drawing, Entity, EntityKind, Line, RawTag, Unknown};
-use rustdraft_dxf::{records, sections};
-use rustdraft_geom::Vec3;
-use rustdraft_io::{SaveOptions, Version, read, write_with};
+use draftcraft_doc::{Common, Drawing, Entity, EntityKind, Line, RawTag, Unknown};
+use draftcraft_dxf::{records, sections};
+use draftcraft_geom::Vec3;
+use draftcraft_io::{SaveOptions, Version, read, write_with};
 
 fn drawing() -> Drawing {
     let mut d = super::cases::drawing();
@@ -55,7 +55,7 @@ fn preserved(original: &Drawing, back: &Drawing, context: &str) {
 }
 
 fn dxf_owner(bytes: &[u8]) {
-    let tags = rustdraft_dxf::parse(bytes).unwrap();
+    let tags = draftcraft_dxf::parse(bytes).unwrap();
     let sections = sections(&tags);
     let tables = records(&sections.iter().find(|s| s.name == "TABLES").unwrap().tags);
     let (_, model) = tables
@@ -79,10 +79,10 @@ pub(super) fn check(path: &str, version: Version, binary: bool) {
             Err(error) => panic!("{context}: {error}"),
         };
         if path.ends_with(".dxf") {
-            assert_eq!(rustdraft_dxf::is_binary(&bytes), binary, "{context}: encoding");
+            assert_eq!(draftcraft_dxf::is_binary(&bytes), binary, "{context}: encoding");
             dxf_owner(&bytes);
         } else {
-            assert_eq!(rustdraft_dwg::version(&bytes).as_deref(), Some(version.code()), "{context}: wire version");
+            assert_eq!(draftcraft_dwg::version(&bytes).as_deref(), Some(version.code()), "{context}: wire version");
         }
         let back = read(&bytes, path).unwrap();
         preserved(&original, &back, &context);

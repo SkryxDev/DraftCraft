@@ -1,21 +1,21 @@
-# Releasing RustDraft
+# Releasing DraftCraft
 
 ## 1. Set the version
 
 `[workspace.package] version` in the root `Cargo.toml` is the single source of the version. The app
-shows it in About, `rustdraft --version` and `rustdraft-cli --version`.
+shows it in About, `draftcraft --version` and `draftcraft-cli --version`.
 
 ```bash
 cargo xtask version            # prints it
 cargo xtask version set 1.1.0  # changes it
 cargo xtask ci                 # the quality checks
-git commit -am "RustDraft 1.1.0" && git push origin main
+git commit -am "DraftCraft 1.1.0" && git push origin main
 ```
 
 ## 2. Tag: every package is built for you
 
 ```bash
-git tag -a v1.1.0 -m "RustDraft 1.1.0"
+git tag -a v1.1.0 -m "DraftCraft 1.1.0"
 git push origin v1.1.0
 ```
 
@@ -23,13 +23,14 @@ Pushing a `v*` tag runs [`.github/workflows/release.yml`](../.github/workflows/r
 
 | Package | Contents |
 | --- | --- |
-| `RustDraft-<version>-macos-arm64.dmg` | `RustDraft.app` (Apple silicon, with `rustdraft-cli` inside) |
-| `rustdraft-cli-<version>-macos-arm64.zip` | `rustdraft-cli` for macOS on its own |
-| `RustDraft-<version>-windows-x86_64.zip` | `RustDraft.exe`, `rustdraft-cli.exe`, licences |
-| `RustDraft-<version>-windows-arm64.zip` | the same for Windows on ARM (cross-compiled) |
-| `RustDraft-<version>-linux-x86_64.tar.gz` | `rustdraft`, `rustdraft-cli`, desktop entry, icons, licences |
+| `draftcraft-macos-arm64.dmg` | `DraftCraft.app` (Apple silicon, with `draftcraft-cli` inside) |
+| `draftcraft-cli-macos-arm64.zip` | `draftcraft-cli` for macOS on its own |
+| `draftcraft-windows-x64.zip` | `DraftCraft.exe`, `draftcraft-cli.exe`, licences |
+| `draftcraft-windows-arm64.zip` | the same for Windows on ARM (cross-compiled) |
+| `draftcraft-linux-x86_64.AppImage` | the app; `… cli <args>` runs `draftcraft-cli` (built by `packaging/linux/appimage.sh`) |
 
-and creates the GitHub Release `RustDraft v<version>` with them and `SHA256SUMS.txt`. The DMG is
+The names carry no version, so the README's `releases/latest/download/<name>` links always give the
+newest. The workflow creates the GitHub Release `DraftCraft v<version>` with them and `SHA256SUMS.txt`. The DMG is
 made on a macOS 26 runner, whose Xcode compiles the app icon. The workflow can also be started by hand
 (**Actions › Release › Run workflow**) for an existing tag.
 
@@ -42,8 +43,8 @@ git clone https://github.com/storytold/craft-fonts.git ../craft-fonts   # once
 CRAFT_FONTS_DIR="$PWD/../craft-fonts" packaging/macos/package.sh --arch aarch64
 ```
 
-It writes `dist/release/rustdraft-<version>-macos-aarch64.dmg` and
-`rustdraft-cli-<version>-macos-aarch64.zip`. `--arch universal` also builds for Intel Macs (it needs
+It writes `dist/release/draftcraft-<version>-macos-aarch64.dmg` and
+`draftcraft-cli-<version>-macos-aarch64.zip`. `--arch universal` also builds for Intel Macs (it needs
 `rustup target add x86_64-apple-darwin`).
 
 ## Signing

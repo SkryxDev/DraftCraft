@@ -1,20 +1,20 @@
 //! Round-trip checks (gaps FF1 and FF5): open a drawing, save it, open the saved file again and
 //! list everything that differs between the two drawings.
 //!
-//! [`compare`] works on RustDraft's own model ([`Drawing`]), so it measures what saving and
+//! [`compare`] works on DraftCraft's own model ([`Drawing`]), so it measures what saving and
 //! reopening lose or change: entities per type in every space and block (matched by handle,
-//! geometry and properties within a tolerance), table records, blocks, layouts, the data RustDraft
+//! geometry and properties within a tolerance), table records, blocks, layouts, the data DraftCraft
 //! keeps without modelling it (other programs' objects and entities, dictionaries, CLASS records,
 //! extension dictionaries, reactors, xdata) and header variables. [`census`] counts what the
 //! file itself holds, so opening a file can be checked against it too.
 //!
 //! The corpus harness ([`corpus`], native only) runs both over a folder of real files and writes
-//! a Markdown and JSON report; `rustdraft-cli roundtrip` and `cargo xtask corpus` run it.
+//! a Markdown and JSON report; `draftcraft-cli roundtrip` and `cargo xtask corpus` run it.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
-use rustdraft_doc::foreign::{Foreign, ForeignExtra};
-use rustdraft_doc::{Drawing, Entity, EntityKind, EntityStore, Handle, RawTag};
+use draftcraft_doc::foreign::{Foreign, ForeignExtra};
+use draftcraft_doc::{Drawing, Entity, EntityKind, EntityStore, Handle, RawTag};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -38,7 +38,7 @@ pub enum Category {
     Geometry,
     /// An entity's common properties (layer, colour, linetype, lineweight, transparency…).
     Properties,
-    /// Entities RustDraft doesn't model, kept as their DXF groups.
+    /// Entities DraftCraft doesn't model, kept as their DXF groups.
     Opaque,
     /// Other applications' extended data.
     Xdata,
@@ -51,7 +51,7 @@ pub enum Category {
     Block,
     /// Layouts and their page setups.
     Layout,
-    /// Non-graphical objects RustDraft doesn't model, kept as their DXF groups; constraints.
+    /// Non-graphical objects DraftCraft doesn't model, kept as their DXF groups; constraints.
     Object,
     /// Entries of the named object dictionary.
     Dictionary,
@@ -938,7 +938,7 @@ fn compare_tables(a: &Drawing, b: &Drawing, out: &mut Out) {
     compare_named(out, Table, "PLOTSTYLE", &refs(&a.plot_style_tables), &refs(&b.plot_style_tables), |x| &x.name);
     // Blocks: renamed anonymous blocks are compared with what they were saved as.
     let renamed_to: HashSet<String> = out.renamed.values().cloned().collect();
-    let ba: Vec<&rustdraft_doc::Block> = a
+    let ba: Vec<&draftcraft_doc::Block> = a
         .blocks
         .values()
         .map(|x| x.as_ref())
@@ -957,9 +957,9 @@ fn compare_tables(a: &Drawing, b: &Drawing, out: &mut Out) {
             format!("{n} anonymous blocks nothing refers to (e.g. {first}) were not saved"),
         );
     }
-    let bb: Vec<&rustdraft_doc::Block> =
+    let bb: Vec<&draftcraft_doc::Block> =
         b.blocks.values().map(|x| x.as_ref()).filter(|x| !renamed_to.contains(&x.name.to_ascii_uppercase())).collect();
-    let mut pairs: Vec<(&rustdraft_doc::Block, &rustdraft_doc::Block)> = Vec::new();
+    let mut pairs: Vec<(&draftcraft_doc::Block, &draftcraft_doc::Block)> = Vec::new();
     for (from, to) in &out.renamed {
         if let (Some(x), Some(y)) = (a.block(from), b.block(to)) {
             pairs.push((x.as_ref(), y.as_ref()));
@@ -1001,7 +1001,7 @@ fn class_groups(c: &[RawTag]) -> Vec<RawTag> {
 
 fn compare_foreign(a: &Foreign, b: &Foreign, out: &mut Out) {
     let o = out.opts;
-    type Obj = rustdraft_doc::foreign::ForeignObject;
+    type Obj = draftcraft_doc::foreign::ForeignObject;
     // Objects, by handle, then by content.
     let ib: HashMap<Handle, &Obj> = b.objects.iter().map(|x| (x.handle, x)).collect();
     let ia: HashSet<Handle> = a.objects.iter().map(|x| x.handle).collect();

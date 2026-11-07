@@ -1,6 +1,6 @@
 [package]
-name = "rustdraft-ui-egui"
-description = "RustDraft user interface (egui): the swappable front end"
+name = "draftcraft-ui-egui"
+description = "DraftCraft user interface (egui): the swappable front end"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -11,12 +11,12 @@ workspace = true
 
 [dependencies]
 craft-ui = { workspace = true }
-rustdraft-geom = { workspace = true }
-rustdraft-color = { workspace = true }
-rustdraft-doc = { workspace = true }
-rustdraft-render = { workspace = true }
-rustdraft-engine = { workspace = true }
-rustdraft-fonts = { workspace = true }
+draftcraft-geom = { workspace = true }
+draftcraft-color = { workspace = true }
+draftcraft-doc = { workspace = true }
+draftcraft-render = { workspace = true }
+draftcraft-engine = { workspace = true }
+draftcraft-fonts = { workspace = true }
 craft-window = { workspace = true }
 egui = { workspace = true }
 egui_extras = { workspace = true }
@@ -41,6 +41,3 @@ egui_kittest = { workspace = true, features = ["wgpu", "snapshot"] }
 # Validates the canvas WGSL and its GLSL ES 3.0 (WebGL2) translation in tests (same naga wgpu uses).
 naga = { version = "30", features = ["wgsl-in", "glsl-out"] }
 
-[build-dependencies]
-serde_json = { workspace = true }
-toml = "1"

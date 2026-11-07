@@ -1,6 +1,6 @@
-# RustDraft Czech interface catalog — original translations by @Losminek (AI-assisted).
+# DraftCraft Czech interface catalog — original translations by @Losminek (AI-assisted).
 # SPDX-License-Identifier: MIT OR Apache-2.0
-# Written from the meaning of RustDraft English strings; no proprietary translations copied.
+# Written from the meaning of DraftCraft English strings; no proprietary translations copied.
 # UTF-8: context<TAB>English source<TAB>Czech translation.
 # @plural = one|few|other forms for integer counts.
 	Apply	Použít

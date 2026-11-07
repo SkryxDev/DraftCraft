@@ -1,6 +1,6 @@
 # AutoLISP
 
-RustDraft runs AutoLISP routines (`.lsp` files). This page says what is here and what is not yet.
+DraftCraft runs AutoLISP routines (`.lsp` files). This page says what is here and what is not yet.
 
 ## Loading and running
 
@@ -26,9 +26,9 @@ RustDraft runs AutoLISP routines (`.lsp` files). This page says what is here and
 
 ### At startup
 
-RustDraft loads LISP from its **support folder**, `support` in the settings folder (on Windows
-`%APPDATA%\RustDraft\support`, on macOS `~/Library/Application Support/RustDraft/support`, on
-Linux `~/.config/rustdraft/support`; created at first start):
+DraftCraft loads LISP from its **support folder**, `support` in the settings folder (on Windows
+`%APPDATA%\DraftCraft\support`, on macOS `~/Library/Application Support/DraftCraft/support`, on
+Linux `~/.config/draftcraft/support`; created at first start):
 
 - `acad.lsp` once per session, into the first drawing; with `ACADLSPASDOC` set to 1, into every
   drawing;
@@ -85,7 +85,7 @@ reached", malformed source is a reader error, and every built-in checks its argu
   CHAMFERD and DIMJOGANG in radians, as in AutoCAD; the SETVAR command shows them in degrees.
 - **No-ops:** `vl-load-com gc redraw`; `ver`
 
-Entity lists use the DXF group codes of RustDraft's DXF files: what `entget` returns is what a
+Entity lists use the DXF group codes of DraftCraft's DXF files: what `entget` returns is what a
 DXF file holds for the object, plus `-1` (its name) and `410` (its layout). Angles (groups 50–58)
 are in radians, as in AutoCAD, where the file holds degrees; `entmake`, `entmod` and `ssget`
 filters take radians too.
@@ -100,6 +100,6 @@ fails drops the one it began.
 
 ## Testing against the corpus
 
-The AutoLISP conformance corpus lives in its own repository. Point `RUSTDRAFT_LISP_CORPUS`
-at it and run `cargo test -p rustdraft-engine --test it lisp_corpus::`; without the variable the test
+The AutoLISP conformance corpus lives in its own repository. Point `DRAFTCRAFT_LISP_CORPUS`
+at it and run `cargo test -p draftcraft-engine --test it lisp_corpus::`; without the variable the test
 says it was skipped.

@@ -2,10 +2,10 @@
 //! app says so and writes a report, and a panic that keeps coming back leaves only a way to close
 //! with the recovery copies kept. The panic hook is process-wide, so everything runs in one test.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::cmd::file::{IoHooks, set_io};
-use rustdraft_engine::doc::Drawing;
-use rustdraft_ui_egui::{CadApp, Services};
+use draftcraft_engine::Session;
+use draftcraft_engine::cmd::file::{IoHooks, set_io};
+use draftcraft_engine::doc::Drawing;
+use draftcraft_ui_egui::{CadApp, Services};
 
 fn panic_in_a_nested_ui(app: &mut CadApp, ctx: &egui::Context, text: &'static str) -> String {
     let mut painted = String::new();
@@ -55,10 +55,10 @@ fn recovery_copies(dir: &std::path::Path) -> usize {
 #[test]
 fn a_panic_saves_the_work_and_reports_and_repeated_ones_close_safely() {
     set_io(IoHooks { read: |_, _| Ok(Drawing::new_metric()), write: |_, _| Ok(b"0\nEOF\n".to_vec()), plot: None });
-    let root = std::env::temp_dir().join(format!("rustdraft-ui-faults-{}", std::process::id()));
+    let root = std::env::temp_dir().join(format!("draftcraft-ui-faults-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     let (auto, reports) = (root.join("autosave"), root.join("crash-reports"));
-    rustdraft_ui_egui::fault::install_report_hook(reports.clone());
+    draftcraft_ui_egui::fault::install_report_hook(reports.clone());
 
     let mut app = CadApp::new(Session::new(), Services::default());
     app.enable_autosave(&auto);

@@ -4,9 +4,9 @@
 //! thickness by the factor; OFFSET's copy is at the source's height, and a circle's or arc's copy
 //! has no thickness while a polyline's keeps it.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{Arc, Circle, Common, EntityKind, Handle, Line, LwPolyline, Point, PolyfaceMesh};
-use rustdraft_engine::geom::{PolyVertex, Vec2, Vec3};
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{Arc, Circle, Common, EntityKind, Handle, Line, LwPolyline, Point, PolyfaceMesh};
+use draftcraft_engine::geom::{PolyVertex, Vec2, Vec3};
 use serde_json::json;
 
 fn add(s: &mut Session, kind: EntityKind, thickness: f64) -> Handle {

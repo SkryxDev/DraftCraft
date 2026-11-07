@@ -1,4 +1,4 @@
-//! RustDraft's icon set, drawn in code (original work, MIT OR Apache-2.0 with the codebase).
+//! DraftCraft's icon set, drawn in code (original work, MIT OR Apache-2.0 with the codebase).
 //!
 //! Icons are line drawings on a 24×24 design grid: light strokes for existing geometry, blue for
 //! the geometry a command creates and orange dots for picked points.
@@ -288,7 +288,7 @@ fn paint_file_view(pen: &Pen<'_>, icon: Icon, b: Color32, a: Color32, dim: bool)
             }
         }
         Undo | Redo => {
-            // RustDraft's own: a step back along the drawing's path. A short straight run with a
+            // DraftCraft's own: a step back along the drawing's path. A short straight run with a
             // half-turn above it, the arrowhead at the free end pointing back (Undo: to the
             // left, Redo: mirrored to the right), in the icon colour.
             let m = |x: f32| if icon == Undo { x } else { 24.0 - x };
@@ -1160,7 +1160,7 @@ fn paint_constraints(pen: &Pen<'_>, icon: Icon, b: Color32, a: Color32, dim: boo
     }
 }
 
-/// A shared button interaction with RustDraft's original multicolor icon painting.
+/// A shared button interaction with DraftCraft's original multicolor icon painting.
 pub fn button(ui: &mut egui::Ui, icon: Icon, size: f32, tooltip: &str, selected: bool) -> egui::Response {
     button_bare(ui, icon, size, tooltip, selected).on_hover_text(crate::i18n::t(tooltip))
 }

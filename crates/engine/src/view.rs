@@ -1,4 +1,4 @@
-use rustdraft_geom::Bounds2;
+use draftcraft_geom::Bounds2;
 
 use super::{Deserialize, Serialize, Vec2};
 

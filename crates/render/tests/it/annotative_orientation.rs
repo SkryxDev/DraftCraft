@@ -1,9 +1,9 @@
 //! Annotative text with "Match orientation to layout" (`AcadAnnoPO` xdata = 1) draws upright,
 //! ignoring its stored rotation (#2498).
 
-use rustdraft_doc::{Common, Drawing, EntityKind, RawTag, Space, Text};
-use rustdraft_geom::{Bounds2, Vec3};
-use rustdraft_render::{Options, build};
+use draftcraft_doc::{Common, Drawing, EntityKind, RawTag, Space, Text};
+use draftcraft_geom::{Bounds2, Vec3};
+use draftcraft_render::{Options, build};
 
 fn tag(code: i32, value: &str) -> RawTag {
     RawTag { code, value: value.into() }

@@ -1,8 +1,8 @@
 //! FILLET and CHAMFER options at the command line: Trim, Multiple, Undo, and CHAMFER's Angle,
 //! mEthod and Polyline.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::EntityKind;
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::EntityKind;
 use serde_json::json;
 
 type Seg = ((f64, f64), (f64, f64));

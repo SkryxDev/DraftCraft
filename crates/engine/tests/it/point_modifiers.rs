@@ -1,9 +1,9 @@
 //! Point modifiers at point prompts (#392): FROM, M2P/MTP, point filters, the `*` prefix and the
 //! angle override `<a`, from the command line and in scripts.
 
-use rustdraft_doc::EntityKind;
-use rustdraft_engine::{Input, Session};
-use rustdraft_geom::Vec2;
+use draftcraft_doc::EntityKind;
+use draftcraft_engine::{Input, Session};
+use draftcraft_geom::Vec2;
 
 /// The lines of model space as (start, end).
 fn lines(s: &Session) -> Vec<(Vec2, Vec2)> {

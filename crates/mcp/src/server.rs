@@ -104,7 +104,7 @@ impl Server {
                 Ok(json!({
                     "protocolVersion": version,
                     "capabilities": {"tools": {"listChanged": false}, "resources": {"listChanged": false}},
-                    "serverInfo": {"name": "rustdraft", "title": "DraftCraft", "version": env!("CARGO_PKG_VERSION")},
+                    "serverInfo": {"name": "draftcraft", "title": "DraftCraft", "version": env!("CARGO_PKG_VERSION")},
                     "instructions": format!("{INSTRUCTIONS} Backend: {}.", self.backend.describe()),
                 }))
             }
@@ -116,14 +116,14 @@ impl Server {
                 call_tool(self.backend.as_mut(), name, args).map_err(|m| (INVALID_PARAMS, m))
             }
             "resources/list" => Ok(json!({"resources": [
-                {"uri": "rustdraft://drawing", "name": "Active drawing", "mimeType": "application/json"},
-                {"uri": "rustdraft://commands", "name": "Command catalog", "mimeType": "application/json"},
+                {"uri": "draftcraft://drawing", "name": "Active drawing", "mimeType": "application/json"},
+                {"uri": "draftcraft://commands", "name": "Command catalog", "mimeType": "application/json"},
             ]})),
             "resources/read" => {
                 let uri = params.get("uri").and_then(Value::as_str).unwrap_or("");
                 let v = match uri {
-                    "rustdraft://drawing" => self.backend.call("drawing.inspect", json!({})),
-                    "rustdraft://commands" => self.backend.call("engine.commands", json!({})),
+                    "draftcraft://drawing" => self.backend.call("drawing.inspect", json!({})),
+                    "draftcraft://commands" => self.backend.call("engine.commands", json!({})),
                     _ => return Err((-32002, format!("unknown resource `{uri}`"))),
                 }
                 .map_err(|e| (-32603, e))?;

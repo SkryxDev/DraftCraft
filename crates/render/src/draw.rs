@@ -46,20 +46,20 @@ pub(crate) fn entity(b: &mut Builder, ctx: &Ctx, e: &Entity) {
 fn entity_parts(b: &mut Builder, ctx: &Ctx, e: &Entity) {
     // A top-level annotative object draws at the view's annotation scale: a viewport's scale for
     // model space seen through it, else the drawing's (CANNOSCALE in model space, 1:1 on paper).
-    if ctx.depth == 0 && rustdraft_doc::is_annotative(e) {
+    if ctx.depth == 0 && draftcraft_doc::is_annotative(e) {
         let mode = if ctx.top == VIEWPORT_CONTENT {
-            rustdraft_doc::anno_draw(e, 1.0 / ctx.xf.scale_factor().max(1e-12), ctx.d.anno_all_visible())
+            draftcraft_doc::anno_draw(e, 1.0 / ctx.xf.scale_factor().max(1e-12), ctx.d.anno_all_visible())
         } else {
             ctx.d.anno_draw(e)
         };
         match mode {
-            rustdraft_doc::AnnoDraw::Hidden => return,
-            rustdraft_doc::AnnoDraw::Scaled(f) => {
-                let mut scaled = rustdraft_doc::anno_scaled(e, f);
+            draftcraft_doc::AnnoDraw::Hidden => return,
+            draftcraft_doc::AnnoDraw::Scaled(f) => {
+                let mut scaled = draftcraft_doc::anno_scaled(e, f);
                 scaled.common.anno_scales.clear();
                 return entity_parts(b, ctx, &scaled);
             }
-            rustdraft_doc::AnnoDraw::Plain => {}
+            draftcraft_doc::AnnoDraw::Plain => {}
         }
     }
     let (rgb, lw, lt, ltscale, visible, layer_transparency) = resolve(ctx, e, b.plotting);
@@ -105,7 +105,7 @@ fn entity_parts(b: &mut Builder, ctx: &Ctx, e: &Entity) {
             }
             let upright;
             let t = if e.common.matches_layout_orientation() && t.rotation != 0.0 {
-                upright = rustdraft_doc::Text { rotation: 0.0, ..t.clone() };
+                upright = draftcraft_doc::Text { rotation: 0.0, ..t.clone() };
                 &upright
             } else {
                 t
@@ -122,7 +122,7 @@ fn entity_parts(b: &mut Builder, ctx: &Ctx, e: &Entity) {
                 return;
             }
             if e.common.matches_layout_orientation() && t.rotation != 0.0 {
-                mtext(b, ctx, &rustdraft_doc::MText { rotation: 0.0, ..t.clone() }, rgb, lw);
+                mtext(b, ctx, &draftcraft_doc::MText { rotation: 0.0, ..t.clone() }, rgb, lw);
             } else {
                 mtext(b, ctx, t, rgb, lw);
             }
@@ -258,7 +258,7 @@ fn entity_parts(b: &mut Builder, ctx: &Ctx, e: &Entity) {
     }
 }
 
-fn draw_mleader(b: &mut Builder, ctx: &Ctx, e: &Entity, m: &rustdraft_doc::MLeader, rgb: Ink, lw: f32) {
+fn draw_mleader(b: &mut Builder, ctx: &Ctx, e: &Entity, m: &draftcraft_doc::MLeader, rgb: Ink, lw: f32) {
     // Straight or spline leader lines; block content draws like a block reference.
     for pts in m.leader_paths() {
         b.polyline(ctx, rgb, lw, &pts);
@@ -282,7 +282,7 @@ fn draw_mleader(b: &mut Builder, ctx: &Ctx, e: &Entity, m: &rustdraft_doc::MLead
     }
 }
 
-fn draw_image(b: &mut Builder, ctx: &Ctx, i: &rustdraft_doc::Image, rgb: Ink, lw: f32) {
+fn draw_image(b: &mut Builder, ctx: &Ctx, i: &draftcraft_doc::Image, rgb: Ink, lw: f32) {
     let o = i.insert.xy();
     let u = i.u.xy() * i.size.x;
     let v = i.v.xy() * i.size.y;
@@ -299,7 +299,7 @@ fn draw_image(b: &mut Builder, ctx: &Ctx, i: &rustdraft_doc::Image, rgb: Ink, lw
     }
 }
 
-fn draw_wipeout(b: &mut Builder, ctx: &Ctx, w: &rustdraft_doc::Wipeout, rgb: Ink, lw: f32) {
+fn draw_wipeout(b: &mut Builder, ctx: &Ctx, w: &draftcraft_doc::Wipeout, rgb: Ink, lw: f32) {
     // Hide what was drawn before it (draw order), then the frame per WIPEOUTFRAME:
     // 0 = none, 1 = shown and plotted, 2 = shown but not plotted.
     if b.opts.fill {
@@ -323,13 +323,13 @@ fn draw_dimension(
     b: &mut Builder,
     ctx: &Ctx,
     e: &Entity,
-    dm: &rustdraft_doc::Dimension,
+    dm: &draftcraft_doc::Dimension,
     lw: f32,
-    lt: Option<&rustdraft_doc::Linetype>,
+    lt: Option<&draftcraft_doc::Linetype>,
     ltscale: f64,
 ) {
     if let Some(blk) = dm.block.as_ref().and_then(|n| ctx.d.block(n))
-        && ctx.depth < rustdraft_doc::MAX_BLOCK_DEPTH
+        && ctx.depth < draftcraft_doc::MAX_BLOCK_DEPTH
     {
         // DXF group 12: a moved dimension keeps its `*D` block where it was and the offset in
         // the insertion point, so the block draws translated by it (#2634).
@@ -379,7 +379,7 @@ fn draw_dimension(
 }
 
 /// Draw a polyline with a linetype (None: continuous).
-pub(crate) fn stroke_with(b: &mut Builder, ctx: &Ctx, rgb: Ink, lw: f32, lt: Option<&rustdraft_doc::Linetype>, ltscale: f64, pts: &[Vec2]) {
+pub(crate) fn stroke_with(b: &mut Builder, ctx: &Ctx, rgb: Ink, lw: f32, lt: Option<&draftcraft_doc::Linetype>, ltscale: f64, pts: &[Vec2]) {
     match lt.filter(|_| b.opts.linetypes) {
         Some(lt) => {
             let min = b.opts.min_dash / ctx.xf.scale_factor().max(1e-12);
@@ -394,13 +394,13 @@ pub(crate) fn stroke_with(b: &mut Builder, ctx: &Ctx, rgb: Ink, lw: f32, lt: Opt
     }
 }
 
-fn table(b: &mut Builder, ctx: &Ctx, t: &rustdraft_doc::Table, rgb: Ink, lw: f32) {
+fn table(b: &mut Builder, ctx: &Ctx, t: &draftcraft_doc::Table, rgb: Ink, lw: f32) {
     table::draw(b, ctx, t, rgb, lw);
 }
 
 /// The overall scale of a leader drawn with dimension style `st`: its DIMSCALE, else the
 /// drawing's.
-fn leader_scale(d: &Drawing, st: Option<&rustdraft_doc::DimStyle>) -> f64 {
+fn leader_scale(d: &Drawing, st: Option<&draftcraft_doc::DimStyle>) -> f64 {
     let dimscale = d.header.f64("DIMSCALE", 1.0);
-    st.map(|s| s.effective_scale(dimscale)).unwrap_or_else(|| rustdraft_doc::DimStyle::default().effective_scale(dimscale))
+    st.map(|s| s.effective_scale(dimscale)).unwrap_or_else(|| draftcraft_doc::DimStyle::default().effective_scale(dimscale))
 }

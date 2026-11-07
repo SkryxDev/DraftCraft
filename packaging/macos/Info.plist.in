@@ -7,13 +7,13 @@
   <key>CFBundleDevelopmentRegion</key>
   <string>en</string>
   <key>CFBundleDisplayName</key>
-  <string>RustDraft</string>
+  <string>DraftCraft</string>
   <key>CFBundleName</key>
-  <string>RustDraft</string>
+  <string>DraftCraft</string>
   <key>CFBundleExecutable</key>
-  <string>RustDraft</string>
+  <string>DraftCraft</string>
   <key>CFBundleIdentifier</key>
-  <string>dev.skryx.rustdraft</string>
+  <string>dev.skryx.draftcraft</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundlePackageType</key>
@@ -24,16 +24,16 @@
   <string>@SHORT_VERSION@</string>
   <key>CFBundleVersion</key>
   <string>@SHORT_VERSION@</string>
-  <key>RustDraftVersion</key>
+  <key>DraftCraftVersion</key>
   <string>@VERSION@</string>
-  <key>RustDraftBuildCommit</key>
+  <key>DraftCraftBuildCommit</key>
   <string>@BUILD_SHA@</string>
   <key>CFBundleIconFile</key>
-  <string>RustDraft</string>
-  <!-- The macOS 26+ app icon in Assets.car (compiled from assets/app-icon/src/RustDraft.icon by
+  <string>DraftCraft</string>
+  <!-- The macOS 26+ app icon in Assets.car (compiled from assets/app-icon/src/DraftCraft.icon by
        actool); CFBundleIconFile is the .icns older systems use. -->
   <key>CFBundleIconName</key>
-  <string>RustDraft</string>
+  <string>DraftCraft</string>
   <key>LSApplicationCategoryType</key>
   <string>public.app-category.graphics-design</string>
   <!-- Must match MACOSX_DEPLOYMENT_TARGET in package.sh. Big Sur is the first release on
@@ -47,14 +47,14 @@
   <key>NSRequiresAquaSystemAppearance</key>
   <false/>
   <key>NSHumanReadableCopyright</key>
-  <string>Copyright © 2026 Skryx Dev; based on CADCraft by the ArtCraft Team and the CADCraft contributors. MIT OR Apache-2.0.</string>
+  <string>Copyright © 2026 Skryx Dev and WithShalom Studios. MIT OR Apache-2.0.</string>
 
-  <!-- Drawing files RustDraft opens (declared here in case macOS has no type for them). -->
+  <!-- Drawing files DraftCraft opens (declared here in case macOS has no type for them). -->
   <key>UTImportedTypeDeclarations</key>
   <array>
     <dict>
       <key>UTTypeIdentifier</key>
-      <string>dev.skryx.rustdraft.dxf</string>
+      <string>dev.skryx.draftcraft.dxf</string>
       <key>UTTypeDescription</key>
       <string>Drawing Exchange Format</string>
       <key>UTTypeConformsTo</key>
@@ -69,7 +69,7 @@
     </dict>
     <dict>
       <key>UTTypeIdentifier</key>
-      <string>dev.skryx.rustdraft.dwg</string>
+      <string>dev.skryx.draftcraft.dwg</string>
       <key>UTTypeDescription</key>
       <string>Drawing</string>
       <key>UTTypeConformsTo</key>
@@ -93,9 +93,9 @@
       <key>LSHandlerRank</key>
       <string>Alternate</string>
       <key>LSItemContentTypes</key>
-      <array><string>dev.skryx.rustdraft.dxf</string></array>
+      <array><string>dev.skryx.draftcraft.dxf</string></array>
       <key>CFBundleTypeIconFile</key>
-      <string>RustDraft</string>
+      <string>DraftCraft</string>
     </dict>
     <dict>
       <key>CFBundleTypeName</key>
@@ -105,9 +105,9 @@
       <key>LSHandlerRank</key>
       <string>Alternate</string>
       <key>LSItemContentTypes</key>
-      <array><string>dev.skryx.rustdraft.dwg</string></array>
+      <array><string>dev.skryx.draftcraft.dwg</string></array>
       <key>CFBundleTypeIconFile</key>
-      <string>RustDraft</string>
+      <string>DraftCraft</string>
     </dict>
   </array>
 

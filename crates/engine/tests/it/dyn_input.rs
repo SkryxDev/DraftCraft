@@ -1,6 +1,6 @@
 //! Dynamic Input (#519): DYNPROMPT and the options a prompt offers at the cursor.
 
-use rustdraft_engine::{Input, Session, sysvars};
+use draftcraft_engine::{Input, Session, sysvars};
 use serde_json::json;
 
 #[test]
@@ -27,12 +27,12 @@ fn an_option_picked_at_the_cursor_answers_the_prompt() {
     let three_p = kws.iter().find(|k| k.eq_ignore_ascii_case("3P")).cloned().expect("CIRCLE offers 3P");
     s.input(Input::Keyword(three_p)).unwrap();
     for p in [[0.0, 0.0], [10.0, 0.0], [5.0, 5.0]] {
-        s.input(Input::Point(rustdraft_geom::Vec2::new(p[0], p[1]))).unwrap();
+        s.input(Input::Point(draftcraft_geom::Vec2::new(p[0], p[1]))).unwrap();
     }
     assert!(s.running.is_none());
     let doc = s.doc().unwrap();
     let circle = doc.model.iter().find_map(|e| match &e.kind {
-        rustdraft_doc::EntityKind::Circle(c) => Some(c.clone()),
+        draftcraft_doc::EntityKind::Circle(c) => Some(c.clone()),
         _ => None,
     });
     let c = circle.expect("a three-point circle");

@@ -8,8 +8,8 @@ use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-use rustdraft_doc::{Drawing, Entity, EntityKind, Handle, MAX_BLOCK_DEPTH, Space, entity_bounds};
-use rustdraft_geom::{Bounds2, Vec2};
+use draftcraft_doc::{Drawing, Entity, EntityKind, Handle, MAX_BLOCK_DEPTH, Space, entity_bounds};
+use draftcraft_geom::{Bounds2, Vec2};
 use serde_json::{Value, json};
 
 use super::super::{CommandSpec, bad, str_param};

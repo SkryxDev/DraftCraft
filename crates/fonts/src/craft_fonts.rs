@@ -55,12 +55,12 @@ mod tests {
 
     #[test]
     fn a_static_font_is_found_by_name_and_loaded_on_use() {
-        crate::ttf::register_static("rustdraftstatictest-regular", &TINY_SFNT);
-        let face = crate::ttf::find("RustDraft Static Test").map(|f| f.bytes.as_slice().to_vec());
+        crate::ttf::register_static("draftcraftstatictest-regular", &TINY_SFNT);
+        let face = crate::ttf::find("DraftCraft Static Test").map(|f| f.bytes.as_slice().to_vec());
         assert_eq!(face.as_deref(), Some(&TINY_SFNT[..]));
-        assert!(crate::ttf::find("rustdraftstatictest-regular.ttf").is_some());
+        assert!(crate::ttf::find("draftcraftstatictest-regular.ttf").is_some());
         // It has no glyphs, so it is never a fallback face, and nothing panics.
-        assert!(!crate::ttf::find("RustDraft Static Test").is_some_and(|f| f.has_glyph('A')));
+        assert!(!crate::ttf::find("DraftCraft Static Test").is_some_and(|f| f.has_glyph('A')));
         let _ = crate::ttf::fallback_for('\u{65E5}');
     }
 

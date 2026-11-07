@@ -1,4 +1,4 @@
-//! LISP loaded at startup, from RustDraft's support folder (the app sets it: `<settings>/support`):
+//! LISP loaded at startup, from DraftCraft's support folder (the app sets it: `<settings>/support`):
 //!
 //! - `acad.lsp` once per session, in the first drawing (every drawing with ACADLSPASDOC on);
 //! - `acaddoc.lsp` in every drawing opened or created;

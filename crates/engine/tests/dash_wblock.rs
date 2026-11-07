@@ -3,9 +3,9 @@
 //! its mOde option says; a block by name, `=` (the block named as the file) or `*` (the whole
 //! drawing); asks before replacing a file; and writes nothing when nothing is selected.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::cmd::file::{IoHooks, set_io};
-use rustdraft_engine::doc::{Drawing, EntityKind, Handle};
+use draftcraft_engine::Session;
+use draftcraft_engine::cmd::file::{IoHooks, set_io};
+use draftcraft_engine::doc::{Drawing, EntityKind, Handle};
 use serde_json::json;
 
 #[path = "support/temp_dir.rs"]

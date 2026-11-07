@@ -3,9 +3,9 @@
 //! angle survive DXF: in DIMSTYLE records (group codes of the DXF Reference) and as per-dimension
 //! `ACAD` DSTYLE overrides. Linetypes are LTYPE handles; DIMJOGANG is in radians in the file.
 
-use rustdraft_doc::{Common, DimKind, DimStyle, Dimension, Drawing, EntityKind, Linetype, Space};
-use rustdraft_geom::Vec3;
-use rustdraft_io::{read_dxf, write_dxf};
+use draftcraft_doc::{Common, DimKind, DimStyle, Dimension, Drawing, EntityKind, Linetype, Space};
+use draftcraft_geom::Vec3;
+use draftcraft_io::{read_dxf, write_dxf};
 
 fn styled() -> DimStyle {
     DimStyle {
@@ -68,14 +68,14 @@ fn dimension(overrides: serde_json::Value) -> EntityKind {
 fn new_dimstyle_variables_roundtrip_in_the_table() {
     let d = drawing();
     let text = write_dxf(&d);
-    // Variables newer than R2000 go in the style's RUSTDRAFT "DIMVARS" xdata (`1070 <code>`, value):
+    // Variables newer than R2000 go in the style's DRAFTCRAFT "DIMVARS" xdata (`1070 <code>`, value):
     // DIMJOGANG 30° in radians, DIMLTYPE as an LTYPE handle. R2000 variables stay groups.
     let lines: Vec<&str> = text.lines().map(str::trim).collect();
     let rec = lines.windows(2).position(|w| w == ["2", "Detail"]).unwrap();
     let end = lines[rec..].windows(2).position(|w| w == ["0", "DIMSTYLE"] || w == ["0", "ENDTAB"]).map_or(lines.len(), |e| rec + e);
     let rec = &lines[rec..end];
     assert!(rec.windows(2).any(|w| w == ["289", "1"]), "DIMATFIT as a group");
-    assert!(rec.windows(4).any(|w| w == ["1001", "RUSTDRAFT", "1000", "DIMVARS"]));
+    assert!(rec.windows(4).any(|w| w == ["1001", "DRAFTCRAFT", "1000", "DIMVARS"]));
     let after = |code: &str| rec.windows(4).find(|w| w[0] == "1070" && w[1] == code).map(|w| (w[2].to_string(), w[3].to_string())).unwrap();
     let (g, jog) = after("50");
     assert!(g == "1040" && (jog.parse::<f64>().unwrap() - 30f64.to_radians()).abs() < 1e-9, "{jog}");
