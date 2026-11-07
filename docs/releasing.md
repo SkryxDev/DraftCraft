@@ -1,11 +1,61 @@
 # Releasing RustDraft
 
-This file describes how RustDraft is released.
+## 1. Set the version
 
-- **Version:** `[workspace.package] version` in the root `Cargo.toml` is the single source. `cargo xtask version` prints it; `cargo xtask version set X.Y.Z[-pre]` changes it. The app shows it in About, `rustdraft --version` and `rustdraft-cli --version`; release builds also embed the commit (`RUSTDRAFT_BUILD_SHA`).
-- **Cut a release:** bump the version on `main`, then push `main` to `release` (`git push origin main:release`). Every push to `release` runs `.github/workflows/release.yml` and creates or updates the draft GitHub Release `RustDraft v<version>`. A `workflow_dispatch` run with `version: X.Y.Z-rc.N` makes a test build. A dispatch on any other branch is a dry run: the unsigned jobs (version, Linux, Linux riscv64, Flatpak, FreeBSD, web) build, the `release` environment refuses the signing jobs (macOS, Windows), and no release is drafted.
-- **Artifacts:** macOS universal `.dmg` (Developer ID signed, notarized, stapled) and CLI `.zip`; Windows x64, x86 and arm64 `.msi` + portable `.zip` (Azure Trusted Signing); Linux x86_64 and aarch64 `.AppImage` (+ `.AppImage.zsync` for AppImageUpdate delta updates), `.flatpak` bundle (repackages the tarball, `packaging/linux/flatpak-bundle.sh`), `.deb`, `.rpm`, `.tar.gz` (+ the from-source Flathub manifest in `packaging/linux/flatpak/`); Linux riscv64 `.tar.gz` (cross-compiled on Ubuntu 24.04 against ports.ubuntu.com riscv64 libraries, CLI smoke-tested under QEMU); FreeBSD x86_64 `.tar.gz` (built in a FreeBSD VM); web `.zip` (wasm + `index.html`, see `packaging/web/README.md`); `SHA256SUMS.txt`.
-- **Secrets:** the twelve signing secrets live in the `release` environment (deployable only from the `release` branch, which only org admins and release-managers can push). All are optional: a missing one produces unsigned artifacts with a warning.
-- **Windows installer:** `packaging/windows/rustdraft.wxs` (WiX v5 + `WixToolset.UI.wixext`). Its wizard has a Shortcuts page: the Start Menu shortcut is always created, the desktop shortcut is opt-in (`DESKTOPSHORTCUT=1` for silent installs, `DESKTOPSHORTCUT=0` drops it on an upgrade; otherwise upgrades keep the previous choice).
-- **File types:** `.dxf` and `.dwg` (macOS document types, Windows "Open with", Linux MIME types).
-- **Local packaging test:** `packaging/macos/package.sh` (ad-hoc signed DMG), `packaging/linux/package.sh`, `packaging/web/package.sh`.
+`[workspace.package] version` in the root `Cargo.toml` is the single source of the version. The app
+shows it in About, `rustdraft --version` and `rustdraft-cli --version`.
+
+```bash
+cargo xtask version            # prints it
+cargo xtask version set 1.1.0  # changes it
+cargo xtask ci                 # the quality checks
+git commit -am "RustDraft 1.1.0" && git push origin main
+```
+
+## 2. Tag: Windows and Linux are built for you
+
+```bash
+git tag -a v1.1.0 -m "RustDraft 1.1.0"
+git push origin v1.1.0
+```
+
+Pushing a `v*` tag runs [`.github/workflows/release.yml`](../.github/workflows/release.yml). It builds
+
+| Package | Contents |
+| --- | --- |
+| `RustDraft-<version>-windows-x86_64.zip` | `RustDraft.exe`, `rustdraft-cli.exe`, licences |
+| `RustDraft-<version>-windows-arm64.zip` | the same for Windows on ARM (cross-compiled) |
+| `RustDraft-<version>-linux-x86_64.tar.gz` | `rustdraft`, `rustdraft-cli`, desktop entry, icons, licences |
+
+and creates the GitHub Release `RustDraft v<version>` with them and their `SHA256SUMS`. The workflow
+can also be started by hand (**Actions › Release › Run workflow**) for an existing tag.
+
+## 3. macOS: build on a Mac
+
+On an Apple-silicon Mac with Xcode (Xcode compiles the macOS 26+ icon):
+
+```bash
+git clone https://github.com/storytold/craft-fonts.git ../craft-fonts   # once
+CRAFT_FONTS_DIR="$PWD/../craft-fonts" packaging/macos/package.sh --arch aarch64
+```
+
+It writes `dist/release/rustdraft-<version>-macos-aarch64.dmg` (the app, with `rustdraft-cli` inside)
+and `rustdraft-cli-<version>-macos-aarch64.zip`. Upload them to the release:
+
+```bash
+gh release upload v1.1.0 dist/release/rustdraft-1.1.0-macos-aarch64.dmg
+```
+
+`--arch universal` also builds for Intel Macs (it needs `rustup target add x86_64-apple-darwin`).
+
+## Signing
+
+The builds are not signed with a paid certificate: macOS builds are signed ad hoc and Windows builds
+are not signed, so users see the warnings the README explains. `packaging/macos/package.sh` signs and
+notarizes with a Developer ID when `MACOS_SIGN_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` and
+`APPLE_TEAM_ID` are set (see the top of the script).
+
+## Release notes
+
+Edit them on GitHub or with `gh release edit v1.1.0 --notes-file notes.md`: what is new, what was fixed,
+and the download table.

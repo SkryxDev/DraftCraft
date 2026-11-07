@@ -1,5 +1,5 @@
 //! Autosave: SAVETIME timing, which drawings are written, files deleted on save and close, and
-//! the files Drawing Recovery offers after a crash (#406, docs/gaps.md F4).
+//! the files Drawing Recovery offers after a crash (#406).
 
 use std::time::{Duration, SystemTime};
 

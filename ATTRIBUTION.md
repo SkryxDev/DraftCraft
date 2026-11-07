@@ -6,13 +6,16 @@ an asset file is missing from this table.
 
 **Policy (mandatory):** RustDraft contains **no Autodesk, Adobe or Avid iconography, images,
 artwork, fonts, hatch patterns, linetypes, templates or presets.** Every asset is original work by
-RustDraft contributors or third-party material under an open licence (OSI open source, public domain
+the RustDraft and CADCraft contributors or third-party material under an open licence (OSI open source, public domain
 / CC0, or Creative Commons that allows redistribution). Screenshots of Autodesk software are never
 committed. Font files are not added here: shared fonts live in
 [storytold/craft-fonts](https://github.com/storytold/craft-fonts), an optional build input.
 
-Generated-in-code assets are original and have no file to list:
+Generated-in-code assets are original and have no file to list. They were written by the CADCraft
+contributors (RustDraft is based on CADCraft), except where a line names Skryx Dev:
 - the UI icon set (`crates/ui-egui/src/icons.rs`);
+- the ribbon's pictures of the Arc and Circle methods and its application-button mark
+  (`crates/ui-egui/src/ribbon.rs`), by Skryx Dev;
 - the "RustDraft Stroke" single-stroke drafting font (`crates/fonts/src/stroke.rs`);
 - the standard linetype and hatch-pattern libraries (`crates/doc/src/library.rs`; industry-common
   names, our own dash/spacing values);
@@ -37,6 +40,10 @@ Generated-in-code assets are original and have no file to list:
 | `assets/app-icon/src/rustdraft-icon.svg` | Skryx Dev | original work for RustDraft (2026-11-06): overlapping R and D monogram on a blue drafting grid, letters drawn as paths (no font) | MIT OR Apache-2.0 | Master of the app icon (full bleed) |
 | `assets/app-icon/src/rustdraft-icon-macos.svg` | Skryx Dev | original work for RustDraft (2026-11-06), the same monogram in an 824-point squircle on the 1024 macOS icon grid | MIT OR Apache-2.0 | Master of the macOS icon |
 | `assets/app-icon/src/rustdraft-icon-square.svg` | Skryx Dev | original work for RustDraft (2026-11-06), the same monogram full-bleed, the art of the macOS 26+ icon | MIT OR Apache-2.0 | Source of `RustDraft.icon` |
+| `docs/screenshots/rustdraft-ribbon.png` | Skryx Dev | screenshot of RustDraft 1.0.0 (2026-11-07) showing its own sample drawing; no third-party software or artwork | MIT OR Apache-2.0 | README illustration: the ribbon's Home tab |
+| `docs/screenshots/rustdraft-arc-menu.png` | Skryx Dev | screenshot of RustDraft 1.0.0 (2026-11-07) showing its own sample drawing; no third-party software or artwork | MIT OR Apache-2.0 | README illustration: the Arc drop-down |
+| `docs/screenshots/rustdraft-properties.png` | Skryx Dev | screenshot of RustDraft 1.0.0 (2026-11-07) showing its own sample drawing; no third-party software or artwork | MIT OR Apache-2.0 | README illustration: selection grips and the Properties palette |
+| `docs/screenshots/rustdraft-layout.png` | Skryx Dev | screenshot of RustDraft 1.0.0 (2026-11-07) showing its own sample drawing; no third-party software or artwork | MIT OR Apache-2.0 | README illustration: a layout with a viewport |
 | `assets/app-icon/src/RustDraft.icon/Assets/rustdraft-art.png` | Skryx Dev | rendered from `assets/app-icon/src/rustdraft-icon-square.svg` | MIT OR Apache-2.0 | Layer of the Icon Composer icon (macOS 26+, compiled by actool) |
 | `assets/app-icon/src/RustDraft.icon/icon.json` | Skryx Dev | original work for RustDraft (2026-11-06): the Icon Composer description of the macOS 26+ icon | MIT OR Apache-2.0 | Compiled by actool into Assets.car |
 | `assets/app-icon/rustdraft.icns` | Skryx Dev | generated (packaging/icons.sh) | MIT OR Apache-2.0 | macOS icon |
@@ -45,29 +52,26 @@ Generated-in-code assets are original and have no file to list:
 | `assets/app-icon/rustdraft-256.png` | Skryx Dev | generated | MIT OR Apache-2.0 | |
 | `assets/app-icon/rustdraft-1024.png` | Skryx Dev | generated | MIT OR Apache-2.0 | |
 | `assets/app-icon/rustdraft-macos-512.png` | Skryx Dev | generated (macOS margin variant) | MIT OR Apache-2.0 | |
-| `examples/apartment.dxf` | RustDraft contributors | sample drawing made with rustdraft-cli commands | MIT OR Apache-2.0 | Original |
-| `docs/images/ui-apartment.png` | RustDraft contributors | screenshot of RustDraft itself (examples/apartment.dxf) | MIT OR Apache-2.0 | Original; no Autodesk UI |
-| `docs/images/ui-layout.png` | RustDraft contributors | screenshot of RustDraft itself (a layout of examples/apartment.dxf) | MIT OR Apache-2.0 | Original; no Autodesk UI |
-| `docs/images/ui-bracket.png` | RustDraft contributors | screenshot of RustDraft itself (sample drawing generated in code) | MIT OR Apache-2.0 | Original; no Autodesk UI |
+| `examples/apartment.dxf` | CADCraft contributors | sample drawing made with the CLI's commands | MIT OR Apache-2.0 | Original |
 
 ## Interface translations
 
 | Asset | Author | Source | Licence | Notes |
 |---|---|---|---|---|
-| `crates/ui-egui/src/i18n/uk.tsv` | @dmatviichuk | Original Ukrainian translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
-| `crates/ui-egui/src/i18n/de.tsv` | the RustDraft contributors | Original German translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
-| `crates/ui-egui/src/i18n/es.tsv` | @PedroGuille | Original Spanish translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
-| `crates/ui-egui/src/i18n/pt_br.tsv` | @WladmirJunior | Original Brazilian Portuguese translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
-| `crates/ui-egui/src/i18n/bs.tsv` | Nine (@nine-codes) with Claude Code (AI-assisted) | Original Bosnian translations of RustDraft English strings, shared with storytold/craft-i18n `locales/bs/` | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied; not yet reviewed by a native speaker |
-| `crates/ui-egui/src/i18n/cs.tsv` | @Losminek (AI-assisted) | Original Czech translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
-| `crates/ui-egui/src/i18n/ru.tsv` | @pechnikov2026-star | Original Russian translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
-| `crates/ui-egui/src/i18n/fr.tsv` | @pechnikov2026-star | Original French translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
-| `crates/ui-egui/src/i18n/zh.tsv` | @mayloglog | Original Simplified Chinese translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
-| `crates/ui-egui/src/i18n/sv.tsv` | Erik Holmbom (@holmbom) with Claude Code (AI-assisted) | Original Swedish translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied; terminology and the running app reviewed by a native speaker |
-| `crates/ui-egui/src/i18n/it.tsv` | Emanuele Bottelli (AI-assisted); terminology corrections: Andrea Brandi (@starise) with OpenAI Codex (AI-assisted) | Original Italian translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied; targeted Chamfer terminology review by a native speaker |
-| `crates/ui-egui/src/i18n/ko.tsv` | @huk082 (AI-assisted) | Original Korean translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied; no font assets added |
-| `crates/ui-egui/src/i18n/ar.tsv` | @hasan-sdaif | Original Arabic translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
-| `crates/ui-egui/src/i18n/hu.tsv` | @Skaywalker | Original Hungarian translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
-| `crates/ui-egui/src/i18n/tr.tsv` | @ogzhnklvz (AI-assisted) | Original Turkish translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied; written from the English strings, no other catalog used as a source; the running app reviewed by a native speaker |
-| `crates/ui-egui/src/i18n/el.tsv` | @Camthalion77 with ChatGPT (AI-assisted) | Original Greek translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied; independent native proofreading pending |
-| `crates/ui-egui/src/i18n/vi.tsv` | @2ez4gcx with Claude Code (AI-assisted) | Original Vietnamese translations of RustDraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied; terminology chosen with a native speaker, full proofreading pending |
+| `crates/ui-egui/src/i18n/uk.tsv` | @dmatviichuk | Original Ukrainian translations of CADCraft's English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
+| `crates/ui-egui/src/i18n/de.tsv` | the CADCraft contributors | Original German translations of CADCraft's English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
+| `crates/ui-egui/src/i18n/es.tsv` | @PedroGuille | Original Spanish translations of CADCraft's English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
+| `crates/ui-egui/src/i18n/pt_br.tsv` | @WladmirJunior | Original Brazilian Portuguese translations of CADCraft's English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
+| `crates/ui-egui/src/i18n/bs.tsv` | Nine (@nine-codes) with Claude Code (AI-assisted) | Original Bosnian translations of CADCraft's English strings, shared with storytold/craft-i18n `locales/bs/` | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied; not yet reviewed by a native speaker |
+| `crates/ui-egui/src/i18n/cs.tsv` | @Losminek (AI-assisted) | Original Czech translations of CADCraft's English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
+| `crates/ui-egui/src/i18n/ru.tsv` | @pechnikov2026-star | Original Russian translations of CADCraft's English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
+| `crates/ui-egui/src/i18n/fr.tsv` | @pechnikov2026-star | Original French translations of CADCraft's English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
+| `crates/ui-egui/src/i18n/zh.tsv` | @mayloglog; RustDraft ribbon strings: Skryx Dev | Original Simplified Chinese translations of CADCraft's English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
+| `crates/ui-egui/src/i18n/sv.tsv` | Erik Holmbom (@holmbom) with Claude Code (AI-assisted) | Original Swedish translations of CADCraft's English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied; terminology and the running app reviewed by a native speaker |
+| `crates/ui-egui/src/i18n/it.tsv` | Emanuele Bottelli (AI-assisted); terminology corrections: Andrea Brandi (@starise) with OpenAI Codex (AI-assisted); RustDraft ribbon strings: Skryx Dev | Original Italian translations of CADCraft's English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied; targeted Chamfer terminology review by a native speaker |
+| `crates/ui-egui/src/i18n/ko.tsv` | @huk082 (AI-assisted) | Original Korean translations of CADCraft's English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied; no font assets added |
+| `crates/ui-egui/src/i18n/ar.tsv` | @hasan-sdaif | Original Arabic translations of CADCraft's English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
+| `crates/ui-egui/src/i18n/hu.tsv` | @Skaywalker | Original Hungarian translations of CADCraft's English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied |
+| `crates/ui-egui/src/i18n/tr.tsv` | @ogzhnklvz (AI-assisted) | Original Turkish translations of CADCraft's English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied; written from the English strings, no other catalog used as a source; the running app reviewed by a native speaker |
+| `crates/ui-egui/src/i18n/el.tsv` | @Camthalion77 with ChatGPT (AI-assisted) | Original Greek translations of CADCraft's English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied; independent native proofreading pending |
+| `crates/ui-egui/src/i18n/vi.tsv` | @2ez4gcx with Claude Code (AI-assisted) | Original Vietnamese translations of CADCraft's English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied; terminology chosen with a native speaker, full proofreading pending |

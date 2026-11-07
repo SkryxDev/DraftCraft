@@ -1,7 +1,6 @@
 # AutoLISP
 
-RustDraft runs AutoLISP routines (`.lsp` files). What is here and what is not yet:
-[gaps.md](gaps.md) (E1).
+RustDraft runs AutoLISP routines (`.lsp` files). This page says what is here and what is not yet.
 
 ## Loading and running
 
@@ -101,6 +100,6 @@ fails drops the one it began.
 
 ## Testing against the corpus
 
-The AutoLISP conformance corpus (#648) lives in its own repository. Point `RUSTDRAFT_LISP_CORPUS`
+The AutoLISP conformance corpus lives in its own repository. Point `RUSTDRAFT_LISP_CORPUS`
 at it and run `cargo test -p rustdraft-engine --test it lisp_corpus::`; without the variable the test
 says it was skipped.

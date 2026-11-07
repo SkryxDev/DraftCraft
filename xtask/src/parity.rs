@@ -1,7 +1,6 @@
 //! `cargo xtask parity`: compare the reference app's menu tree (feature names only, in
 //! `xtask/data/menu-catalog.txt`) with the live command registry (`rustdraft-cli commands`), and
-//! write `docs/parity-checklist.md` (dated; the assessment that interprets it is
-//! `docs/target-app-parity.md`).
+//! write `docs/parity-checklist.md` (dated).
 
 use std::path::Path;
 use std::process::Command;
@@ -106,7 +105,7 @@ pub fn run(root: &Path) -> Result<(), String> {
     }
     let pct = |a: usize, b: usize| if b == 0 { 0.0 } else { 100.0 * a as f64 / b as f64 };
     let mut md = format!(
-        "# Parity checklist\n\n> **Generated:** {} by `cargo xtask parity`. Do not edit by hand.\n\nMenu-breadth parity: a reference menu item counts as covered when a RustDraft command is registered under the same menu label. It measures breadth, not depth; see [target-app-parity.md](target-app-parity.md) for the weighted assessment.\n\n**Menu breadth: {hit} / {} items ({:.0}%)** · {} registered commands.\n\n| Menu | Items | Covered | % |\n|---|---|---|---|\n",
+        "# Parity checklist\n\n> **Generated:** {} by `cargo xtask parity`. Do not edit by hand.\n\nMenu-breadth parity: a reference menu item counts as covered when a RustDraft command is registered under the same menu label. It measures breadth, not depth.\n\n**Menu breadth: {hit} / {} items ({:.0}%)** · {} registered commands.\n\n| Menu | Items | Covered | % |\n|---|---|---|---|\n",
         today(),
         ls.len(),
         pct(hit, ls.len()),

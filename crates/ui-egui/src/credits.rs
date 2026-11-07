@@ -243,6 +243,8 @@ pub fn contributors_ui(ui: &mut egui::Ui) {
         }
     });
     let list = sorted(CONTRIBUTORS, v.names, v.key, v.ascending);
+    // These are the people who wrote the code RustDraft is based on.
+    ui.label(crate::tl!("The contributors of CADCraft, the open-source project RustDraft is based on."));
     ui.label(
         RichText::new(crate::tf!(
             "{contributors} · {commits}",

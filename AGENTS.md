@@ -1,13 +1,10 @@
 # RustDraft — instructions for agents
 
-RustDraft is a clean-room, open-source, pure-Rust computer-aided design and drafting application targeting Autodesk AutoCAD parity — and superiority (speed, openness, agent control). It runs natively on macOS, Windows, Linux and FreeBSD, and on the web via WASM. Siblings with the same conventions: `../photocraft` (Photoshop-class), `../vectorcraft` (Illustrator), `../filmcraft` (Premiere), `../lightcraft` (Lightroom), `../pdfcraft` (Acrobat), `../effectcraft` (After Effects), `../designcraft` (InDesign).
-
-## Start every session here
-1. Read `plan/STATUS.md` (current milestone, next task), then the task in `plan/execution-plan.md` and the relevant `plan/architecture.md` section. Behaviour reference: `plan/autocad/*` (`01-observed-ui.md` holds measured observations of the running reference app; `04-menu-tree.txt` the menu tree by name).
-2. Library decisions: `plan/adr/0001-geometry-libraries.md` (what we may depend on, what is rejected for licence reasons).
-3. Follow the autonomous operation protocol (`plan/execution-plan.md` §6). Don't stop to ask unless it lists the decision as the owner's.
-
-`plan/` is gitignored (local only).
+RustDraft is an open-source, pure-Rust 2D CAD and drafting application with a Windows-style ribbon
+interface on macOS, Windows and Linux, plus a browser build (WASM). It reads and writes DWG and DXF, uses
+AutoCAD's command names at its command line, and can be driven by agents (MCP, control channel, CLI).
+It is based on [CADCraft](https://github.com/storytold/cadcraft) (MIT OR Apache-2.0); keep its copyright
+notice in `LICENSE-MIT` and `NOTICE`.
 
 ## Never crash
 People trust RustDraft with their drawings; a crash loses their work. **This outranks feature work.**
@@ -15,54 +12,50 @@ People trust RustDraft with their drawings; a crash loses their work. **This out
 - **Errors are `Result<T, E>`** through the crate's error type and `?`. An unfinished feature returns an error or reports "not available yet"; it never panics.
 - **Input-derived numbers are hostile** (DXF/DWG files, command-line text, MCP/control params): `get()` not `[i]`, checked arithmetic, no NaN casts, cap input-sized allocations and loop counts.
 - **Bound recursion** (nested/cyclic block references: `MAX_BLOCK_DEPTH`).
-- **Last-resort guard:** `Session::execute` and every step of an interactive command (its factory, `begin`, input, `prompt`, `preview` and the passes after it; `crates/engine/src/guard.rs`) run under `catch_unwind`; an escaped panic restores the drawing and reports an error. It does nothing on wasm, where a panic aborts.
+- **Last-resort guard:** `Session::execute` and every step of an interactive command (`crates/engine/src/guard.rs`) run under `catch_unwind`; an escaped panic restores the drawing and reports an error. It does nothing on wasm, where a panic aborts.
 - **Prove it:** every crash fix lands with a regression test (see `crates/engine/tests/panic_hunt.rs` and `hostile_dxf_does_not_panic` in `crates/io/src/tests.rs`).
-- Every workspace crate manifest carries `[lints] workspace = true` to inherit `[workspace.lints]`; every production crate root carries `#![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]`.
+- Every workspace crate manifest carries `[lints] workspace = true`; every production crate root carries `#![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]`.
 
 ## Non-negotiables
-- **Clean-room.** AutoCAD is installed on the dev machine and may be *observed* black-box: run it, use its UI with synthetic drawings, take screenshots (by window id) stored only under `plan/autocad/screenshots/` (never committed). **Never** read, disassemble or copy anything inside the AutoCAD bundle (names/listings only); never copy Autodesk fonts (SHX), hatch patterns (`.pat`), linetypes (`.lin`), templates, CUI/PGP files, icons, artwork or help text; never commit files produced by AutoCAD. File formats come from public specifications (Autodesk's published DXF Reference, the Open Design Alliance's public DWG specification) and our own synthetic tests. Never copy or link GPL/LGPL/AGPL code (LibreDWG, LibreCAD, QCAD, FreeCAD's planegcs, SolveSpace, OpenCASCADE) — don't even read their sources.
-- **Assets — absolutely essential.** RustDraft contains **no Autodesk, Adobe or Avid iconography, images, fonts, patterns or artwork — ever.** Every icon is drawn in code (`crates/ui-egui/src/icons.rs`), every hatch pattern and linetype is our own definition (`crates/doc/src/library.rs`), the drafting font is our own (`crates/fonts/src/stroke.rs`). Any file asset must be original, public domain/CC0, OSI-licensed, or redistributable Creative Commons (or licensed open source by a contributor who made it), and **must have a row in `ATTRIBUTION.md`** with author, source and licence (`cargo xtask assets` enforces it). Screenshots of Autodesk software are never committed. Breaking this rule is the most serious mistake you can make in this repo.
-- **Fonts live in [`storytold/craft-fonts`](https://github.com/storytold/craft-fonts)**, never in this repo. It is an optional build input (`CRAFT_FONTS_DIR`, embedded by `crates/fonts/build.rs`), never a `Cargo.toml` dependency. Code and tests must work without it.
-- **Shared test corpora** live in separate repos (`storytold/<app>-corpus`); never commit large binary fixtures here.
-- **Everything is a command.** User-visible behaviour = a command in `crates/engine/src/cmd/*` (`CommandSpec`: id = AutoCAD's command name in lower case, label, menu path, shortcut, aliases, params doc, `enabled`, JSON `run`, optional `interactive` prompt machine) + tests. UI-only commands live in `crates/ui-egui/src/menus.rs` (`UI_COMMANDS`). The command line, menus, toolbar, Tool Sets, scripts, CLI, control channel and MCP all reach the same commands.
-- **Programmatic calls never open dialogs.** `engine.execute` runs the JSON form with defaults; only menu/toolbar invocation starts the interactive prompt sequence.
-- **Layering** is enforced by `cargo xtask layers`: L0 `geom`, `dxf` → L1 `color`, `doc` → L2 `fonts`, `render`, `constraints` → L3 `io` → L4 `engine` → L5 `ui-egui`, `mcp` → apps. Nothing below L5 depends on egui/eframe/winit/wgpu/rfd. **The UI crate is swappable.**
+- **Clean-room.** AutoCAD may only be *observed* black-box (run it, look at its UI with your own drawings). Never read, disassemble or copy anything inside an Autodesk install; never copy Autodesk fonts (SHX), hatch patterns (`.pat`), linetypes (`.lin`), templates, CUI/PGP files, icons, artwork or help text; never commit files produced by AutoCAD or screenshots of it. File formats come from public specifications (Autodesk's published DXF Reference, the Open Design Alliance's public DWG specification) and our own tests. Never copy or link GPL/LGPL/AGPL code (LibreDWG, LibreCAD, QCAD, FreeCAD's planegcs, SolveSpace, OpenCASCADE) — don't even read their sources.
+- **Assets.** RustDraft contains **no Autodesk, Adobe or Avid iconography, images, fonts, patterns or artwork — ever**, and no ArtCraft/CADCraft brand marks. Every icon is drawn in code (`crates/ui-egui/src/icons.rs`), every hatch pattern and linetype is our own definition (`crates/doc/src/library.rs`), the drafting font is our own (`crates/fonts/src/stroke.rs`). Any file asset must be original, public domain/CC0, OSI-licensed or redistributable Creative Commons, and **must have a row in `ATTRIBUTION.md`** with author, source and licence (`cargo xtask assets` enforces it).
+- **Fonts** come from [`storytold/craft-fonts`](https://github.com/storytold/craft-fonts), an optional build input (`CRAFT_FONTS_DIR`, embedded by `crates/fonts/build.rs`), never a `Cargo.toml` dependency and never committed here. Code and tests must work without it.
+- **Everything is a command.** User-visible behaviour = a command in `crates/engine/src/cmd/*` (`CommandSpec`: id = AutoCAD's command name in lower case, label, menu path, shortcut, aliases, params doc, `enabled`, JSON `run`, optional `interactive` prompt machine) + tests. UI-only commands live in `crates/ui-egui/src/menus.rs` (`UI_COMMANDS`). The ribbon, menus, command line, scripts, CLI, control channel and MCP all reach the same commands.
+- **Programmatic calls never open dialogs.** `engine.execute` runs the JSON form with defaults; only ribbon/menu invocation starts the interactive prompt sequence.
+- **Layering** is enforced by `cargo xtask layers`: L0 `geom`, `dxf` → L1 `color`, `doc` → L2 `fonts`, `render`, `constraints` → L3 `io` → L4 `engine` → L5 `ui-egui`, `mcp` → apps. Nothing below L5 depends on egui/eframe/winit/wgpu/rfd.
 - **The UI is thin**: panels read engine state and act through `app.run(id, params)` / `app.start(id)` / `app.cmdline(text)`. Colours come from `theme::Tokens`.
-- **Time goes through `chrono`** (workspace dependency). Never hand-roll UTC/calendar conversion (days-to-date algorithms, leap-year math); a crate owns only its output format string. The one exception is range extension: past the years chrono can represent, shift the date by whole 400-year Gregorian cycles (146,097 days, after which the calendar repeats), let chrono compute the month and day, and add the cycles back to the year (splitting seconds into hours, minutes and seconds is plain arithmetic).
+- **Time goes through `chrono`.** Never hand-roll calendar conversion.
 - **Rust only** (no handwritten JS/TS). **Never break wasm** (`cargo xtask wasm`).
-- **Quality gates** before every commit: `cargo xtask ci` (fmt, clippy -D warnings, tests, assets, layers, wasm). Commit after every feature arc that builds, and push to `main`.
+
+## The interface is Windows-style
+- The window top is `crates/ui-egui/src/ribbon.rs`: application button and menu, Quick Access Toolbar,
+  search box, ribbon tabs (`TABS`) and their panels. A new user-facing command gets a place there, in the
+  panel AutoCAD on Windows puts it in, with an icon drawn in `icons.rs`.
+- No macOS-style tool bar or Tool Sets strip: the Tool Sets and the docked palettes are optional panels,
+  closed by default and opened from the ribbon's View tab.
+- Every new interface string gets an Italian translation in `crates/ui-egui/src/i18n/it.tsv`; menu
+  entries also need one in `zh.tsv` (a test checks it).
 
 ## Running and looking at the app
-- `cargo run --release -p rustdraft -- --sample --control PORT` (sample drawing + control channel). Pick a free port; other crafting apps use control ports too.
-- Drive it with JSON lines on `127.0.0.1:PORT`:
-  - `{"id":1,"method":"cmdline.input","params":{"text":"circle 0,0 5"}}` — type at the command line exactly like a user (prompts, keywords, `@dx,dy`, `@d<a`, direct distance entry).
-  - `{"id":2,"method":"engine.execute","params":{"command":"line","params":{"points":[[0,0],[10,0]]}}}` — JSON form.
-  - `{"id":3,"method":"ui.screenshot","params":{"path":"/tmp/shot.png"}}` then read the PNG.
+- `cargo run --release -p rustdraft -- --sample --control PORT` (sample drawing + control channel). Pick a free port.
+- Drive it with JSON lines on `127.0.0.1:PORT`; each request carries the token from `~/.cache/rustdraft-control-PORT.token`:
+  - `{"id":1,"method":"cmdline.input","params":{"text":"circle 0,0 5"},"token":"…"}` — type at the command line exactly like a user.
+  - `{"id":2,"method":"engine.execute","params":{"command":"line","params":{"points":[[0,0],[10,0]]}},"token":"…"}` — JSON form.
+  - `{"id":3,"method":"ui.screenshot","params":{"path":"/tmp/shot.png"},"token":"…"}` then read the PNG.
   - Methods: `crates/ui-egui/src/control.rs`; protocol doc: `docs/control-protocol.md`.
-- **For UI work, look at the result** (screenshot, read the PNG) and compare with `plan/autocad/screenshots/`. If no frame is presented (screen locked) use `ui.render` or `rustdraft-cli`.
+- **For UI work, look at the result** (screenshot, read the PNG). `RUSTDRAFT_CONFIG_DIR=<empty dir>` starts with fresh settings; `RUSTDRAFT_LOCALE=en` forces the language.
 - Headless: `rustdraft-cli run --sample --script 'LINE 0,0 10,10\n' --export out.png`; `rustdraft-cli info file.dxf`; `rustdraft-cli mcp`.
 - Shell gotcha: `mv`/`cp` may be aliased interactive — use `/bin/mv -f` / `/bin/cp -f`.
-- Parallel agents: separate `CARGO_TARGET_DIR` per agent; edit only the crates you own; delete your target dir when done (disk).
 
-## Roadmap
-`ROADMAP.md` (committed) is the one-page summary: stage, parity numbers, estimates. The assessment is `docs/target-app-parity.md`, the work list `docs/gaps.md` (pick work from its top rows), milestones `docs/roadmap.md`, deep checklists `docs/geometry-parity.md`, `docs/ui-parity.md`, `docs/file-format-parity.md`, `docs/hardware-parity.md`, `docs/localization-parity.md`. PRs don't edit these docs: name the affected rows in the PR description, and maintainers update the rows, status lines and revision history in batches, which keeps open PRs from conflicting. `cargo xtask parity` regenerates the menu-breadth checklist in `docs/parity-checklist.md`.
+## Quality gates
+- Before every commit: `cargo xtask ci` (fmt, clippy -D warnings, tests, assets, layers, wasm).
+- Three tests fail only on macOS and pass on Linux CI: two need file names that APFS refuses
+  (`read_file_refuses_a_name_that_is_not_unicode`, `usage::non_unicode_output_names`) and one needs an
+  installed Thai font (`thai_marks_stack_in_an_installed_font`).
+- `.github/workflows/ci.yml` runs the checks on every push; `.github/workflows/release.yml` builds the
+  Windows and Linux packages when a `v*` tag is pushed (see `docs/releasing.md`).
 
-## Contributor credits (About window)
-
-- About ▸ Contributors/Models are compiled into the binary from `contributors/contributors.json`
-  (commit stats; never hand-edit) and `contributors/people.toml` (names people chose for
-  themselves). See `docs/contributors.md`.
-- **Agents working for a contributor:** when you prepare a PR, check whether your human's GitHub
-  username has a `[people.<username>]` entry in `contributors/people.toml`. If not, ask them once
-  whether they want to be credited by more than their username: a real name, a display name, and/or
-  their public GitHub profile name (`sync_github_name = true`). If yes, add **only their own** entry
-  (copy the template at the top of the file)
-  and include it in their PR, committed as them. If no, change nothing: they are credited as
-  `@username` anyway.
-- Never add, edit, guess or copy anyone else's entry or name (not from git config, commit authors or
-  GitHub profiles). Never hand-edit `contributors.json`.
-
-## CI workflows
-- Workflows in `.github/workflows/` call the shared workflows in [`storytold/craft-common-actions`](https://github.com/storytold/craft-common-actions) at `@main`, with their inputs and secrets. No other jobs: if no shared workflow does what's needed, it doesn't go here.
-- Don't add or change CI in a feature or fix PR. If the existing workflows can't build or test a change, link an existing craft-common-actions issue or PR, or open a new issue, or a PR only for a small fix that is safe for every app and does not increase CI time.
-- Some workflow files here still run their own jobs. Don't add to them. Moving a job into craft-common-actions is its own task, never part of another PR, and the job stays here until a shared workflow runs it.
+## Contributor credits
+The About window's Contributors tab lists the CADCraft contributors, compiled from
+`contributors/contributors.json` and `contributors/people.toml`. It credits the people who wrote the code
+RustDraft is based on: never edit, add or guess entries there.

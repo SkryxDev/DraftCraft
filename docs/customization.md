@@ -9,13 +9,13 @@ and what is not there yet.
 | Startup LISP (`acad.lsp`, `acaddoc.lsp`) | Loaded from the support folder at startup and for each drawing. | [autolisp.md](autolisp.md#at-startup) |
 | Scripts (`.scr`) | SCRIPT (Tools > Run Script...), `rustdraft-cli run --script-file`, and script text over MCP and the control channel. | below |
 | Command aliases (`.pgp`) | ALIASEDIT `{file}` loads an alias file for the session; REINIT reads it again. | below |
-| Compiled plug-ins (C++, .NET) | Not supported. A plug-in API is planned, for plug-ins written in Rust and compiled to WebAssembly. | [gaps.md](gaps.md) (E4) |
+| Compiled plug-ins (C++, .NET) | Not supported. A plug-in API, for plug-ins written in Rust and compiled to WebAssembly, may come later. | — |
 | Programs that drive the CAD program from outside | The JSON control channel, the MCP server and `rustdraft-cli`. Any language that can open a TCP socket or start a process can use them. | below |
 
 ## LISP routines
 
 Most routines that only draw, edit and query objects run as they are. Not yet supported: Visual
-LISP ActiveX functions (`vlax-…`, `vla-…`), DCL dialogs and reactors ([gaps.md](gaps.md) E1). A
+LISP ActiveX functions (`vlax-…`, `vla-…`), DCL dialogs and reactors. A
 routine that uses them needs those parts rewritten, for example with `command` calls and `get…`
 prompts instead of a dialog.
 

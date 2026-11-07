@@ -120,10 +120,7 @@ follow-up work.
 
 ## Adding translations
 
-The implementation follows the display-time catalog pattern used by
-[VectorCraft #205](https://github.com/storytold/vectorcraft/pull/205),
-[PdfCraft #106](https://github.com/storytold/pdfcraft/pull/106), and
-[FilmCraft #238](https://github.com/storytold/filmcraft/pull/238). Its code is local to RustDraft.
+Interface strings are translated at display time from catalogs compiled into the app.
 
 - `crates/ui-egui/src/i18n/*.tsv` are UTF-8 with three tab-separated columns:
   `context`, `English source`, and `translation`. Ordinary labels have an empty context.

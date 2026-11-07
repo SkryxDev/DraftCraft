@@ -1,7 +1,7 @@
 # Hosting RustDraft for the web
 
-`rustdraft-web-<version>.zip` (from the GitHub release, or `packaging/web/package.sh`) holds a
-static site in `rustdraft-web-<version>/`:
+`rustdraft-web-<version>.zip`, built by `packaging/web/package.sh` (the GitHub releases don't include a
+web build), holds a static site in `rustdraft-web-<version>/`:
 
 | File | What it is |
 |---|---|

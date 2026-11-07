@@ -8,7 +8,7 @@ Maintainers read reports as they arrive, but there is no fixed response time yet
 
 ## Supported versions
 
-Only the latest release gets security fixes. RustDraft is pre-alpha and moves quickly, so please check that a problem still exists there before reporting it.
+Only the latest release gets security fixes. RustDraft is young and moves quickly, so please check that a problem still exists there before reporting it.
 
 ## What counts
 
@@ -18,7 +18,9 @@ RustDraft treats these as untrusted, and a way past these defences is a vulnerab
 - **AutoLISP in a drawing's folder.** A drawing must not run code that the user didn't choose to load.
 - **The control channel.** It listens on loopback only and needs the session token from an owner-only file on every request. Another local account reaching it without that token is a vulnerability.
 - **Temporary and autosave files.** Autosave files are unsaved drawings: another account must not be able to read them or redirect a write through them.
-- **Updates.** A release must not be replaceable by someone other than the project.
+- **Releases.** RustDraft has no automatic updater; releases come only from
+  [github.com/SkryxDev/RustDraft/releases](https://github.com/SkryxDev/RustDraft/releases), and a release
+  must not be replaceable by someone other than the project.
 
 ## Known limits
 

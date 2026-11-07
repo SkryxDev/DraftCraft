@@ -1,5 +1,5 @@
 //! AUDIT finds and fixes database errors; RECOVER opens a damaged drawing with the fixes applied
-//! (#406, docs/gaps.md F4).
+//! (#406).
 
 use std::sync::Arc;
 

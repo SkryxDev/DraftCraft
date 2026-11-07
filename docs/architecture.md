@@ -1,9 +1,7 @@
 # RustDraft architecture
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-10 · **Change:** major (first committed architecture doc, written from the code on main at bd2412f) · **Target:** Autodesk AutoCAD 2027
-
 How RustDraft is built today. This describes the code on `main`, not plans; plans live in
-[roadmap.md](roadmap.md). Agents: the rules that keep this shape (layering, never-crash,
+[ROADMAP.md](../ROADMAP.md). Agents: the rules that keep this shape (layering, never-crash,
 everything-is-a-command, clean-room) are in [AGENTS.md](../AGENTS.md).
 
 ## Workspace
@@ -41,7 +39,7 @@ wgpu or rfd.
   radius, ordinate, arc length), Leader, MLeader, Hatch (pattern, solid, gradient), Solid,
   Trace, Face3d, Viewport, Image, Wipeout, Table and Unknown (raw DXF tags).
 - There are no 3D solids, surfaces, meshes, regions (ACIS), multilines, tolerance frames or
-  underlays in the model yet ([gaps.md](gaps.md)).
+  underlays in the model yet ([ROADMAP.md](../ROADMAP.md)).
 - Entity collections are copy-on-write, so undo is a whole-drawing snapshot that costs little.
 - Coordinates are f64 world units. 2D work happens in the WCS; there is no UCS yet.
 
@@ -49,10 +47,10 @@ wgpu or rfd.
 
 Every user-visible action is a `CommandSpec` (`crates/engine/src/cmd/mod.rs`): id = AutoCAD's
 command name in lower case, label, menu path, shortcut, aliases, a JSON `run`, an `enabled`
-check and an optional interactive prompt machine. 295 engine commands are registered (128 with
-interactive prompts, counted from source 2026-10-10), plus about 30 UI-only commands in
-`crates/ui-egui/src/menus.rs`. The command line, menus, toolbar, Tool Sets, scripts, CLI, control
-channel and MCP all reach the same commands. JSON calls never open dialogs.
+check and an optional interactive prompt machine. Close to 300 engine commands are registered, plus about
+30 UI-only commands in `crates/ui-egui/src/menus.rs`; `rustdraft-cli commands` lists them. The ribbon
+(`crates/ui-egui/src/ribbon.rs`), menus, command line, scripts, CLI, control channel and MCP all reach
+the same commands. JSON calls never open dialogs.
 
 ## Rendering
 
@@ -67,7 +65,7 @@ DXF is the native path: `dxf` parses tags, `io::dxf_read` maps them to the docum
 `io::dxf_write` writes an R2000 (AC1015) DXF. DWG is converted to DXF in memory by `acadrust` and
 read through the same path; saving DWG writes our DXF and converts it back. RustDraft-only data
 (constraints, associativity details, table flags) travels in xdata under our own application
-name. Detail and gaps: [file-format-parity.md](file-format-parity.md).
+name.
 
 ## Agent control
 

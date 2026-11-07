@@ -1,232 +1,268 @@
-# RustDraft
+<p align="center">
+  <img src="assets/app-icon/rustdraft-256.png" width="160" alt="RustDraft icon">
+</p>
 
-**RustDraft** is a free, open-source 2D/3D CAD and drafting application written in pure Rust,
-with the **ribbon workspace** people know from Windows CAD tools — on macOS, Windows and Linux.
+<h1 align="center">RustDraft</h1>
 
-- **Ribbon on top**: Home, Insert, Annotate, Parametric, View, Manage, Output, Add-ins,
-  Collaborate and Extra Tools, with large, small and split buttons (Circle ▾, Arc ▾, Trim ▾…),
-  the layer list and the colour / linetype / lineweight lists. Panels shrink and collapse from
-  the right when the window is narrow.
-- **Application bar** with the application menu, the Quick Access Toolbar and a command search
-  box; file tabs; a floating command line with AutoCAD-style command names and prompts.
-- **DWG and DXF** reading and writing, layouts, blocks, dimensions, hatches, constraints and more.
-- **Agent control**: an MCP server, a JSON control channel and a headless CLI.
+<p align="center">
+  <a href="https://ko-fi.com/K0O529L823"><img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Support me on Ko-fi"></a>
+</p>
 
-RustDraft is based on [CADCraft](https://github.com/storytold/cadcraft) — see
-[License and credits](#license-and-credits).
+<p align="center">
+  Open-source CAD and drafting in pure Rust — with the ribbon you know from AutoCAD on Windows, on every desktop.
+</p>
 
-## Downloads
+<p align="center">
+  <a href="https://github.com/SkryxDev/RustDraft/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/SkryxDev/RustDraft?color=1F6AD8"></a>
+  <img alt="macOS, Windows, Linux" src="https://img.shields.io/badge/macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-333333">
+  <img alt="Rust 1.95+" src="https://img.shields.io/badge/Rust-1.95%2B-CE422B">
+  <img alt="License: MIT or Apache-2.0" src="https://img.shields.io/badge/license-MIT%20%2F%20Apache--2.0-blue">
+</p>
 
-Builds for macOS (Apple silicon and Intel), Windows and Linux are on the
-[Releases page](https://github.com/SkryxDev/RustDraft/releases). The builds are not signed by a
-paid certificate: on macOS, right-click RustDraft.app ▸ Open the first time; on Windows, choose
-"More info ▸ Run anyway" in SmartScreen.
+<p align="center">
+  <img src="docs/screenshots/rustdraft-ribbon.png" width="900" alt="RustDraft with the Home tab of the ribbon and the sample drawing: a mounting bracket with dimensions, a section view and a title block">
+</p>
 
-## What works today
+---
 
-RustDraft is in early, fast development. Honest status (see [ROADMAP.md](ROADMAP.md) for parity
-numbers):
+RustDraft is a 2D CAD application for drafting, dimensioning and plotting drawings, written from the
+ground up in Rust. It opens and saves **DWG** and **DXF** files, speaks AutoCAD's command names and prompts
+at its command line, and puts everything in a **Windows-style ribbon** — the same on macOS, Windows and
+Linux, so you find the tools where you expect them on any computer. It is also built to be driven by
+**AI agents**: an MCP server, a JSON control channel and a headless CLI reach the same commands as the
+ribbon.
 
-| Area | Status |
-|---|---|
-| Drawing area | Model space with adaptive grid, axes, pan/zoom (wheel, middle-drag, pinch), crosshair cursor with pickbox, UCS icon, ViewCube, viewport label |
-| Command line | Prompts with keywords, history, AutoComplete, aliases, `@dx,dy`, `@d<a`, `#x,y`, direct distance entry, Enter/space/right-click to repeat, transparent commands, `.scr`-style scripts |
-| Draw | LINE, PLINE (arcs, widths), CIRCLE (center/radius/diameter, 2P, 3P), ARC, RECTANG (fillet/chamfer), POLYGON, ELLIPSE (+arcs), SPLINE, POINT, XLINE, RAY, DONUT, TEXT, MTEXT |
-| Modify | ERASE, MOVE, COPY, ROTATE, SCALE, MIRROR, STRETCH, OFFSET, TRIM, EXTEND, FILLET, CHAMFER, BREAK, JOIN, EXPLODE, rectangular/polar ARRAY, draw order, OVERKILL |
-| Precision | Object snaps (endpoint, midpoint, center, geometric center, node, quadrant, intersection, insertion, perpendicular, tangent, nearest; deferred tangent/perpendicular for the first point of a line, e.g. belt lines tangent to two circles), polar tracking, ortho, grid snap |
-| Layers & properties | Layers palette and Layer Properties Manager (on/off, freeze, lock, plot, colour, linetype), layer tools (isolate, freeze, off, lock, match, previous), Properties palette with per-object editing, linetypes, lineweights, colour index and true colour |
-| Annotation | All DIM* commands with full DIMSTYLE variables, overrides and every arrowhead, associative dimensions that follow geometry, MLEADER, TABLE, TrueType fonts (`.ttf`, `.otf`, `.ttc` collections), MTEXT formatting codes (fonts, heights, colours, stacked fractions), our own single-stroke drafting font |
-| Hatch & blocks | Pick-point hatch boundaries with islands, pattern, solid and gradient fills from our own pattern library, BLOCK/INSERT, attributes and nested blocks |
-| Files | DXF read (R12–2018, ASCII and binary) and write (R2000), including dimension styles, associativity, tables and constraints; DWG read (via the acadrust library) and write (R2000); PDF plotting, SVG and PNG export. Entities RustDraft doesn't model yet are not kept on save: see [file-format parity](docs/file-format-parity.md) |
-| Layouts & plotting | Paper-space layouts, viewports (scale, lock, per-viewport layer freeze), MSPACE/PSPACE through viewports, page setups, PLOT and EXPORTPDF |
-| Parametric | Geometric and dimensional constraints, AUTOCONSTRAIN, PARAMETERS with expressions, conflict detection; constraints re-solve after every edit |
-| Grips | Hot grips with Space to cycle Stretch, Move, Rotate, Scale and Mirror |
-| Interface languages | English, Ukrainian (Українська), Brazilian Portuguese (Português (Brasil)), German (Deutsch), Spanish (Español), Czech (Čeština), Russian (Русский), French (Français), Simplified Chinese (简体中文, with an installed CJK font), Italian (Italiano), Korean (한국어, with an installed Hangul font), Swedish (Svenska), Arabic (العربية, with an installed Arabic font), Hungarian (Magyar) and Turkish (Türkçe), live switching and a remembered Auto/system-language choice; [details](docs/localization.md) |
-| Automation | MCP server, JSON control channel, `rustdraft-cli` (info, convert, run, commands, mcp) |
+## Features
 
-## Quick start
+- **The ribbon** — Home, Insert, Annotate, Parametric, View, Manage, Output, Add-ins, Collaborate and Extra
+  Tools, with large, small and split buttons. Circle ▾, Arc ▾, Trim ▾, Fillet ▾, Array ▾ … open a drop-down
+  of their methods; panels shrink and fold into a single button from the right when the window is narrow.
+- **Familiar layout** — application menu, Quick Access Toolbar, file tabs, a floating command line,
+  `[-][Top][2D Wireframe]` viewport label, ViewCube with navigation bar, Model / layout tabs and drafting
+  toggles on the status bar.
+- **Command line like AutoCAD's** — the same command names and aliases, prompts with clickable keywords,
+  AutoComplete, `@dx,dy`, `@d<a`, `#x,y`, direct distance entry, transparent commands and scripts.
+- **Draw and modify** — LINE, PLINE, CIRCLE, ARC, RECTANG, POLYGON, ELLIPSE, SPLINE, TEXT, MTEXT and more;
+  MOVE, COPY, ROTATE, SCALE, MIRROR, STRETCH, OFFSET, TRIM, EXTEND, FILLET, CHAMFER, ARRAY, grips.
+- **Precision** — object snaps (endpoint, midpoint, center, intersection, tangent, perpendicular…), polar
+  tracking, ortho, grid snap.
+- **Layers and properties** — the layer list and colour / linetype / lineweight lists right on the ribbon,
+  the Layer Properties Manager and a Properties palette that edits any object.
+- **Annotation** — every DIM command with dimension styles, associative dimensions, multileaders, tables,
+  TrueType fonts and right-to-left text.
+- **Hatches and blocks** — pattern, solid and gradient fills, blocks with attributes.
+- **Parametric** — geometric and dimensional constraints, auto-constrain, parameters with expressions.
+- **Layouts and plotting** — paper-space layouts with viewports, page setups, PDF plotting, SVG and PNG
+  export.
+- **Files** — DWG and DXF reading and writing.
+- **AutoLISP** — load and run LISP routines, scripts and alias files.
+- **18 interface languages**, Italian included, switched live.
 
-RustDraft requires Rust 1.95 or later.
+## Screenshots
 
-```sh
-git clone https://github.com/storytold/rustdraft
-cd rustdraft
-cargo run --release -p rustdraft -- --sample       # opens the sample drawing
-```
+<p align="center">
+  <img src="docs/screenshots/rustdraft-arc-menu.png" width="600" alt="The Arc drop-down of the Draw panel, listing its eleven methods, each with its own picture">
+</p>
+<p align="center"><em>Split buttons list every method; Arc and Circle picture each one.</em></p>
 
-Then try typing at the command line:
+<p align="center">
+  <img src="docs/screenshots/rustdraft-properties.png" width="900" alt="A selected line with its blue grips and the Properties palette on the right, with the Annotate tab of the ribbon">
+</p>
+<p align="center"><em>Selection grips and the Properties palette, with the Annotate tab.</em></p>
+
+<p align="center">
+  <img src="docs/screenshots/rustdraft-layout.png" width="900" alt="Layout1: a paper sheet with a viewport showing the bracket drawing, ready to plot">
+</p>
+<p align="center"><em>A layout with a viewport onto the model, ready to plot.</em></p>
+
+## Keyboard shortcuts
+
+On Windows and Linux, <kbd>Ctrl</kbd> takes the place of <kbd>⌘</kbd>.
+
+| Keys | Action |
+| --- | --- |
+| <kbd>⌘</kbd><kbd>N</kbd> <kbd>⌘</kbd><kbd>O</kbd> <kbd>⌘</kbd><kbd>S</kbd> | New, open, save |
+| <kbd>⇧</kbd><kbd>⌘</kbd><kbd>S</kbd> | Save as |
+| <kbd>⌘</kbd><kbd>P</kbd> | Plot |
+| <kbd>⌘</kbd><kbd>Z</kbd> <kbd>⇧</kbd><kbd>⌘</kbd><kbd>Z</kbd> | Undo, redo |
+| <kbd>⌘</kbd><kbd>X</kbd> <kbd>⌘</kbd><kbd>C</kbd> <kbd>⌘</kbd><kbd>V</kbd> | Cut, copy, paste |
+| <kbd>⇧</kbd><kbd>⌘</kbd><kbd>C</kbd> <kbd>⇧</kbd><kbd>⌘</kbd><kbd>V</kbd> | Copy with base point, paste as block |
+| <kbd>⌘</kbd><kbd>A</kbd> | Select all |
+| <kbd>⌘</kbd><kbd>F</kbd> | Find and replace |
+| <kbd>⌘</kbd><kbd>1</kbd> | Properties palette |
+| <kbd>⌘</kbd><kbd>9</kbd> | Show or hide the command line |
+| <kbd>F1</kbd> | Command reference |
+| <kbd>F2</kbd> | Command history |
+| <kbd>F3</kbd> | Object snap |
+| <kbd>F7</kbd> <kbd>F8</kbd> <kbd>F9</kbd> | Grid, ortho, snap |
+| <kbd>F10</kbd> <kbd>F11</kbd> <kbd>F12</kbd> | Polar tracking, object snap tracking, dynamic input |
+| <kbd>Delete</kbd> | Erase the selection |
+| <kbd>esc</kbd> | Cancel the command |
+| <kbd>↩</kbd> or <kbd>space</kbd> | Repeat the last command |
+
+Typing works like in AutoCAD: start typing anywhere in the drawing and it goes to the command line.
 
 ```text
 line 0,0 @10,0 @0,5 c          a closed triangle
 circle 5,2 1                    a circle
 offset 0.25                     then pick the circle and a side
-zoom e                          zoom to extents
+zoom e                          zoom to the drawing's extents
 ```
 
-The web build: `cd apps/rustdraft-web && trunk serve` (needs [trunk](https://github.com/trunk-rs/trunk)).
+## Install
 
-### Fonts
+Download the file for your system from the
+[latest release](https://github.com/SkryxDev/RustDraft/releases/latest):
 
-RustDraft has no fonts in its repository; it uses the TrueType/OpenType fonts installed on your
-system. Builds made with the optional [craft-fonts](https://github.com/storytold/craft-fonts)
-input (`CRAFT_FONTS_DIR=<absolute path to a checkout> cargo build --release`) also embed its
-fonts: BIZ UDPGothic, BIZ UDMincho and Shippori Mincho (Japanese) and Noto Sans Arabic (the web
-build, which has no system fonts, only BIZ UDPGothic Regular and Noto Sans Arabic). A text style
-can use them by family name, and they draw characters a text's font lacks when no installed
-wide-coverage CJK font has them. Without `CRAFT_FONTS_DIR` nothing is embedded. SHX
-fonts (including big fonts such as `chineset.shx`) aren't read yet: text in an SHX style is drawn
-with our own stroke font, and any character a text's font lacks (CJK, for example) is drawn from
-an installed font that has it, preferring wide-coverage fonts such as Noto Sans CJK, Source Han
-Sans, WenQuanYi, PingFang or Microsoft JhengHei. Two settings, set with `SETVAR` or (for every
-run) an environment variable, steer this:
+| System | File |
+| --- | --- |
+| macOS (Apple silicon) | `RustDraft-<version>-macos-arm64.dmg` |
+| Windows x64 | `RustDraft-<version>-windows-x86_64.zip` |
+| Windows ARM64 | `RustDraft-<version>-windows-arm64.zip` |
+| Linux x64 | `RustDraft-<version>-linux-x86_64.tar.gz` |
 
-| Variable | Environment | Meaning |
-|---|---|---|
-| `FONTALT` | `RUSTDRAFT_FONTALT` | Font used instead of a text style font that can't be found (an SHX file, a missing TTF), by file or family name, e.g. `Noto Sans CJK TC`. Empty (default) = our stroke font. |
-| `FONTFALLBACK` | `RUSTDRAFT_FONTFALLBACK` | Fonts tried first for characters a text's font lacks, comma-separated, e.g. `Noto Sans CJK TC, msjh.ttc`. |
+**macOS** — open the DMG and drag **RustDraft** into **Applications**. The app is not notarized yet, so
+macOS blocks it the first time. Open it once, then go to **System Settings › Privacy & Security** and
+click **Open Anyway** — or run:
 
-`.` clears either one.
+```bash
+xattr -dr com.apple.quarantine /Applications/RustDraft.app
+```
 
-**Your own fonts.** Any `.ttf`, `.otf` or `.ttc` font works: install it in the system font folder
-(Windows `C:\Windows\Fonts` or per-user fonts, macOS `/Library/Fonts` or `~/Library/Fonts`,
-Linux and the BSDs `/usr/share/fonts`, `/usr/local/share/fonts`, `~/.local/share/fonts` or
-`~/.fonts`) and name it in a text style (`STYLE`, or `style {"name":"FA","font":"Vazirmatn"}`)
-by file name (`Vazirmatn-Regular.ttf`) or family name (`Vazirmatn`), or inline in MTEXT with
-`\fVazirmatn;`. Restart RustDraft after installing a font: the font folders are scanned once.
+**Windows** — unzip the folder anywhere and run `RustDraft.exe`. The build is not signed, so SmartScreen
+may stop it the first time: click **More info › Run anyway**.
 
-**Right-to-left text (Persian, Arabic, Urdu, Hebrew).** TEXT and MTEXT lines are laid out with the
-Unicode Bidirectional Algorithm (the paragraph direction comes from its first letter, so numbers
-and Latin words inside Persian text keep their own order), and Arabic-script text is shaped with
-OpenType (contextual letter forms, lam-alef and other ligatures, ZWNJ / ZWJ, mark positioning).
-Justification (left, centre, right, MTEXT attachment and wrapping) still refers to the text's box.
-Our stroke font has no Arabic letters, so Persian in a stroke-font style is drawn from an
-installed font that has them: Vazirmatn, Noto Naskh Arabic, Noto Sans Arabic, Segoe UI, Tahoma,
-Arial and DejaVu Sans are looked for first. To choose the font, install a free Persian font such
-as [Vazirmatn](https://github.com/rastikerdar/vazirmatn) (SIL Open Font License) and either use it
-in the text style or set `FONTFALLBACK` (`RUSTDRAFT_FONTFALLBACK="Vazirmatn"`). Formatting changes
-inside a word (an MTEXT colour change in the middle of a Persian word) break the joining at that
-point.
+**Linux** — unpack the archive and run `./rustdraft`. The `share/` folder holds a desktop entry and the
+icons for your menu.
 
-### Logs
+Every package also contains `rustdraft-cli`, the headless command-line tool and MCP server.
 
-The desktop app writes its `log` records to standard error and to `logs/rustdraft.log` in the
-settings directory (Linux and the BSDs `~/.config/rustdraft/logs/`, or
-`$XDG_CONFIG_HOME/rustdraft/logs/`; macOS `~/Library/Application Support/RustDraft/logs/`; Windows
-`%APPDATA%\RustDraft\logs\`; or under `RUSTDRAFT_CONFIG_DIR`). A start from a desktop menu or the
-Dock has no terminal, so this file is what to attach to a bug report. Each launch moves the
-previous log to `rustdraft.1.log` (and that one to `rustdraft.2.log`), so the log of a run that
-crashed survives the next start. The file stops growing at 16 MiB. `--version` writes no file.
+## Use it with AI agents
 
-| Variable | Effect |
-|---|---|
-| `RUSTDRAFT_CONFIG_DIR` | Use this directory instead of the platform settings directory (the log goes to its `logs/`); empty means no settings folder (no log file, autosave, workspace or plotters) |
-| `RUST_LOG` | Log levels for standard error and the log file. Default: `info` for RustDraft's own crates, `warn` for everything else. env_logger-style directives replace that, e.g. `RUST_LOG=debug`, `RUST_LOG=warn,rustdraft_io=trace` or `RUST_LOG=info,wgpu_core=warn`; a directive ending in `*` covers every target starting with it (`rustdraft*=debug`). `rustdraft_engine=debug` also logs every command-line message. |
+RustDraft ships an [MCP](https://modelcontextprotocol.io) server. Add it to Claude Desktop, Claude Code
+or any MCP client, and the agent draws in the open RustDraft window while you watch (on macOS it opens
+the app when needed):
 
-The logger is `apps/rustdraft/src/logging.rs`; the web build logs to the browser console instead.
+```json
+{
+  "mcpServers": {
+    "rustdraft": {
+      "command": "/Applications/RustDraft.app/Contents/MacOS/rustdraft-cli",
+      "args": ["mcp", "--connect", "127.0.0.1:7982", "--launch"]
+    }
+  }
+}
+```
 
-## Drive it from agents, MCP and the CLI
+The agent types at the command line (`command_line`), runs any command with JSON parameters
+(`execute`), reads the drawing (`inspect_drawing`, `query_entities`, `find_text`) and looks at it
+(`render`, `screenshot`). `rustdraft-cli mcp` with no `--connect` works on its own, without a window.
 
-```sh
-# MCP server on stdio, headless:
-rustdraft-cli mcp
-# …or bridged to the running app (start it with --control 7979):
-rustdraft-cli mcp --connect 127.0.0.1:7979
+The CLI also converts and renders drawings in scripts:
 
-# One-shot headless runs:
+```bash
+rustdraft-cli info drawing.dwg
+rustdraft-cli convert drawing.dxf drawing.pdf
 rustdraft-cli run --sample --script 'CIRCLE 22,3 1\n' --save out.dxf --export out.png
-rustdraft-cli info drawing.dxf
-rustdraft-cli convert drawing.dxf drawing.svg
-
-# Frame part of the drawing (model space, drawing units, lower-left corner first):
-rustdraft-cli convert drawing.dwg detail.png --window 0,0,20000,15000
-rustdraft-cli run drawing.dwg --cmd 'zoom {"mode":"window","p1":[0,0],"p2":[20000,15000]}' --export detail.png
-rustdraft-cli run drawing.dwg --cmd 'select {"window":[[0,0],[20000,15000]]}' --cmd 'zoom {"mode":"object"}' --export sel.png
-
-# Act on what an earlier --cmd made: {last} is the last handle it returned.
-rustdraft-cli run --metric --cmd 'layout.set {"name":"Layout1"}' \
-  --cmd 'mview {"p1":[20,20],"p2":[200,150]}' --cmd 'viewport.set {"handle":"{last}","scale":1}'
 ```
 
-How image exports (PNG 2400×1600, SVG, PDF) are framed: `convert` fits the model-space extents.
-`run --export` shows the current view when the script or commands changed it (`zoom`, `pan`,
-`view.set`, …) and otherwise fits the extents too. `--window x0,y0,x1,y1` shows exactly that
-rectangle, centred and scaled without distortion; `--view extents` or `--view current` forces
-either framing. To frame a selection set, `zoom {"mode":"object"}` after selecting.
+More: [MCP](docs/mcp.md) · [CLI](docs/cli.md) · [control channel](docs/control-protocol.md) ·
+[LISP, scripts and aliases](docs/customization.md) · [AutoLISP](docs/autolisp.md)
 
-When reading a file leaves something out (records a DXF reader can't place, object records of a
-damaged DWG), `info` reports it (`skipped`, `readNotes`), `convert` warns on stderr and `run`
-prints the DWG notes with its log; the exit code stays 0. MCP `open` replies with the notes as
-`warnings`.
+## Build from source
 
-MCP tools include `command_line` (type at the prompt), `execute` (any command with JSON),
-`inspect_drawing`, `query_entities`, `render` (returns a PNG) and, when connected to the app,
-`screenshot` and `ui_click`. The desktop app's JSON control channel is documented in
-[docs/control-protocol.md](docs/control-protocol.md).
+Requirements: **Rust 1.95** or later. On Linux, also the development packages for X11/Wayland and
+fontconfig (`pkg-config libxkbcommon-dev libwayland-dev libx11-dev libfontconfig1-dev` on Debian/Ubuntu).
 
-To run LISP routines, scripts and alias files, or to drive RustDraft from your own programs, see
-[docs/customization.md](docs/customization.md).
-
-`rustdraft-cli --help` documents every subcommand and flag; exit codes, streams, environment
-variables and its RFC-0012 conventions are in [docs/cli.md](docs/cli.md).
-
-## Architecture
-
-```text
-geom ─┐                       f64 geometry: arcs, bulges, splines, intersections, offsets
-dxf   │  (standalone)         DXF tag reader/writer
-color ┤                       colour index, true colour
-doc   ┤                       drawing database, copy-on-write entity store (cheap undo)
-fonts ┤ render               stroke font + TEXT/MTEXT layout │ display lists, linetypes, hatches, dims, CPU raster
-io    ┤                       DXF mapping, SVG/PNG export
-engine┤                       sessions, commands, command line + prompts, snaps, selection, undo
-ui-egui · mcp                 the swappable egui front end · MCP server
-apps: rustdraft · rustdraft-cli · rustdraft-web
+```bash
+git clone https://github.com/SkryxDev/RustDraft.git
+cd RustDraft
+cargo run --release -p rustdraft -- --sample
 ```
 
-Nothing below `ui-egui` knows about egui, so the front end can be replaced. `cargo xtask ci`
-checks formatting, clippy, tests, asset attribution, the crate layering and the wasm build.
+`--sample` opens the sample drawing. To build the app and the CLI without running them:
 
-Drafting and layer-palette icon buttons use the pinned `craft-ui` button component for interaction,
-accessible labels and keyboard focus. RustDraft keeps its multicolor icon painter, dark palette,
-disabled tint and tool commands. The native host saves workspace visibility and toolset choices
-atomically; `RUSTDRAFT_CONFIG_DIR` selects an isolated profile. Compact toolbar groups move into a
-More menu, and status readouts truncate with a full-value tooltip before they reach layout tabs.
-Painted toolbar and tab controls
-have accessible labels and visible keyboard focus. Property controls remain application-specific.
+```bash
+cargo build --release -p rustdraft -p rustdraft-cli
+```
 
-## Accessibility
+The programs are written to `target/release/` (`rustdraft` and `rustdraft-cli`). The interface fonts for
+Chinese, Japanese, Korean, Arabic, Thai and more come from the optional
+[craft-fonts](https://github.com/storytold/craft-fonts) repository: clone it and set
+`CRAFT_FONTS_DIR=/path/to/craft-fonts` before building to embed them. Without it RustDraft uses the fonts
+installed on your system.
 
-### System cursor
+The quality checks — formatting, clippy, tests, asset licences, crate layering and the web build — run
+with:
 
-Over the drawing area RustDraft hides the system cursor and draws its own crosshair. Tools that follow the system cursor (Windows Magnifier set to follow or centre the mouse pointer, other screen magnifiers, screen recorders, remote desktops) lose track of it there. Turn on **View ▸ Accessibility ▸ Show System Cursor** to keep a small system crosshair visible at the centre of the drawn one, or start RustDraft with the environment variable `RUSTDRAFT_SYSTEM_CURSOR=1` (on Windows, set it once with `setx RUSTDRAFT_SYSTEM_CURSOR 1` and start RustDraft again). Agents can switch it with the control channel: `ui.set {"systemCursor": true}`.
+```bash
+cargo xtask ci
+```
 
-### Animation effects
+Releases are built by [the release workflow](.github/workflows/release.yml) when a `v*` tag is pushed;
+see [docs/releasing.md](docs/releasing.md).
 
-RustDraft follows the operating system's animation setting. When the system is set to show no animations, dialogs, menus and tooltips appear at once instead of fading in, collapsing sections and scroll bars change at once, and the mouse wheel scrolls lists a whole step at a time instead of gliding. Zooming the drawing with the wheel always moves a whole step; with Ctrl held (a touchpad pinch, on Windows) it glides to the new zoom only while animation effects show.
+## How it works
 
-| System | Where the setting is |
-|---|---|
-| Windows | Settings ▸ Accessibility ▸ Visual effects ▸ Animation effects |
-| macOS | System Settings ▸ Accessibility ▸ Reduce motion |
-| Linux, BSD | the desktop's reduced-motion (or animations) setting, read through the XDG Desktop Portal |
-| Web | the browser's `prefers-reduced-motion` |
+```
+crates/
+├── geom/          f64 geometry: arcs, bulges, splines, intersections, offsets
+├── dxf/           DXF tag reader and writer
+├── dwg/           DWG reading and writing
+├── color/         colour index and true colour
+├── doc/           the drawing database (copy-on-write entities, cheap undo)
+├── fonts/         our own stroke font, TrueType and TEXT/MTEXT layout
+├── render/        display lists, linetypes, hatches, dimensions, CPU raster
+├── constraints/   geometric and dimensional constraint solver
+├── io/            DXF/DWG mapping, SVG, PNG and PDF export
+├── engine/        sessions, commands, command line and prompts, snaps, selection, undo
+├── ui-egui/       the interface: ribbon, canvas, palettes, dialogs
+└── mcp/           the MCP server
+apps/
+├── rustdraft/     the desktop app
+├── rustdraft-cli/ the command-line tool
+└── rustdraft-web/ a browser build (WebAssembly)
+```
 
-A change to the system setting is picked up while RustDraft runs, within a few seconds. To choose for RustDraft alone, use **View ▸ Accessibility ▸ Animation Effects**: **Use System Setting** (the default), **On** or **Off**. Options ▸ Display has the same choice. Agents can set it with the control channel: `ui.set {"animations": "off"}` (`"system"`, `"on"` or `"off"`), and `ui.inspect` reports whether animations show (`animations`).
+- **Everything is a command.** The ribbon, menus, command line, scripts, the CLI, the control channel and
+  MCP all run the same commands, defined once in `crates/engine/src/cmd/`.
+- **The interface is a thin layer.** Nothing below `ui-egui` knows about the GUI toolkit, and
+  `cargo xtask layers` checks it, so the front end can be replaced.
+- **It never panics on your data.** Files, typed input and agent requests are treated as hostile; every
+  command runs behind a guard that restores the drawing and reports an error instead of crashing.
+- **Drawing happens on the GPU** through wgpu (Metal, DirectX 12, Vulkan), with a CPU fallback.
+- **No borrowed artwork.** Every icon is drawn in code, and the hatch patterns, linetypes and drafting
+  font are RustDraft's own definitions; [ATTRIBUTION.md](ATTRIBUTION.md) lists every asset file.
 
-Drafting feedback is not an animation effect and stays as it is: rubber bands and previews, snap markers, the pause that acquires an object snap tracking point, the text cursor's blink, the spinner shown while a drawing opens, and pan and zoom, which follow the pointer and the wheel directly.
+Settings, logs and autosaves live in `~/Library/Application Support/RustDraft` on macOS,
+`%APPDATA%\RustDraft` on Windows and `~/.config/rustdraft` on Linux.
 
-## License and credits
+## Status
 
-RustDraft is licensed under the MIT License or the Apache License 2.0, at your option
-(`LICENSE-MIT`, `LICENSE-APACHE`).
+RustDraft is young. 2D drafting, dimensioning, layouts and plotting work; 3D modelling is not there yet,
+and some object types that DWG/DXF files can contain can be lost on save. [ROADMAP.md](ROADMAP.md) lists
+what works, what is missing and what comes next.
 
-RustDraft is a derivative of **CADCraft** (https://github.com/storytold/cadcraft), copyright (c)
-2026 the ArtCraft Team and the CADCraft contributors, used under the same MIT OR Apache-2.0
-licence. Their copyright notice is kept in `LICENSE-MIT` and `NOTICE`; third-party material is
-listed in `NOTICE` and `ATTRIBUTION.md`. RustDraft's changes (the Windows-style ribbon
-workspace, the new name and icon, and the rest of this repository's history) are by Skryx Dev.
+## Found a bug?
 
-RustDraft is an independent project. It is not made, sponsored or endorsed by the ArtCraft Team
-or the CADCraft project, and it is not affiliated with, sponsored by or endorsed by Autodesk, Inc.
-AutoCAD and DWG are trademarks of Autodesk, Inc.; they are named only to describe compatibility.
-All of RustDraft's icons are drawn in code; no Autodesk icons, fonts or artwork are used.
+Please [open an issue](https://github.com/SkryxDev/RustDraft/issues/new) with what you did, what you
+expected and what happened — a screenshot or the drawing helps a lot. The log file is in the `logs`
+folder of the settings directory above.
+
+Pull requests are welcome too: fork the repository, make your change on a branch, run
+`cargo xtask ci`, and [open a pull request](https://github.com/SkryxDev/RustDraft/pulls).
+
+## License
+
+RustDraft is licensed under the [MIT License](LICENSE-MIT) or the [Apache License 2.0](LICENSE-APACHE),
+at your option. Third-party material is listed in [NOTICE](NOTICE) and [ATTRIBUTION.md](ATTRIBUTION.md).
+
+## Credits
+
+Made by **[SkryxDev](https://github.com/SkryxDev)**.
+
+RustDraft is based on [CADCraft](https://github.com/storytold/cadcraft) by the ArtCraft Team and the
+CADCraft contributors, used under the same MIT OR Apache-2.0 licence; their copyright notice is kept in
+[LICENSE-MIT](LICENSE-MIT) and [NOTICE](NOTICE). RustDraft is an independent project: it is not made,
+sponsored or endorsed by them, and it is not affiliated with, sponsored by or endorsed by Autodesk, Inc.
+AutoCAD and DWG are trademarks of Autodesk, Inc., named here only to describe compatibility.
