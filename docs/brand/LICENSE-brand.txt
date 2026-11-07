@@ -15,11 +15,14 @@ Origin
   of WithShalom Studios. The ™ sign marks a claimed trademark; it is not a registration.
 
 Use in this repository
-  WithShalom Studios lets this repository (https://github.com/SkryxDev/RustDraft, under whatever name
-  it later carries) and its maintainer, SkryxDev, use the marks for the application developed here,
-  which SkryxDev and WithShalom Studios develop together. The program was released as RustDraft; it
-  carries the DraftCraft name and logo by this agreement. WithShalom Studios may end or change this
-  permission; the code itself stays under its open-source licence either way.
+  WithShalom Studios lets this repository (https://github.com/SkryxDev/DraftCraft, formerly
+  https://github.com/SkryxDev/RustDraft, under whatever name it later carries) and its maintainer,
+  SkryxDev, use the marks for the application developed here, which SkryxDev and WithShalom Studios
+  develop together. SkryxDev made the program, released as RustDraft (versions 1.0 and 1.1); from
+  version 2.0 it carries the DraftCraft name, logo and app icon by this agreement. SkryxDev keeps the
+  credit for RustDraft and for his work in DraftCraft; the marks stay WithShalom Studios'.
+  WithShalom Studios may end or change this permission; the code itself stays under its open-source
+  licence either way.
 
 What the code licence covers
   The source code and the files in this repository are licensed under the MIT License or the Apache
