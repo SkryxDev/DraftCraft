@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>DraftCraft</title>
   <link data-trunk rel="rust" data-bin="draftcraft-web" data-wasm-opt="z" data-weak-refs />
+  <link data-trunk rel="icon" href="../../assets/app-icon/draftcraft-64.png" type="image/png" />
+  <link data-trunk rel="copy-file" href="../../assets/app-icon/draftcraft-256.png" />
+  <link rel="apple-touch-icon" href="draftcraft-256.png" />
   <style>
     html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #22282f; }
     #draftcraft_canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
@@ -14,6 +17,6 @@
 </head>
 <body>
   <canvas id="draftcraft_canvas"></canvas>
-  <div id="draftcraft_loading">Loading DraftCraft&hellip;</div>
+  <div id="draftcraft_loading"><img src="draftcraft-256.png" width="96" height="96" alt="" style="margin-bottom:16px">Loading DraftCraft&hellip;</div>
 </body>
 </html>

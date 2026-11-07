@@ -380,15 +380,17 @@ pub fn start_page(app: &mut CadApp, ui: &mut egui::Ui) {
     let left = Rect::from_min_size(r.min, vec2(300.0, r.height()));
     p.rect_filled(left, 0.0, t.chrome_dark);
     p.rect_filled(Rect::from_min_max(pos2(left.right(), r.top()), r.max), 0.0, t.chrome);
+    // The DraftCraft logo beside the name and version.
+    crate::brand::paint(&p, Rect::from_min_size(pos2(left.left() + 30.0, left.top() + 56.0), vec2(56.0, 56.0)));
     p.text(
-        pos2(left.left() + 34.0, left.top() + 70.0),
+        pos2(left.left() + 98.0, left.top() + 70.0),
         egui::Align2::LEFT_CENTER,
         crate::tl!("DraftCraft"),
         egui::FontId::proportional(28.0),
         t.text,
     );
     p.text(
-        pos2(left.left() + 34.0, left.top() + 98.0),
+        pos2(left.left() + 98.0, left.top() + 98.0),
         egui::Align2::LEFT_CENTER,
         crate::tf!("Version {version}", version = env!("CARGO_PKG_VERSION")),
         crate::theme::small(),

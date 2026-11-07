@@ -694,14 +694,29 @@ pub(crate) fn entry_ui(ui: &mut egui::Ui, e: &Entry, clicked: &mut Option<String
 pub fn menu_bar(app: &mut CadApp, ui: &mut egui::Ui) {
     let t = crate::theme::Tokens::get();
     let mut clicked = None;
-    egui::Panel::top("cc_menubar")
-        .exact_size(22.0)
-        .frame(egui::Frame::NONE.fill(t.chrome_dark).inner_margin(egui::Margin::symmetric(6, 0)))
-        .show(ui, |ui| clicked = menu_titles(app, ui));
+    // The same row as DraftCraft's own title bar on Windows: the logo, the name, then the menus.
+    egui::Panel::top("cc_menubar").exact_size(MENU_BAR_H).frame(egui::Frame::NONE.fill(t.chrome_dark)).show(ui, |ui| {
+        let r = ui.max_rect();
+        let p = ui.painter().clone();
+        let logo = egui::Rect::from_center_size(egui::pos2(r.left() + 17.0, r.center().y), egui::vec2(18.0, 18.0));
+        crate::brand::paint(&p, logo);
+        let name = p.layout_no_wrap("DraftCraft".to_string(), egui::FontId::proportional(13.0), t.text);
+        let name_x = logo.right() + 7.0;
+        let name_w = name.size().x;
+        p.galley(egui::pos2(name_x, r.center().y - name.size().y / 2.0), name, t.text);
+        let menus = egui::Rect::from_min_max(egui::pos2(name_x + name_w + 12.0, r.top()), r.max);
+        ui.scope_builder(egui::UiBuilder::new().max_rect(menus).layout(egui::Layout::left_to_right(egui::Align::Center)), |ui| {
+            ui.set_clip_rect(menus);
+            clicked = menu_titles(app, ui);
+        });
+    });
     if let Some(id) = clicked {
         activate(app, &id);
     }
 }
+
+/// Height of the in-window menu bar: the same as DraftCraft's own title bar on Windows.
+const MENU_BAR_H: f32 = 30.0;
 
 /// The menu titles (File, Edit … Help) and their menus, in `ui`. Returns the command chosen.
 pub fn menu_titles(app: &CadApp, ui: &mut egui::Ui) -> Option<String> {

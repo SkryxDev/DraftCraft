@@ -22,6 +22,7 @@ pub mod aliasdlg;
 pub mod animation;
 pub mod autosave;
 pub mod bedit;
+pub mod brand;
 pub mod canvas;
 pub mod capture;
 pub mod chrome;
@@ -904,10 +905,12 @@ impl CadApp {
         if self.own_window_frame {
             window_frame::title_bar(self, ui);
         }
-        ribbon::title_and_ribbon(self, ui);
+        // The menu bar is the top row, as in DraftCraft's own title bar on Windows: above the
+        // application bar and the ribbon, not under them.
         if self.ui.in_window_menu && !self.own_window_frame {
             menus::menu_bar(self, ui);
         }
+        ribbon::title_and_ribbon(self, ui);
         if self.ui.show_status_bar {
             chrome::status_bar(self, ui);
         }
