@@ -5,8 +5,8 @@
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 
-use rustdraft_doc::{Drawing, Entity, EntityKind, Handle, Insert, MAX_BLOCK_DEPTH, Space};
-use rustdraft_geom::{Mat3, Vec2};
+use draftcraft_doc::{Drawing, Entity, EntityKind, Handle, Insert, MAX_BLOCK_DEPTH, Space};
+use draftcraft_geom::{Mat3, Vec2};
 use serde_json::{Value, json};
 
 use super::super::{bad, bool_or, point_req, str_param, targets};
@@ -418,7 +418,7 @@ pub(super) fn run_countlist(s: &mut Session, p: &Value) -> Result<Value> {
 }
 
 /// The current table style (CTABLESTYLE, else the first).
-fn table_style(s: &Session) -> rustdraft_doc::TableStyle {
+fn table_style(s: &Session) -> draftcraft_doc::TableStyle {
     let Ok(d) = s.doc() else { return Default::default() };
     let cur = d.header.str("CTABLESTYLE", "Standard");
     d.table_styles.iter().find(|t| t.name.eq_ignore_ascii_case(&cur)).or(d.table_styles.first()).cloned().unwrap_or_default()

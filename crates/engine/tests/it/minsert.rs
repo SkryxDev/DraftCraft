@@ -4,8 +4,8 @@
 
 use std::f64::consts::PI;
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{EntityKind, Insert};
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{EntityKind, Insert};
 use serde_json::{Value, json};
 
 fn handle(v: &Value) -> String {

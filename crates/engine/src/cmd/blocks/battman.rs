@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use rustdraft_doc::{Attrib, Block, EntityKind, EntityStore, Handle};
+use draftcraft_doc::{Attrib, Block, EntityKind, EntityStore, Handle};
 use serde_json::{Value, json};
 
 use super::attribs::{blocks_with_attdefs, has_attdefs, reference_count, rename_tag, sync};

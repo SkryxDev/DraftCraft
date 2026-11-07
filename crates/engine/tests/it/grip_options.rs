@@ -2,9 +2,9 @@
 //! Copy, Undo, Reference and eXit; Enter cycles the modes; several grips can be hot at once.
 //! A whole grip edit, copies included, is one undo step.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{EntityKind, Handle};
-use rustdraft_engine::geom::Vec2;
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{EntityKind, Handle};
+use draftcraft_engine::geom::Vec2;
 use serde_json::json;
 
 fn line(s: &mut Session, a: [f64; 2], b: [f64; 2]) -> Handle {

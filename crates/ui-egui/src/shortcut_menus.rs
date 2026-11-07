@@ -7,7 +7,7 @@
 //! `drawing:<op>:<index>` and `cmdline:<op>`. Items for commands that aren't registered are
 //! left out.
 
-use rustdraft_engine::{Input, find_command};
+use draftcraft_engine::{Input, find_command};
 use serde_json::{Value, json};
 
 use crate::CadApp;

@@ -1,53 +1,53 @@
 {
-  "id": "rustdraft",
-  "name": "RustDraft",
+  "id": "draftcraft",
+  "name": "DraftCraft",
   "upgradeCode": "119D7D76-0167-4A9E-8F37-09DA0235F68E",
   "sources": [
-    "rustdraft.wxs"
+    "draftcraft.wxs"
   ],
-  "icon": "assets/app-icon/rustdraft.ico",
+  "icon": "assets/app-icon/draftcraft.ico",
   "localization": [],
   "extensions": [
     "UI"
   ],
   "payloads": [
-    "rustdraft-cli.exe",
-    "rustdraft.exe"
+    "draftcraft-cli.exe",
+    "draftcraft.exe"
   ],
   "registry": [
     [
       "-1",
-      "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\rustdraft.exe",
+      "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\draftcraft.exe",
       "",
-      "[#RustdraftExe]"
+      "[#DraftcraftExe]"
     ],
     [
       "-1",
-      "Software\\Classes\\Applications\\rustdraft.exe\\shell\\open\\command",
+      "Software\\Classes\\Applications\\draftcraft.exe\\shell\\open\\command",
       "",
-      "\"[#RustdraftExe]\" \"%1\""
+      "\"[#DraftcraftExe]\" \"%1\""
     ],
     [
       "-1",
       "Software\\Classes\\.dxf\\OpenWithProgids",
-      "RustDraft.Drawing",
+      "DraftCraft.Drawing",
       ""
     ],
     [
       "-1",
       "Software\\Classes\\.dwg\\OpenWithProgids",
-      "RustDraft.Drawing",
+      "DraftCraft.Drawing",
       ""
     ],
     [
       "-1",
-      "Software\\Classes\\RustDraft.Drawing\\shell\\open\\command",
+      "Software\\Classes\\DraftCraft.Drawing\\shell\\open\\command",
       "",
-      "\"[#RustdraftExe]\" \"%1\""
+      "\"[#DraftcraftExe]\" \"%1\""
     ],
     [
       "-1",
-      "Software\\Skryx Dev\\RustDraft",
+      "Software\\Skryx Dev\\DraftCraft",
       "DesktopShortcut",
       "1"
     ]

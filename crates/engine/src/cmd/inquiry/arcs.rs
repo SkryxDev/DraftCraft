@@ -3,8 +3,8 @@
 //! bulge of the segment that starts at it; the last point's bulge is the closing segment's,
 //! which only CLose sets.
 
-use rustdraft_doc::EntityKind;
-use rustdraft_geom::{PolyVertex, Polyline, Vec2, arc_to_bulge, bulge_to_arc};
+use draftcraft_doc::EntityKind;
+use draftcraft_geom::{PolyVertex, Polyline, Vec2, arc_to_bulge, bulge_to_arc};
 
 use super::super::helpers::lwpoly;
 use super::super::machines::number;

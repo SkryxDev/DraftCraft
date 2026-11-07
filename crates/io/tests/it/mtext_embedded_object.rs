@@ -3,11 +3,11 @@
 //! one for MTEXT with column settings, and the DWG bridge does too. Reading 11 from it as the
 //! direction turned the text towards its own insertion point (#667).
 
-use rustdraft_doc::{Common, Drawing, EntityKind, MText, Space};
-use rustdraft_geom::Vec3;
-use rustdraft_io::{read_dxf, write_dxf};
+use draftcraft_doc::{Common, Drawing, EntityKind, MText, Space};
+use draftcraft_geom::Vec3;
+use draftcraft_io::{read_dxf, write_dxf};
 
-/// An MTEXT at (30, 17) with `rotation`, written by RustDraft, then given an embedded object
+/// An MTEXT at (30, 17) with `rotation`, written by DraftCraft, then given an embedded object
 /// as AutoCAD writes it: direction `dir` in 10/20/30 and the insertion point in 11/21/31.
 fn with_embedded_object(rotation: f64, dir: (f64, f64)) -> String {
     let mut d = Drawing::new_metric();

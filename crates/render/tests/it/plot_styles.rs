@@ -4,10 +4,10 @@
 
 use std::sync::Arc;
 
-use rustdraft_color::{Color, Rgb};
-use rustdraft_doc::{Common, Drawing, EntityKind, Line, Lineweight, PlotStyle, PlotStyleKind, PlotStyleTable, Space};
-use rustdraft_geom::Vec3;
-use rustdraft_render::{DisplayList, Options, build, build_plot};
+use draftcraft_color::{Color, Rgb};
+use draftcraft_doc::{Common, Drawing, EntityKind, Line, Lineweight, PlotStyle, PlotStyleKind, PlotStyleTable, Space};
+use draftcraft_geom::Vec3;
+use draftcraft_render::{DisplayList, Options, build, build_plot};
 
 const BLACK: Rgb = Rgb(0, 0, 0);
 
@@ -118,7 +118,7 @@ fn hostile_tables_do_not_panic() {
 
 #[test]
 fn named_styles_by_layer_by_block_and_name() {
-    use rustdraft_doc::{Block, Entity, Handle, Insert, Layer};
+    use draftcraft_doc::{Block, Entity, Handle, Insert, Layer};
     let mut d = Drawing::new_metric();
     d.layers.push(Layer { name: "Walls".into(), color: Color::Index(1), plot_style: "Black".into(), ..Layer::new("Walls") });
     let red = |plot_style: &str| Common { layer: "Walls".into(), plot_style: plot_style.into(), ..Default::default() };

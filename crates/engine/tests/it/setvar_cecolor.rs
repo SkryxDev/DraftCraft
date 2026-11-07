@@ -2,8 +2,8 @@
 //! index (#1999). `getvar CECOLOR` reads it back as AutoCAD does, as text: "BYLAYER", "BYBLOCK",
 //! the index ("1" for red) or "RGB:r,g,b".
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::color::{Color, Rgb};
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::color::{Color, Rgb};
 use serde_json::{Value, json};
 
 fn cecolor(s: &mut Session) -> Value {
@@ -65,7 +65,7 @@ fn getvar_cecolor_restores_a_true_colour() {
 fn setvar_cecolor_lists_cecolor_as_text() {
     let mut s = Session::new();
     s.execute("setvar", &json!({ "name": "CECOLOR", "value": "red" })).unwrap();
-    assert_eq!(rustdraft_engine::sysvars::list(&s)["CECOLOR"], json!("1"));
+    assert_eq!(draftcraft_engine::sysvars::list(&s)["CECOLOR"], json!("1"));
 }
 
 #[test]

@@ -17,7 +17,7 @@
 
 use std::f64::consts::{FRAC_PI_4, TAU};
 
-use rustdraft_geom::Vec2;
+use draftcraft_geom::Vec2;
 
 use super::{ShxFont, ShxGlyph, ShxKind};
 

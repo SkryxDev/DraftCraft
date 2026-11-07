@@ -1,7 +1,7 @@
 //! Isometric drafting commands: ISODRAFT (isometric snap style on with a plane, or back to
 //! orthographic), ISOPLANE (the current plane; F5 cycles it) and ELLIPSE's Isocircle option.
 
-use rustdraft_geom::{Ellipse, Vec2};
+use draftcraft_geom::{Ellipse, Vec2};
 use serde_json::{Value, json};
 
 use super::super::{bad, f64_req, point_req, str_param};
@@ -134,13 +134,13 @@ pub(crate) fn run_isocircle(s: &mut Session, p: &Value) -> Result<Value> {
     Ok(json!({ "handle": h.hex(), "plane": plane.name() }))
 }
 
-pub(crate) fn ellipse_entity(e: &Ellipse) -> rustdraft_doc::EntityKind {
-    rustdraft_doc::EntityKind::Ellipse(rustdraft_doc::Ellipse {
+pub(crate) fn ellipse_entity(e: &Ellipse) -> draftcraft_doc::EntityKind {
+    draftcraft_doc::EntityKind::Ellipse(draftcraft_doc::Ellipse {
         center: e.center.to3(0.0),
         major: e.major.to3(0.0),
         ratio: e.ratio,
         start: 0.0,
-        end: rustdraft_geom::TAU,
+        end: draftcraft_geom::TAU,
     })
 }
 

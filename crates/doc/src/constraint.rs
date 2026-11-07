@@ -1,7 +1,7 @@
 //! Parametric drawing data: geometric and dimensional constraints, user parameters and the
 //! parametric settings (GEOMCONSTRAINT, DIMCONSTRAINT, PARAMETERS, CONSTRAINTSETTINGS).
 //!
-//! Only the data lives here; the solver is `rustdraft-constraints`.
+//! Only the data lives here; the solver is `draftcraft-constraints`.
 
 use serde::{Deserialize, Serialize};
 

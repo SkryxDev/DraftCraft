@@ -7,8 +7,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
-use rustdraft_doc::{Drawing, EntityKind, Image, Raster};
-use rustdraft_geom::Vec2;
+use draftcraft_doc::{Drawing, EntityKind, Image, Raster};
+use draftcraft_geom::Vec2;
 use serde_json::{Value, json};
 
 use super::file::base64_decode;
@@ -132,7 +132,7 @@ pub(crate) fn after_open(s: &mut Session, i: usize) {
 
 /// Read and decode into `rasters` the files of `paths` that are not in it yet, for a drawing at
 /// `host`. Returns one message per file that could not be loaded.
-fn load_missing(paths: &[String], host: Option<&str>, rasters: &mut rustdraft_doc::Rasters) -> Vec<String> {
+fn load_missing(paths: &[String], host: Option<&str>, rasters: &mut draftcraft_doc::Rasters) -> Vec<String> {
     let mut notes = Vec::new();
     let mut missing: Vec<&str> = paths.iter().map(String::as_str).filter(|p| rasters.get(p).is_none()).collect();
     if missing.len() > MAX_IMAGE_FILES {

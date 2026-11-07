@@ -2,8 +2,8 @@
 //! degenerate or invalid object (a negative radius made positive, a zero hatch scale, a
 //! zero-length line …) instead of adding it (#343).
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::EntityKind;
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::EntityKind;
 use serde_json::{Value, json};
 
 fn count(s: &Session) -> usize {

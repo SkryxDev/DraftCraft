@@ -2,8 +2,8 @@
 //! selecting it and starting OFFSET used to ask for the object again. Now the preselected object
 //! goes straight to the side prompt; a multiple selection still asks which object to offset.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{EntityKind, Handle};
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{EntityKind, Handle};
 use serde_json::json;
 
 /// Every line as ((ax, ay), (bx, by)), sorted by the first y.

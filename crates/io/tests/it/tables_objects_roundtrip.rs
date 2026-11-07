@@ -1,11 +1,11 @@
 //! DXF save → reopen keeps table and object-section data: complex linetype elements,
 //! multileader styles, layout page setups, named views, UCSs and groups.
 
-use rustdraft_doc::geom::{Vec2, Vec3};
-use rustdraft_doc::{
+use draftcraft_doc::geom::{Vec2, Vec3};
+use draftcraft_doc::{
     Common, DashElement, Drawing, EntityKind, Group, Line, Linetype, MLeaderStyle, NamedView, Space, TableStyle, TextStyle, Ucs, library,
 };
-use rustdraft_io::{read_dxf, write_dxf};
+use draftcraft_io::{read_dxf, write_dxf};
 
 fn round_trip(d: &Drawing) -> Drawing {
     read_dxf(write_dxf(d).as_bytes()).expect("reopen")
@@ -76,8 +76,8 @@ fn multileader_styles_and_current_style_round_trip() {
     d.mleader_styles.push(callout);
     d.header.set_str("CMLEADERSTYLE", "Callout");
     let text = write_dxf(&d);
-    let tags = rustdraft_dxf::parse(text.as_bytes()).expect("parse written DXF");
-    let header = rustdraft_dxf::sections(&tags).into_iter().find(|s| s.name == "HEADER").expect("HEADER");
+    let tags = draftcraft_dxf::parse(text.as_bytes()).expect("parse written DXF");
+    let header = draftcraft_dxf::sections(&tags).into_iter().find(|s| s.name == "HEADER").expect("HEADER");
     assert!(header.tags.iter().all(|t| t.code != 9 || t.str() != "$CMLEADERSTYLE"));
     let r = read_dxf(text.as_bytes()).expect("reopen");
     assert_eq!(r.mleader_styles, d.mleader_styles);

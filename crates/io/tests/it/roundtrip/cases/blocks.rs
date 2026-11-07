@@ -3,9 +3,9 @@
 
 use std::sync::Arc;
 
-use rustdraft_color::Color;
-use rustdraft_doc::{Attrib, AttribModes, AttribProps, Block, Common, Entity, EntityKind, Insert, Line, Lineweight, Space, Text};
-use rustdraft_geom::Vec3;
+use draftcraft_color::Color;
+use draftcraft_doc::{Attrib, AttribModes, AttribProps, Block, Common, Entity, EntityKind, Insert, Line, Lineweight, Space, Text};
+use draftcraft_geom::Vec3;
 
 use super::{Case, drawing, text};
 
@@ -196,8 +196,8 @@ pub(crate) fn multiline_attributes() -> Vec<Case> {
             let decorate = |a: &mut Attrib| {
                 a.text.insert = text_point;
                 a.text.value = "first\nsecond".into();
-                a.multiline = Some(rustdraft_doc::MultilineAttrib {
-                    mtext: rustdraft_doc::MText {
+                a.multiline = Some(draftcraft_doc::MultilineAttrib {
+                    mtext: draftcraft_doc::MText {
                         insert: mtext_point,
                         height: 1.0,
                         width: 6.0,

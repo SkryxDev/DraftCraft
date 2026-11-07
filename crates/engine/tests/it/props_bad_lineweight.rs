@@ -1,7 +1,7 @@
 //! `properties.set` rejects a lineweight it cannot parse and leaves the object's lineweight alone.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{EntityKind, Handle, Lineweight};
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{EntityKind, Handle, Lineweight};
 use serde_json::json;
 
 fn lineweight(s: &Session, h: Handle) -> Lineweight {

@@ -1,8 +1,8 @@
 //! BREAK on a closed polyline removes the stretch from the first to the second point along the
 //! vertex direction and leaves one open polyline (#1173).
 
-use rustdraft_doc::{EntityKind, LwPolyline};
-use rustdraft_engine::Session;
+use draftcraft_doc::{EntityKind, LwPolyline};
+use draftcraft_engine::Session;
 use serde_json::{Value, json};
 
 fn polys(s: &Session) -> Vec<LwPolyline> {

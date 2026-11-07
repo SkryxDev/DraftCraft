@@ -1,9 +1,9 @@
 //! Carets in TEXT, ATTDEF, ATTRIB and DIMENSION strings are written as `^ ` and read back: AutoCAD
 //! reads a bare `^2` in `10^2` as a control character. A tab is `^I`, as AutoCAD writes it.
 
-use rustdraft_doc::{Attrib, Common, DimKind, Dimension, Drawing, EntityKind, HAlign, Space, Text, VAlign};
-use rustdraft_geom::Vec3;
-use rustdraft_io::{read_dxf, write_dxf};
+use draftcraft_doc::{Attrib, Common, DimKind, Dimension, Drawing, EntityKind, HAlign, Space, Text, VAlign};
+use draftcraft_geom::Vec3;
+use draftcraft_io::{read_dxf, write_dxf};
 
 fn text(value: &str) -> Text {
     Text {
@@ -91,8 +91,8 @@ fn carets_are_written_escaped_and_read_back() {
     assert_eq!(all_strings(&tab)[0], "A\tB");
     assert!(write_dxf(&tab).contains("A^IB"));
     // Through a DWG.
-    let dwg = rustdraft_io::write(&drawing(), "t.dwg").unwrap();
-    assert_eq!(all_strings(&rustdraft_io::read(&dwg, "t.dwg").unwrap()), all_strings(&drawing()));
+    let dwg = draftcraft_io::write(&drawing(), "t.dwg").unwrap();
+    assert_eq!(all_strings(&draftcraft_io::read(&dwg, "t.dwg").unwrap()), all_strings(&drawing()));
 }
 
 #[test]
@@ -109,18 +109,18 @@ fn entget_shows_plain_carets_and_entmake_takes_them() {
     let mut d = Drawing::new_metric();
     d.add(&Space::Model, Common::default(), EntityKind::Text(text("x^ y 10^2"))).unwrap();
     let e = d.model.iter().next().unwrap();
-    let (kind, groups) = rustdraft_io::entity_groups(&d, e);
+    let (kind, groups) = draftcraft_io::entity_groups(&d, e);
     assert!(groups.iter().any(|t| t.code == 1 && t.str() == "x^ y 10^2"), "{groups:?}");
     // entmod of entget changes nothing; entmake takes a plain string.
-    let (_, back) = rustdraft_io::entity_from_groups(&kind, &groups).unwrap();
+    let (_, back) = draftcraft_io::entity_from_groups(&kind, &groups).unwrap();
     assert_eq!(strings(&back), ["x^ y 10^2"]);
-    let made = [rustdraft_dxf::Tag::s(1, "p^ q")];
-    assert_eq!(strings(&rustdraft_io::entity_from_groups("TEXT", &made).unwrap().1), ["p^ q"]);
+    let made = [draftcraft_dxf::Tag::s(1, "p^ q")];
+    assert_eq!(strings(&draftcraft_io::entity_from_groups("TEXT", &made).unwrap().1), ["p^ q"]);
     // Every kind, and a DIMENSION's style name (also group 3) as it is.
     let d = drawing();
     for e in d.model.iter() {
-        let (kind, groups) = rustdraft_io::entity_groups(&d, e);
-        let (_, back) = rustdraft_io::entity_from_groups(&kind, &groups).unwrap();
+        let (kind, groups) = draftcraft_io::entity_groups(&d, e);
+        let (_, back) = draftcraft_io::entity_from_groups(&kind, &groups).unwrap();
         assert_eq!(strings(&back), strings(&e.kind), "{kind}");
     }
 }

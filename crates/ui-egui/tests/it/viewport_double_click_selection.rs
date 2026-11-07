@@ -1,9 +1,9 @@
+use draftcraft_doc::{Common, EntityKind, Space, Viewport};
+use draftcraft_engine::Session;
+use draftcraft_geom::Vec2;
+use draftcraft_ui_egui::{CadApp, Services};
 use egui::vec2;
 use egui_kittest::Harness;
-use rustdraft_doc::{Common, EntityKind, Space, Viewport};
-use rustdraft_engine::Session;
-use rustdraft_geom::Vec2;
-use rustdraft_ui_egui::{CadApp, Services};
 use serde_json::json;
 
 #[test]
@@ -15,7 +15,7 @@ fn double_click_viewport_does_not_leave_pending_window() {
     let paper = Space::Paper("Layout1".into());
     let vp = Viewport {
         id: 2,
-        center: rustdraft_geom::Vec3::new(70.0, 60.0, 0.0),
+        center: draftcraft_geom::Vec3::new(70.0, 60.0, 0.0),
         width: 100.0,
         height: 80.0,
         view_center: Vec2::new(500.0, 250.0),

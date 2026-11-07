@@ -1,8 +1,8 @@
 //! Command-line behaviour of the SPLINE, POLYGON and CIRCLE prompt machines.
 
-use rustdraft_doc::EntityKind;
-use rustdraft_engine::Session;
-use rustdraft_geom::Vec2;
+use draftcraft_doc::EntityKind;
+use draftcraft_engine::Session;
+use draftcraft_geom::Vec2;
 
 fn last(s: &Session) -> EntityKind {
     s.doc().unwrap().model.iter().last().map(|e| e.kind.clone()).unwrap()

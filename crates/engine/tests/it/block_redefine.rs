@@ -1,7 +1,7 @@
 //! BLOCK redefinition: no self-referencing blocks, names are case-insensitive (#250).
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::EntityKind;
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::EntityKind;
 use serde_json::{Value, json};
 
 fn line(s: &mut Session, a: [f64; 2], b: [f64; 2]) -> String {

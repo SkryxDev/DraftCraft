@@ -1,14 +1,14 @@
 //! Independent bridge expectations, not an independent DWG codec. Writer checks inspect native
-//! objects without RustDraft's reader; reader fixtures originate in native objects without our
+//! objects without DraftCraft's reader; reader fixtures originate in native objects without our
 //! DXF writer. acadrust still supplies the binary codec in both directions, so these tests do
 //! not establish interoperability with another DWG implementation. All fixtures are synthetic.
 
 use super::super::cases;
 use acadrust::types::Vector3;
 use acadrust::{CadDocument, DwgReader, DwgWriter, DxfVersion, EntityType};
-use rustdraft_doc::{Circle, Common, EntityKind, Line, Text};
-use rustdraft_geom::Vec3;
-use rustdraft_io::{SaveOptions, Version, read, write_with};
+use draftcraft_doc::{Circle, Common, EntityKind, Line, Text};
+use draftcraft_geom::Vec3;
+use draftcraft_io::{SaveOptions, Version, read, write_with};
 use std::io::Cursor;
 
 #[test]

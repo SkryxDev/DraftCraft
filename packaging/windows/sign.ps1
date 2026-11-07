@@ -15,7 +15,7 @@
   timestamp server, ...). Optional overrides: WINDOWS_TIMESTAMP_URL, SIGNTOOL (path to signtool.exe).
 
 .EXAMPLE
-  pwsh packaging/windows/sign.ps1 dist/rustdraft.exe dist/Designcraft.msi
+  pwsh packaging/windows/sign.ps1 dist/draftcraft.exe dist/Designcraft.msi
 #>
 param(
   [Parameter(Mandatory = $true, ValueFromRemainingArguments = $true)]
@@ -55,8 +55,8 @@ if (-not $haveCert -and -not $haveAzure) {
 }
 
 $script:SignTool = Find-SignTool
-$common = @('sign', '/v', '/fd', 'SHA256', '/td', 'SHA256', '/d', 'RustDraft', '/du', 'https://github.com/SkryxDev/RustDraft')
-$tmp = Join-Path ([IO.Path]::GetTempPath()) "rustdraft-sign-$PID"
+$common = @('sign', '/v', '/fd', 'SHA256', '/td', 'SHA256', '/d', 'DraftCraft', '/du', 'https://github.com/SkryxDev/DraftCraft')
+$tmp = Join-Path ([IO.Path]::GetTempPath()) "draftcraft-sign-$PID"
 New-Item -ItemType Directory -Force -Path $tmp | Out-Null
 
 try {

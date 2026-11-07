@@ -8,8 +8,8 @@
 
 use std::sync::{Mutex, MutexGuard, OnceLock, PoisonError};
 
-use rustdraft_doc::library::files::{UserPattern, parse_pat};
-use rustdraft_doc::library::{PatternLine, pattern, standard_patterns};
+use draftcraft_doc::library::files::{UserPattern, parse_pat};
+use draftcraft_doc::library::{PatternLine, pattern, standard_patterns};
 use serde_json::{Value, json};
 
 use super::super::helpers::support_text;

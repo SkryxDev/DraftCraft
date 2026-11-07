@@ -3,10 +3,10 @@
 
 use std::sync::Arc;
 
-use rustdraft_doc::{Block, ClipBoundary, Common, Drawing, Entity, EntityKind, Handle, Insert, Line, Space};
-use rustdraft_dxf::Version;
-use rustdraft_geom::{Vec2, Vec3};
-use rustdraft_io::{SaveOptions, read, write_with};
+use draftcraft_doc::{Block, ClipBoundary, Common, Drawing, Entity, EntityKind, Handle, Insert, Line, Space};
+use draftcraft_dxf::Version;
+use draftcraft_geom::{Vec2, Vec3};
+use draftcraft_io::{SaveOptions, read, write_with};
 
 fn drawing() -> Drawing {
     let mut d = Drawing::new_metric();
@@ -146,7 +146,7 @@ fn filter_matrices_are_the_inverse_reference_transform() {
             EntityKind::Insert(Insert { block: "P".into(), insert: Vec3::new(150.0, 0.0, 0.0), clip: Some(clip), ..Insert::default() }),
         )
         .unwrap();
-    // Read back without RustDraft taking the filter: look at the DXF groups.
+    // Read back without DraftCraft taking the filter: look at the DXF groups.
     let text = String::from_utf8(save(&d, "a.dxf", Version::R2018)).unwrap();
     let lines: Vec<&str> = text.lines().map(str::trim).collect();
     let at = lines.windows(2).position(|w| w[0] == "0" && w[1] == "SPATIAL_FILTER").unwrap();

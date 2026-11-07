@@ -3,13 +3,13 @@
 
 use std::sync::Arc;
 
-use rustdraft_color::{Color, Rgb};
-use rustdraft_doc::{
+use draftcraft_color::{Color, Rgb};
+use draftcraft_doc::{
     Attrib, Block, Common, DimKind, DimStyle, Dimension, Drawing, Entity, EntityKind, HAlign, Handle, Insert, Leader, Line, Lineweight, Space, Text,
     VAlign, Viewport,
 };
-use rustdraft_geom::{Bounds2, Vec2, Vec3};
-use rustdraft_render::{Kind, Options, VIEWPORT_CONTENT, build};
+use draftcraft_geom::{Bounds2, Vec2, Vec3};
+use draftcraft_render::{Kind, Options, VIEWPORT_CONTENT, build};
 
 fn rgb(i: u8) -> Rgb {
     Color::Index(i).resolve(Color::Index(7), Color::Index(7))

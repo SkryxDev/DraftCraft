@@ -4,9 +4,9 @@
 
 use std::sync::Arc;
 
-use rustdraft_doc::*;
-use rustdraft_geom::{Vec2, Vec3};
-use rustdraft_io::{read_dxf, write_dxf};
+use draftcraft_doc::*;
+use draftcraft_geom::{Vec2, Vec3};
+use draftcraft_io::{read_dxf, write_dxf};
 
 fn params(source: &str) -> ArrayParams {
     ArrayParams {
@@ -66,8 +66,8 @@ fn drawing() -> Drawing {
 fn array_parameters_survive_a_dxf_round_trip() {
     let d = drawing();
     let text = write_dxf(&d).replace("\r\n", "\n");
-    // Kept as RustDraft xdata; the items are ordinary block references.
-    assert!(text.contains("\n1001\nRUSTDRAFT\n1000\nARRAY\n1002\n{\n"), "array xdata missing");
+    // Kept as DraftCraft xdata; the items are ordinary block references.
+    assert!(text.contains("\n1001\nDRAFTCRAFT\n1000\nARRAY\n1002\n{\n"), "array xdata missing");
     let back = read_dxf(text.as_bytes()).unwrap();
     let arr = back.block("*U2").unwrap();
     assert_eq!(arr.array.as_ref(), Some(&params("*U1")));

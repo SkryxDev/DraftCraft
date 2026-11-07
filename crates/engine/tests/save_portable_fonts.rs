@@ -1,13 +1,13 @@
 //! Text styles with Linux fonts AutoCAD on Windows doesn't have: a save names them, and SAVEAS
 //! with portableFonts writes Windows fonts in that file while the drawing keeps its own.
 
-use rustdraft_doc::{Drawing, TextStyle};
-use rustdraft_engine::Session;
-use rustdraft_engine::cmd::file::{IoHooks, set_io};
+use draftcraft_doc::{Drawing, TextStyle};
+use draftcraft_engine::Session;
+use draftcraft_engine::cmd::file::{IoHooks, set_io};
 use serde_json::json;
 
 fn dxf(d: &Drawing, _: &str) -> Result<Vec<u8>, String> {
-    Ok(rustdraft_io::write_dxf(d).into_bytes())
+    Ok(draftcraft_io::write_dxf(d).into_bytes())
 }
 
 fn session() -> Session {
@@ -24,7 +24,7 @@ fn session() -> Session {
 #[test]
 fn portable_fonts_writes_windows_fonts_in_that_file() {
     let mut s = session();
-    let dir = std::env::temp_dir().join(format!("rustdraft-portable-fonts-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("draftcraft-portable-fonts-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = |name: &str| dir.join(name).to_string_lossy().to_string();
     let file = |name: &str| std::fs::read_to_string(dir.join(name)).unwrap();

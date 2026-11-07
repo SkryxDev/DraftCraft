@@ -1,6 +1,6 @@
 [package]
-name = "rustdraft-geom"
-description = "RustDraft geometry: f64 vectors, curves, arcs, splines, intersections, offsets, snaps"
+name = "draftcraft-geom"
+description = "DraftCraft geometry: f64 vectors, curves, arcs, splines, intersections, offsets, snaps"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

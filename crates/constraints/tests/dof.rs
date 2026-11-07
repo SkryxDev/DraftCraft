@@ -2,12 +2,12 @@
 
 use std::sync::Arc;
 
-use rustdraft_constraints::{DofStatus, SolveError, SolveOptions, add, all_satisfied, dof, solve};
-use rustdraft_doc::{
+use draftcraft_constraints::{DofStatus, SolveError, SolveOptions, add, all_satisfied, dof, solve};
+use draftcraft_doc::{
     Arc as DArc, Block, Circle as DCircle, Common, Constraint, ConstraintKind as K, DistAxis, Drawing, Ellipse as DEllipse, Entity, EntityKind,
     GeomRef, Handle, Insert, Line as DLine, Point as DPoint, Space, Sub,
 };
-use rustdraft_geom::{Spline as GSpline, Vec2, Vec3};
+use draftcraft_geom::{Spline as GSpline, Vec2, Vec3};
 
 fn v(x: f64, y: f64) -> Vec3 {
     Vec3::new(x, y, 0.0)
@@ -53,9 +53,9 @@ fn ends(d: &Drawing, h: Handle) -> (Vec2, Vec2) {
         _ => panic!("not a line"),
     }
 }
-fn ell(d: &Drawing, h: Handle) -> rustdraft_geom::Ellipse {
+fn ell(d: &Drawing, h: Handle) -> draftcraft_geom::Ellipse {
     match &d.entity(h).unwrap().kind {
-        EntityKind::Ellipse(e) => rustdraft_geom::Ellipse { center: e.center.xy(), major: e.major.xy(), ratio: e.ratio, start: e.start, end: e.end },
+        EntityKind::Ellipse(e) => draftcraft_geom::Ellipse { center: e.center.xy(), major: e.major.xy(), ratio: e.ratio, start: e.start, end: e.end },
         _ => panic!("not an ellipse"),
     }
 }

@@ -7,8 +7,8 @@ pub(crate) mod formula;
 
 pub(crate) use cells::{recalc, tablestyle_cell_style};
 
-use rustdraft_doc::{EntityKind, Handle, Table, TableCell};
-use rustdraft_geom::Vec2;
+use draftcraft_doc::{EntityKind, Handle, Table, TableCell};
+use draftcraft_geom::Vec2;
 use serde_json::{Value, json};
 
 use super::helpers::v3;
@@ -46,7 +46,7 @@ fn usize_param(p: &Value, key: &str) -> Option<usize> {
     p.get(key).and_then(Value::as_u64).and_then(|v| usize::try_from(v).ok())
 }
 
-fn style_of(s: &Session) -> rustdraft_doc::TableStyle {
+fn style_of(s: &Session) -> draftcraft_doc::TableStyle {
     let Ok(d) = s.doc() else { return Default::default() };
     let cur = d.header.str("CTABLESTYLE", "Standard");
     d.table_styles.iter().find(|t| t.name.eq_ignore_ascii_case(&cur)).or(d.table_styles.first()).cloned().unwrap_or_default()
@@ -55,7 +55,7 @@ fn style_of(s: &Session) -> rustdraft_doc::TableStyle {
 /// Build a table entity. `rows` data rows; a title row and a header row are added when given.
 #[allow(clippy::too_many_arguments)]
 pub fn make_table(
-    st: &rustdraft_doc::TableStyle,
+    st: &draftcraft_doc::TableStyle,
     at: Vec2,
     rows: usize,
     cols: usize,
@@ -170,7 +170,7 @@ fn edit(s: &mut Session, p: &Value, id: &str, f: impl FnOnce(&mut Table) -> std:
     };
     normalize(&mut t);
     f(&mut t).map_err(|m| bad(id, m))?;
-    let st = rustdraft_render::table_style_of(s.doc()?, &t);
+    let st = draftcraft_render::table_style_of(s.doc()?, &t);
     formula::recalc(&mut t, &st);
     s.doc_mut()?.modify_entity(h, |e| e.kind = EntityKind::Table(t))?;
     Ok(json!({ "handle": h.hex() }))
@@ -446,7 +446,7 @@ fn run_unmerge(s: &mut Session, p: &Value) -> Result<Value> {
 struct TableM {
     cols: Option<usize>,
     rows: Option<usize>,
-    style: rustdraft_doc::TableStyle,
+    style: draftcraft_doc::TableStyle,
 }
 
 impl TableM {

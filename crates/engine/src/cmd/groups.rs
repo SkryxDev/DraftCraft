@@ -7,7 +7,7 @@
 
 use std::sync::Arc;
 
-use rustdraft_doc::{Drawing, Group, Handle};
+use draftcraft_doc::{Drawing, Group, Handle};
 use serde_json::{Value, json};
 
 use super::machines::{SelOutcome, SelectPhase};

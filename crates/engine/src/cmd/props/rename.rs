@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use rustdraft_doc::{Drawing, EntityKind, EntityStore, Handle};
+use draftcraft_doc::{Drawing, EntityKind, EntityStore, Handle};
 use serde_json::json;
 
 use super::super::bad;

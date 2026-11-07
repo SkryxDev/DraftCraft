@@ -2,7 +2,7 @@
 //! Every option runs the `layout.*` command bodies, so validation matches the JSON form and the
 //! command is one undo step.
 
-use rustdraft_doc::Space;
+use draftcraft_doc::Space;
 use serde_json::{Value, json};
 
 use super::super::find_command;

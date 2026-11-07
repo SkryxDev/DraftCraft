@@ -1,9 +1,9 @@
 //! Groups (#417): GROUP, UNGROUP and GROUPEDIT, typed and as JSON; erased members leave their
 //! groups and empty groups go away. (The DXF round trip of groups is tested in
-//! `rustdraft-io`'s `tables_objects_roundtrip`.)
+//! `draftcraft-io`'s `tables_objects_roundtrip`.)
 
-use rustdraft_engine::doc::Handle;
-use rustdraft_engine::{Input, Session};
+use draftcraft_engine::doc::Handle;
+use draftcraft_engine::{Input, Session};
 use serde_json::json;
 
 /// A session with three lines; their handles.

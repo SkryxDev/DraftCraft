@@ -1,8 +1,8 @@
 //! CONSTRAINTINFER: constraints inferred for what a drawing or editing command places with
 //! object snaps, ortho or polar (#546).
 
-use rustdraft_doc::{ConstraintKind as K, EntityKind, Handle, Sub};
-use rustdraft_engine::Session;
+use draftcraft_doc::{ConstraintKind as K, EntityKind, Handle, Sub};
+use draftcraft_engine::Session;
 use serde_json::json;
 
 /// A session with a circle at 20,20 radius 3 (not constrained) and CONSTRAINTINFER on.

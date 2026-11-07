@@ -1,8 +1,8 @@
 //! A 3D face draws only its visible edges: `hidden_edges` bit i hides the side from corner i to
 //! the next, as DXF group 70 defines it, and a triangle's zero-length side isn't drawn.
 
-use rustdraft_doc::{EntityKind, Face3d, Prim};
-use rustdraft_geom::Vec3;
+use draftcraft_doc::{EntityKind, Face3d, Prim};
+use draftcraft_geom::Vec3;
 
 fn sides(f: Face3d) -> usize {
     EntityKind::Face3d(f).prims().iter().filter(|p| matches!(p, Prim::Seg(_))).count()

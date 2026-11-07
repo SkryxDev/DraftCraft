@@ -1,6 +1,6 @@
 //! The saved two-click preference disables drag windows without changing typed selection.
-use rustdraft_engine::geom::Vec2;
-use rustdraft_engine::{Session, cmd::options};
+use draftcraft_engine::geom::Vec2;
+use draftcraft_engine::{Session, cmd::options};
 use serde_json::json;
 
 #[test]

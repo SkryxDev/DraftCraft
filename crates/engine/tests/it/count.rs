@@ -4,9 +4,9 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use rustdraft_engine::doc::geom::Vec3;
-use rustdraft_engine::doc::{Block, Circle, Common, Entity, EntityKind, Handle, Insert, Space};
-use rustdraft_engine::{Input, Session};
+use draftcraft_engine::doc::geom::Vec3;
+use draftcraft_engine::doc::{Block, Circle, Common, Entity, EntityKind, Handle, Insert, Space};
+use draftcraft_engine::{Input, Session};
 use serde_json::{Value, json};
 
 fn insert(block: &str, x: f64, cols: u32, rows: u32) -> EntityKind {

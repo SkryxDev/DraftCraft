@@ -3,9 +3,9 @@
 //! VP Color columns. Every change runs an engine command (`layer.*`, `layerstate.*`, `vplayer`,
 //! `linetype`).
 
+use draftcraft_color::{Color, Rgb, aci_rgb};
+use draftcraft_doc::{Handle, Layer, Lineweight};
 use egui::{Color32, Rect, RichText, Sense, Stroke, pos2, vec2};
-use rustdraft_color::{Color, Rgb, aci_rgb};
-use rustdraft_doc::{Handle, Layer, Lineweight};
 use serde_json::{Value, json};
 
 use crate::CadApp;
@@ -150,7 +150,7 @@ pub fn color_palette(ui: &mut egui::Ui, id: egui::Id, current: Color, by: bool) 
         });
         ui.data_mut(|d| d.insert_temp(rid, c));
         if ui.button(crate::tl!("Apply true color")).clicked() {
-            out = Some(Color::True(rustdraft_color::Rgb(c[0], c[1], c[2])));
+            out = Some(Color::True(draftcraft_color::Rgb(c[0], c[1], c[2])));
             ui.data_mut(|d| d.remove::<[u8; 3]>(rid));
         }
     }
@@ -167,7 +167,7 @@ fn lw_sample(p: &egui::Painter, r: Rect, lw: Lineweight, c: Color32) {
 }
 
 /// A linetype preview drawn from its own dash pattern.
-fn lt_sample(p: &egui::Painter, r: Rect, lt: Option<&rustdraft_doc::Linetype>, c: Color32) {
+fn lt_sample(p: &egui::Painter, r: Rect, lt: Option<&draftcraft_doc::Linetype>, c: Color32) {
     let y = r.center().y;
     let Some(lt) = lt.filter(|l| !l.pattern.is_empty() && l.pattern.iter().any(|e| e.length.abs() > 1e-9)) else {
         p.line_segment([pos2(r.left(), y), pos2(r.right(), y)], Stroke::new(1.0, c));
@@ -228,9 +228,10 @@ pub fn dialog(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) {
     let d = &dst.doc;
     let cur = d.header.str("CLAYER", "0");
     let used = used_layers(d);
-    let vp: Option<(Handle, rustdraft_doc::Viewport)> = dst.active_viewport();
-    let linetypes: Vec<rustdraft_doc::Linetype> = d.linetypes.clone();
-    let library: Vec<String> = rustdraft_doc::library::standard_linetypes().into_iter().map(|l| l.name).filter(|n| d.linetype(n).is_none()).collect();
+    let vp: Option<(Handle, draftcraft_doc::Viewport)> = dst.active_viewport();
+    let linetypes: Vec<draftcraft_doc::Linetype> = d.linetypes.clone();
+    let library: Vec<String> =
+        draftcraft_doc::library::standard_linetypes().into_iter().map(|l| l.name).filter(|n| d.linetype(n).is_none()).collect();
     let states: Vec<String> = d.layer_states.iter().map(|s| s.name.clone()).collect();
     let mut layers: Vec<Layer> = d.layers.clone();
     layers.sort_by_key(|l| natural_lower(&l.name));
@@ -422,8 +423,8 @@ struct LayerRow<'a> {
     layer: &'a Layer,
     current: &'a str,
     used: &'a std::collections::HashSet<String>,
-    viewport: Option<&'a (Handle, rustdraft_doc::Viewport)>,
-    linetypes: &'a [rustdraft_doc::Linetype],
+    viewport: Option<&'a (Handle, draftcraft_doc::Viewport)>,
+    linetypes: &'a [draftcraft_doc::Linetype],
     library: &'a [String],
     state: &'a mut LpmState,
     actions: &'a mut Vec<(&'static str, Value)>,
@@ -709,7 +710,7 @@ fn layer_identity(
     name
 }
 
-fn used_layers(d: &rustdraft_doc::Drawing) -> std::collections::HashSet<String> {
+fn used_layers(d: &draftcraft_doc::Drawing) -> std::collections::HashSet<String> {
     let mut set = std::collections::HashSet::new();
     let ents = d.model.iter().chain(d.layouts.iter().flat_map(|l| l.entities.iter())).chain(d.blocks.values().flat_map(|b| b.entities.iter()));
     for e in ents.take(5_000_000) {
@@ -769,8 +770,8 @@ mod tests {
     /// Issue #29: just opening the dialog must not grow its window frame after frame.
     #[test]
     fn dialog_keeps_its_height() {
-        let mut session = rustdraft_engine::Session::new();
-        session.open_drawing(rustdraft_engine::sample::default_sample(), "Bracket", None);
+        let mut session = draftcraft_engine::Session::new();
+        session.open_drawing(draftcraft_engine::sample::default_sample(), "Bracket", None);
         let mut app = CadApp::new(session, crate::Services::default());
         let ctx = egui::Context::default();
         let screen = Rect::from_min_size(egui::Pos2::ZERO, vec2(1600.0, 1000.0));

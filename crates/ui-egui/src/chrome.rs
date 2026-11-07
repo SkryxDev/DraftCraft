@@ -199,7 +199,7 @@ pub fn status_bar(app: &mut CadApp, ui: &mut egui::Ui) {
         // Right side: toggles, right-aligned.
         let s = app.session.settings.clone();
         let anno_all = app.session.doc().is_ok_and(|d| d.anno_all_visible());
-        use rustdraft_engine::snap::mode;
+        use draftcraft_engine::snap::mode;
         let toggles: Vec<(Icon, bool, &str, &str)> = vec![
             (Icon::Grid, s.gridmode, "grid", "Grid (F7)"),
             (Icon::Snap, s.snapmode, "snap", "Snap Mode (F9)"),
@@ -223,22 +223,22 @@ pub fn status_bar(app: &mut CadApp, ui: &mut egui::Ui) {
             let (lu, lp) = app.session.doc().map(|d| (d.header.i64("LUNITS", 2), d.header.i64("LUPREC", 4))).unwrap_or((2, 4));
             format!(
                 "{}, {}, {}",
-                rustdraft_engine::units::format_distance(c.x, lu, lp),
-                rustdraft_engine::units::format_distance(c.y, lu, lp),
-                rustdraft_engine::units::format_distance(0.0, lu, lp)
+                draftcraft_engine::units::format_distance(c.x, lu, lp),
+                draftcraft_engine::units::format_distance(c.y, lu, lp),
+                draftcraft_engine::units::format_distance(0.0, lu, lp)
             )
         });
         // MODEL / PAPER (layouts only): toggles MSPACE and PSPACE like AutoCAD's status button.
         let mut coord_right = rx - 8.0;
         // The annotation scale list (model space).
         coord_right = annoscale::status(app, ui, coord_right, r.center().y);
-        if matches!(app.session.layout_space(), rustdraft_doc::Space::Model) {
+        if matches!(app.session.layout_space(), draftcraft_doc::Space::Model) {
             // Windows shows MODEL on the status bar in the Model tab too.
             let br = Rect::from_min_max(pos2(coord_right - 56.0, r.center().y - 9.0), pos2(coord_right - 4.0, r.center().y + 9.0));
             p.text(br.center(), egui::Align2::CENTER_CENTER, crate::tl!("MODEL"), crate::theme::small(), t.text);
             coord_right = br.left() - 6.0;
         }
-        if matches!(app.session.layout_space(), rustdraft_doc::Space::Paper(_)) {
+        if matches!(app.session.layout_space(), draftcraft_doc::Space::Paper(_)) {
             let model = app.session.state().is_ok_and(|st| st.mspace.is_some());
             let label = if model { "MODEL" } else { "PAPER" };
             let br = Rect::from_min_max(pos2(rx - 60.0, r.center().y - 9.0), pos2(rx - 6.0, r.center().y + 9.0));
@@ -258,8 +258,8 @@ pub fn status_bar(app: &mut CadApp, ui: &mut egui::Ui) {
         // current one always); the layout list reaches the rest.
         let mut tabs: Vec<String> = vec!["Model".into()];
         let cur = app.session.state().map(|s| match &s.space {
-            rustdraft_doc::Space::Model => "Model".to_string(),
-            rustdraft_doc::Space::Paper(n) => n.clone(),
+            draftcraft_doc::Space::Model => "Model".to_string(),
+            draftcraft_doc::Space::Paper(n) => n.clone(),
         });
         if let Ok(st) = app.session.state() {
             let mut ls: Vec<_> = st.doc.layouts.iter().collect();

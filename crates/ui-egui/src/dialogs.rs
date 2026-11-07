@@ -100,16 +100,16 @@ fn dsettings(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) {
         tracking_options(ui, s);
         ui.separator();
         ui.heading(crate::tl!("Object Snap"));
-        let mut on = s.osmode & rustdraft_engine::snap::mode::OFF == 0;
+        let mut on = s.osmode & draftcraft_engine::snap::mode::OFF == 0;
         if ui.checkbox(&mut on, crate::tl!("Object Snap On (F3)")).changed() {
             if on {
-                s.osmode &= !rustdraft_engine::snap::mode::OFF;
+                s.osmode &= !draftcraft_engine::snap::mode::OFF;
             } else {
-                s.osmode |= rustdraft_engine::snap::mode::OFF;
+                s.osmode |= draftcraft_engine::snap::mode::OFF;
             }
         }
         egui::Grid::new("osnap_grid").num_columns(2).show(ui, |ui| {
-            for (i, (bit, name)) in rustdraft_engine::snap::mode::ALL.iter().enumerate() {
+            for (i, (bit, name)) in draftcraft_engine::snap::mode::ALL.iter().enumerate() {
                 let mut v = s.osmode & bit != 0;
                 if ui.checkbox(&mut v, crate::i18n::t(name)).changed() {
                     if v {
@@ -154,8 +154,8 @@ fn dsettings(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) {
 /// The polar and object snap tracking options of Drafting Settings: additional angles
 /// (POLARMODE bit 4, POLARADDANG), tracking on every polar angle (bit 2) and angles relative to
 /// the last segment (bit 1).
-fn tracking_options(ui: &mut egui::Ui, s: &mut rustdraft_engine::Settings) {
-    use rustdraft_engine::snap::tracking::polarmode;
+fn tracking_options(ui: &mut egui::Ui, s: &mut draftcraft_engine::Settings) {
+    use draftcraft_engine::snap::tracking::polarmode;
     /// A radio button for POLARMODE `bit` being `on`.
     fn flag(ui: &mut egui::Ui, flags: &mut u32, bit: u32, on: bool, label: &str) {
         if ui.radio((*flags & bit != 0) == on, label).clicked() {
@@ -170,11 +170,11 @@ fn tracking_options(ui: &mut egui::Ui, s: &mut rustdraft_engine::Settings) {
         }
         // The list as typed (degrees separated by `;`), kept while it doesn't parse yet.
         let id = ui.scope_id().with("polaraddang");
-        let shown = rustdraft_engine::sysvars::format_angle_list(&s.polaraddang);
+        let shown = draftcraft_engine::sysvars::format_angle_list(&s.polaraddang);
         let mut text = ui.data_mut(|d| d.get_temp::<String>(id)).unwrap_or_else(|| shown.clone());
         let resp = ui.add_enabled(additional, egui::TextEdit::singleline(&mut text).desired_width(140.0)).labelled_by(additional_label.id);
         if resp.changed()
-            && let Some(angles) = rustdraft_engine::sysvars::parse_angle_list(&text)
+            && let Some(angles) = draftcraft_engine::sysvars::parse_angle_list(&text)
         {
             s.polaraddang = angles;
         }
@@ -242,7 +242,7 @@ fn pick(ui: &mut egui::Ui, salt: &str, value: &mut i64, options: &[(i64, String)
 /// Length precision choices for a LUNITS format. Architectural (4) and Fractional (5) step through
 /// binary fractions of an inch (LUPREC n is 1/2^n, 0 is whole inches); the other formats show a decimal sample.
 fn length_precisions(lunits: i64) -> Vec<(i64, String)> {
-    use rustdraft_engine::units::format_distance;
+    use draftcraft_engine::units::format_distance;
     if matches!(lunits, 4 | 5) {
         (0..=8).map(|p| (p, if p == 0 { "1\"".to_string() } else { format!("1/{}\"", 1i64 << p) })).collect()
     } else {
@@ -253,7 +253,7 @@ fn length_precisions(lunits: i64) -> Vec<(i64, String)> {
 /// Drawing Units (UNITS): edits a copy of LUNITS/LUPREC/AUNITS/AUPREC/INSUNITS and applies it
 /// through the `units` command on OK.
 fn units(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) {
-    use rustdraft_engine::units::{format_angle, format_distance};
+    use draftcraft_engine::units::{format_angle, format_distance};
     let id = egui::Id::unique("units_dialog_values");
     let mut v = ctx.data_mut(|d| d.get_temp::<[i64; 5]>(id)).unwrap_or_else(|| {
         app.session
@@ -318,43 +318,24 @@ fn units(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) {
     }
 }
 
-/// About window with About, Contributors and Models tabs, version, licence and project links.
+/// About window: version, licence and project links.
 fn about(ctx: &egui::Context, open: &mut bool) {
     let t = Tokens::get();
-    let tab_id = egui::Id::unique("about_tab");
     egui::Window::new(crate::tl!("About DraftCraft"))
         .id(egui::Id::unique("About DraftCraft"))
         .open(open)
-        .default_size(vec2(820.0, 420.0))
+        .default_width(420.0)
+        .resizable(false)
         .collapsible(false)
         .show(ctx, |ui| {
-            let mut tab = ui.data_mut(|d| d.get_temp::<u8>(tab_id)).unwrap_or(0);
-            ui.horizontal(|ui| {
-                for (i, l) in ["About", "Contributors", "Models"].iter().enumerate() {
-                    if ui.selectable_label(tab == i as u8, crate::i18n::t(l)).clicked() {
-                        tab = i as u8;
-                    }
-                }
-            });
-            ui.data_mut(|d| d.insert_temp(tab_id, tab));
-            ui.separator();
-            match tab {
-                1 => crate::credits::contributors_ui(ui),
-                2 => crate::credits::models_ui(ui),
-                _ => {
-                    ui.heading(crate::tl!("DraftCraft"));
-                    ui.label(crate::tf!("Version {version}", version = env!("CARGO_PKG_VERSION")));
-                    ui.label(crate::tl!("Computer-aided design and drafting: an open-source, clean-room CAD application written in pure Rust."));
-                    ui.add_space(6.0);
-                    ui.hyperlink_to("github.com/SkryxDev/RustDraft", "https://github.com/SkryxDev/RustDraft");
-                    ui.add_space(6.0);
-                    // Credit for the code RustDraft is built on (MIT OR Apache-2.0), in plain text.
-                    ui.label(RichText::new(crate::tl!("Based on CADCraft by the ArtCraft team and the CADCraft contributors.")).color(t.text_dim));
-                    ui.hyperlink_to("github.com/storytold/cadcraft", "https://github.com/storytold/cadcraft");
-                    ui.add_space(6.0);
-                    ui.label(RichText::new(crate::tl!("MIT OR Apache-2.0. Not affiliated with Autodesk, Inc.")).small().color(t.text_faint));
-                }
-            }
+            ui.heading(crate::tl!("DraftCraft"));
+            ui.label(crate::tf!("Version {version}", version = env!("CARGO_PKG_VERSION")));
+            ui.label(crate::tl!("Computer-aided design and drafting: an open-source, clean-room CAD application written in pure Rust."));
+            ui.add_space(6.0);
+            ui.hyperlink_to("github.com/SkryxDev/DraftCraft", "https://github.com/SkryxDev/DraftCraft");
+            ui.hyperlink_to("Discord", "https://discord.gg/YgRK8Eww9x");
+            ui.add_space(6.0);
+            ui.label(RichText::new(crate::tl!("MIT OR Apache-2.0. Not affiliated with Autodesk, Inc.")).small().color(t.text_faint));
         });
 }
 
@@ -374,7 +355,7 @@ fn commands(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) {
             let f = filter.to_lowercase();
             egui::ScrollArea::vertical().show(ui, |ui| {
                 egui::Grid::new("cmdref").striped(true).num_columns(3).show(ui, |ui| {
-                    for c in rustdraft_engine::command_specs() {
+                    for c in draftcraft_engine::command_specs() {
                         if !f.is_empty()
                             && !c.id.contains(&f)
                             && !c.label.to_ascii_lowercase().contains(&f)
@@ -426,7 +407,7 @@ fn insert_block(app: &mut CadApp, name: &str) {
     if app.session.running.as_ref().is_none_or(|r| r.id != "insert") {
         return;
     }
-    if let Err(e) = app.session.input(rustdraft_engine::Input::Text(name.to_string())) {
+    if let Err(e) = app.session.input(draftcraft_engine::Input::Text(name.to_string())) {
         app.session.echo(e.to_string());
     }
 }
@@ -447,9 +428,9 @@ fn language(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) {
 
 #[cfg(test)]
 mod tests {
-    use rustdraft_engine::doc::EntityKind;
-    use rustdraft_engine::geom::Vec2;
-    use rustdraft_engine::{Input, Session};
+    use draftcraft_engine::doc::EntityKind;
+    use draftcraft_engine::geom::Vec2;
+    use draftcraft_engine::{Input, Session};
     use serde_json::json;
 
     use crate::{CadApp, Services};

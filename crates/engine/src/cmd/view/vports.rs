@@ -11,8 +11,8 @@
 
 use std::sync::Arc;
 
-use rustdraft_doc::{Drawing, EntityKind, Space, VportConfig, VportTile};
-use rustdraft_geom::Vec2;
+use draftcraft_doc::{Drawing, EntityKind, Space, VportConfig, VportTile};
+use draftcraft_geom::Vec2;
 use serde_json::{Value, json};
 
 use super::super::qselect::wildcard;

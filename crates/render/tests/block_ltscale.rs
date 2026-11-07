@@ -4,9 +4,9 @@
 
 use std::sync::Arc;
 
-use rustdraft_doc::{Block, Common, Drawing, Entity, EntityKind, Handle, Insert, Line, Space, library};
-use rustdraft_geom::Vec3;
-use rustdraft_render::{Kind, Options, build};
+use draftcraft_doc::{Block, Common, Drawing, Entity, EntityKind, Handle, Insert, Line, Space, library};
+use draftcraft_geom::Vec3;
+use draftcraft_render::{Kind, Options, build};
 
 /// A block «B» with a 100-unit DASHED line (pattern 0.5 on, 0.25 off), inserted once at the
 /// origin with the given linetype scale; the line's own linetype `own` (DASHED or BYBLOCK).

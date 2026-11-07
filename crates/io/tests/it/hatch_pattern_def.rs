@@ -1,10 +1,10 @@
 //! HATCH pattern definition lines (groups 78, 53, 43–46, 79, 49) of a pattern the library
 //! doesn't define survive a DXF read and save (issue #290).
 
-use rustdraft_doc::library::PatternLine;
-use rustdraft_doc::*;
-use rustdraft_geom::{PolyVertex, Vec2};
-use rustdraft_io::{read_dxf, write_dxf};
+use draftcraft_doc::library::PatternLine;
+use draftcraft_doc::*;
+use draftcraft_geom::{PolyVertex, Vec2};
+use draftcraft_io::{read_dxf, write_dxf};
 
 fn square() -> HatchLoop {
     let v = [(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)].into_iter().map(|(x, y)| PolyVertex::new(Vec2::new(x, y))).collect();
@@ -112,7 +112,7 @@ fn file_definition_is_drawn_instead_of_the_librarys() {
     let prims = |lines: Vec<PatternLine>| {
         let mut d = Drawing::new_imperial();
         d.add(&Space::Model, Common::default(), EntityKind::Hatch(hatch("ANSI31", 1.0, 0.0, Vec2::ZERO, lines))).expect("add");
-        rustdraft_render::build(&d, &Space::Model, &rustdraft_render::Options::default()).prims.len()
+        draftcraft_render::build(&d, &Space::Model, &draftcraft_render::Options::default()).prims.len()
     };
     // One horizontal family 5 units apart from y = 2.5 across the 10 × 10 square: two lines.
     let sparse = vec![PatternLine { angle: 0.0, origin: (0.0, 2.5), delta: (0.0, 5.0), dashes: vec![] }];
@@ -144,5 +144,5 @@ fn hostile_pattern_definitions_are_capped() {
     // Drawing the capped definition stays bounded.
     let mut d = Drawing::new_imperial();
     d.add(&Space::Model, Common::default(), EntityKind::Hatch(h)).expect("add");
-    let _ = rustdraft_render::build(&d, &Space::Model, &rustdraft_render::Options::default());
+    let _ = draftcraft_render::build(&d, &Space::Model, &draftcraft_render::Options::default());
 }

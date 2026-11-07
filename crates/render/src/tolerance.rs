@@ -1,10 +1,10 @@
-//! TOLERANCE: feature control frames. The layout lives in `rustdraft_doc::gdt`; here the text is
+//! TOLERANCE: feature control frames. The layout lives in `draftcraft_doc::gdt`; here the text is
 //! measured with the dimension style's font and everything is drawn: the boxes with DIMCLRD,
 //! symbols and text with DIMCLRT (ByBlock = the entity's own colour, as for dimensions).
 
-use rustdraft_color::Color;
-use rustdraft_doc::{Drawing, Entity, GdtLayout, GdtPrim, Tolerance};
-use rustdraft_geom::{Arc as GArc, Circle as GCircle, Segment, Vec2};
+use draftcraft_color::Color;
+use draftcraft_doc::{Drawing, Entity, GdtLayout, GdtPrim, Tolerance};
+use draftcraft_geom::{Arc as GArc, Circle as GCircle, Segment, Vec2};
 
 use crate::{Builder, Ctx, Ink, ink};
 
@@ -12,7 +12,7 @@ use crate::{Builder, Ctx, Ink, ink};
 pub fn tolerance_in(d: &Drawing, t: &Tolerance) -> GdtLayout {
     let st = d.dim_style(&t.style).cloned().unwrap_or_default();
     let dt = crate::dim_text(d, &st);
-    t.layout(d, &|s, h| rustdraft_fonts::text_width(&dt.font, s, h, dt.width_factor))
+    t.layout(d, &|s, h| draftcraft_fonts::text_width(&dt.font, s, h, dt.width_factor))
 }
 
 /// Points of a frame primitive, tessellated at `tol` (a fill's triangle as is).
@@ -58,13 +58,13 @@ pub(crate) fn draw(b: &mut Builder, ctx: &Ctx, e: &Entity, t: &Tolerance, lw: f3
     }
     let dt = crate::dim_text(d, &st);
     for tx in &g.texts {
-        let p = rustdraft_fonts::TextParams {
+        let p = draftcraft_fonts::TextParams {
             rotation: tx.rotation,
             width_factor: dt.width_factor,
             oblique: dt.oblique,
-            ..rustdraft_fonts::TextParams::new(tx.pos, tx.height)
+            ..draftcraft_fonts::TextParams::new(tx.pos, tx.height)
         };
-        let (sh, _) = rustdraft_fonts::place(&dt.font, &tx.value, &p);
+        let (sh, _) = draftcraft_fonts::place(&dt.font, &tx.value, &p);
         b.shaped(ctx, text_rgb, lw, &sh);
     }
 }

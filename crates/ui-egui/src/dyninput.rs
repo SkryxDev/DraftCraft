@@ -17,7 +17,7 @@
 //! Scripts, the control channel and MCP never pass through here, so they keep the plain
 //! command-line rules.
 
-use rustdraft_geom::Vec2;
+use draftcraft_geom::Vec2;
 
 /// How the boxes read the point.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -92,7 +92,7 @@ pub struct Entry<'a> {
 impl Entry<'_> {
     /// The locked first value, once a separator follows it.
     pub fn first_locked(&self) -> Option<f64> {
-        if self.split { rustdraft_engine::units::parse_distance(self.first) } else { None }
+        if self.split { draftcraft_engine::units::parse_distance(self.first) } else { None }
     }
     /// The value typed in the second box (radians for an angle).
     pub fn second_value(&self) -> Option<f64> {
@@ -101,8 +101,8 @@ impl Entry<'_> {
             return None;
         }
         match self.format {
-            Format::Cartesian => rustdraft_engine::units::parse_distance(t),
-            Format::Polar => rustdraft_engine::units::parse_angle(t),
+            Format::Cartesian => draftcraft_engine::units::parse_distance(t),
+            Format::Polar => draftcraft_engine::units::parse_angle(t),
         }
     }
 }
@@ -121,7 +121,7 @@ pub fn parse<'a>(text: &'a str, frame: &Frame) -> Option<Entry<'a>> {
     } else {
         Entry { format: frame.default_format(), first: t, split: false, second: "" }
     };
-    let number_or_empty = |s: &str| s.is_empty() || rustdraft_engine::units::parse_distance(s).is_some();
+    let number_or_empty = |s: &str| s.is_empty() || draftcraft_engine::units::parse_distance(s).is_some();
     if !number_or_empty(entry.first) || entry.second.contains([',', '<']) {
         return None;
     }
@@ -236,7 +236,7 @@ mod tests {
     fn sent(text: &str, frame: &Frame, cursor: Vec2, last: Vec2) -> Option<Vec2> {
         let e = parse(text, frame)?;
         let t = complete(&e, frame, cursor, last)?;
-        rustdraft_engine::prompt::parse_point(&t, last)
+        draftcraft_engine::prompt::parse_point(&t, last)
     }
 
     fn close(a: Option<Vec2>, b: Vec2) -> bool {
@@ -357,11 +357,11 @@ mod tests {
         let other_last = Vec2::new(500.0, 500.0);
         let t = complete(&e, &f, Vec2::ZERO, other_last).unwrap();
         assert!(t.starts_with('#'), "{t}");
-        assert!(close(rustdraft_engine::prompt::parse_point(&t, other_last), Vec2::new(40.0, 100.0)));
+        assert!(close(draftcraft_engine::prompt::parse_point(&t, other_last), Vec2::new(40.0, 100.0)));
         // Polar too.
         let e = parse("40<90", &f).unwrap();
         let t = complete(&e, &f, Vec2::ZERO, other_last).unwrap();
-        assert!(close(rustdraft_engine::prompt::parse_point(&t, other_last), Vec2::new(0.0, 100.0)));
+        assert!(close(draftcraft_engine::prompt::parse_point(&t, other_last), Vec2::new(0.0, 100.0)));
     }
 
     fn run_frame(app: &mut crate::CadApp, ctx: &egui::Context, events: Vec<egui::Event>) {
@@ -387,7 +387,7 @@ mod tests {
 
     #[test]
     fn down_arrow_lists_the_options_and_enter_or_a_click_picks_one() {
-        let mut app = crate::CadApp::new(rustdraft_engine::Session::new(), crate::Services::default());
+        let mut app = crate::CadApp::new(draftcraft_engine::Session::new(), crate::Services::default());
         let ctx = egui::Context::default();
         run_frame(&mut app, &ctx, Vec::new());
         let center = app.canvas.rect.map_or(egui::pos2(700.0, 450.0), |r| r.center());

@@ -2,8 +2,8 @@
 //! the height it is drawn at: the dimension's overrides and DIMSCALE (0 = the drawing's) count
 //! (issue #367). Angular text also keeps its decimal separator in the stored block (#1646).
 
-use rustdraft_doc::{Common, DimKind, DimStyle, Dimension, Drawing, EntityKind, Space};
-use rustdraft_geom::Vec3;
+use draftcraft_doc::{Common, DimKind, DimStyle, Dimension, Drawing, EntityKind, Space};
+use draftcraft_geom::Vec3;
 
 /// The group 40 (height) of the first MTEXT in the BLOCKS section.
 fn block_mtext_height(dxf: &str) -> f64 {
@@ -37,7 +37,7 @@ fn height_written(style_scale: f64, overrides: serde_json::Value) -> f64 {
         insertion_point: Vec3::ZERO,
     };
     d.add(&Space::Model, Common::default(), EntityKind::Dimension(dm)).unwrap();
-    block_mtext_height(&rustdraft_io::write_dxf(&d))
+    block_mtext_height(&draftcraft_io::write_dxf(&d))
 }
 
 #[test]
@@ -86,8 +86,8 @@ fn angular_drawing(separator_override: Option<&str>) -> Drawing {
 #[test]
 fn dxf_angular_block_text_keeps_the_decimal_separator() {
     for (separator_override, expected) in [(None, "39,4°"), (Some("."), "39.4°")] {
-        let dxf = rustdraft_io::write_dxf(&angular_drawing(separator_override));
-        let stored = rustdraft_io::read_dxf(dxf.as_bytes()).unwrap();
+        let dxf = draftcraft_io::write_dxf(&angular_drawing(separator_override));
+        let stored = draftcraft_io::read_dxf(dxf.as_bytes()).unwrap();
         // Inspect the saved block's MTEXT, without regenerating the dimension's text.
         let texts: Vec<&str> = stored
             .blocks
@@ -109,16 +109,16 @@ fn dwg_angular_block_text_keeps_the_decimal_separator() {
     use std::io::Cursor;
 
     use acadrust::entities::EntityType;
-    use rustdraft_io::{SaveOptions, Version};
+    use draftcraft_io::{SaveOptions, Version};
 
     for (separator_override, expected) in [(None, "39,4°"), (Some("."), "39.4°")] {
-        let dwg = rustdraft_io::write_with(
+        let dwg = draftcraft_io::write_with(
             &angular_drawing(separator_override),
             "angle.dwg",
             &SaveOptions { version: Some(Version::R2018), binary: false },
         )
         .unwrap();
-        // DWG consumers use the stored *D geometry: read it directly, without RustDraft rendering it.
+        // DWG consumers use the stored *D geometry: read it directly, without DraftCraft rendering it.
         let stored = acadrust::DwgReader::from_stream(Cursor::new(dwg)).read().unwrap();
         let texts: Vec<&str> = stored
             .entities()

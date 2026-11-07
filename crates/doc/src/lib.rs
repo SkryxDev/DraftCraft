@@ -1,4 +1,4 @@
-//! The RustDraft drawing database.
+//! The DraftCraft drawing database.
 //!
 //! A [`Drawing`] holds the header variables, symbol tables (layers, linetypes, styles), block
 //! definitions, model space and paper-space layouts. Entity collections are copy-on-write
@@ -26,6 +26,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub use array::*;
 pub use constraint::*;
+pub use draftcraft_color as color;
+pub use draftcraft_geom as geom;
 pub use entity::*;
 pub use extents::{BlockBoundsCache, MAX_BLOCK_DEPTH, entity_bounds, entity_bounds_cached, extent_bounds, extent_bounds_cached};
 pub use format::Format;
@@ -35,13 +37,11 @@ pub use plotstyle::*;
 pub use plotter::*;
 pub use raster::{Raster, Rasters};
 pub use refedit::{RefEdit, WorkItem};
-pub use rustdraft_color as color;
-pub use rustdraft_geom as geom;
 pub use store::EntityStore;
 pub use tables::*;
 pub use xclip::{ClipBoundary, MAX_CLIP_VERTICES};
 
-/// File data RustDraft doesn't model, kept for saving (#528).
+/// File data DraftCraft doesn't model, kept for saving (#528).
 pub mod dynblock;
 pub mod foreign;
 
@@ -91,7 +91,7 @@ impl Space {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Drawing {
     pub header: Header,
-    /// File data RustDraft does not model, written back on save.
+    /// File data DraftCraft does not model, written back on save.
     pub foreign: std::sync::Arc<foreign::Foreign>,
     pub layers: Vec<Layer>,
     pub linetypes: Vec<Linetype>,
@@ -137,7 +137,7 @@ pub struct Drawing {
     /// file), counted by the section they came from. Never written to a file.
     pub skipped_records: BTreeMap<String, usize>,
     /// A save option, set on the copy SAVEAS `portableFonts` writes: the file gets Windows fonts
-    /// for the Linux fonts of text styles, and each style keeps its own in RustDraft xdata, so the
+    /// for the Linux fonts of text styles, and each style keeps its own in DraftCraft xdata, so the
     /// drawing reopens with it. Never set on an open drawing.
     pub portable_fonts: bool,
     /// The pixels of the raster images that are loaded (IMAGE). Never written to a file.
@@ -388,8 +388,8 @@ impl Drawing {
     }
 
     /// Bounds of the entities in a space that count in its extents ([`Drawing::in_extents`]).
-    pub fn extents(&self, space: &Space) -> rustdraft_geom::Bounds2 {
-        let mut b = rustdraft_geom::Bounds2::EMPTY;
+    pub fn extents(&self, space: &Space) -> draftcraft_geom::Bounds2 {
+        let mut b = draftcraft_geom::Bounds2::EMPTY;
         // One block-bounds cache for the whole space: every reference to a block reuses its
         // measured contents instead of measuring the definition again.
         let mut cache = BlockBoundsCache::default();

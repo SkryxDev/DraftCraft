@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use rustdraft_doc::{Attrib, Block, Entity, EntityKind, Handle, Insert};
+use draftcraft_doc::{Attrib, Block, Entity, EntityKind, Handle, Insert};
 use serde_json::{Value, json};
 
 use crate::cmd::curves::KW;
@@ -134,7 +134,7 @@ fn references<'a>(ents: impl Iterator<Item = &'a Arc<Entity>>, name: &str) -> Ve
 
 /// Apply `f` to every reference of block `name` (in model space, layouts and other blocks);
 /// returns how many references there were.
-fn update_references(d: &mut rustdraft_doc::Drawing, name: &str, mut f: impl FnMut(&mut Insert)) -> usize {
+fn update_references(d: &mut draftcraft_doc::Drawing, name: &str, mut f: impl FnMut(&mut Insert)) -> usize {
     update_reference_entities(d, name, |e| {
         if let EntityKind::Insert(ins) = &mut e.kind {
             f(ins);
@@ -143,10 +143,10 @@ fn update_references(d: &mut rustdraft_doc::Drawing, name: &str, mut f: impl FnM
 }
 
 /// [`update_references`], with `f` given the whole object.
-pub(super) fn update_reference_entities(d: &mut rustdraft_doc::Drawing, name: &str, mut update: impl FnMut(&mut Entity)) -> usize {
+pub(super) fn update_reference_entities(d: &mut draftcraft_doc::Drawing, name: &str, mut update: impl FnMut(&mut Entity)) -> usize {
     let mut n = 0;
-    let spaces: Vec<rustdraft_doc::Space> =
-        std::iter::once(rustdraft_doc::Space::Model).chain(d.layouts.iter().map(|l| rustdraft_doc::Space::Paper(l.name.clone()))).collect();
+    let spaces: Vec<draftcraft_doc::Space> =
+        std::iter::once(draftcraft_doc::Space::Model).chain(d.layouts.iter().map(|l| draftcraft_doc::Space::Paper(l.name.clone()))).collect();
     for sp in spaces {
         let Some(store) = d.space_mut(&sp) else { continue };
         let hs = references(store.iter(), name);
@@ -170,7 +170,7 @@ pub(super) fn update_reference_entities(d: &mut rustdraft_doc::Drawing, name: &s
 }
 
 /// How many references block `name` has (in model space, layouts and other blocks).
-pub(super) fn reference_count(d: &rustdraft_doc::Drawing, name: &str) -> usize {
+pub(super) fn reference_count(d: &draftcraft_doc::Drawing, name: &str) -> usize {
     let spaces = std::iter::once(&d.model).chain(d.layouts.iter().map(|l| &l.entities));
     spaces
         .chain(d.blocks.iter().filter(|(k, _)| !k.eq_ignore_ascii_case(name)).map(|(_, b)| &b.entities))

@@ -1,7 +1,7 @@
 //! CAL and the engine side of the QuickCalc palette: points and vector functions, unit
 //! conversion, values picked from the drawing (#563).
 
-use rustdraft_engine::Session;
+use draftcraft_engine::Session;
 use serde_json::json;
 
 #[test]

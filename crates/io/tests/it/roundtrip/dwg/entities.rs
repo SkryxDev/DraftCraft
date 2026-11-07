@@ -2,9 +2,9 @@
 //! must not disable unrelated TEXT or Common tests. Pending cases assert the original model,
 //! never today's lossy output. Only confirmed failures receive an explicit ignore reason.
 
-use rustdraft_color::{Color, Rgb};
-use rustdraft_doc::{Common, EntityKind, Transparency};
-use rustdraft_io::Version;
+use draftcraft_color::{Color, Rgb};
+use draftcraft_doc::{Common, EntityKind, Transparency};
+use draftcraft_io::Version;
 
 use super::super::cases;
 use super::{check, check_version};

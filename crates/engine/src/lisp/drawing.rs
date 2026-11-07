@@ -9,9 +9,9 @@
 
 use std::sync::{Arc, Mutex};
 
-use rustdraft_doc::{Entity, Handle, Space};
-use rustdraft_dxf::Tag;
-use rustdraft_geom::Vec2;
+use draftcraft_doc::{Entity, Handle, Space};
+use draftcraft_dxf::Tag;
+use draftcraft_geom::Vec2;
 
 use super::LispError;
 use super::builtins::args_err;
@@ -191,7 +191,7 @@ fn to_json_bounded(v: &Value, depth: usize, budget: &mut u64) -> Option<serde_js
     })
 }
 
-/// Angle variables RustDraft reports and takes in degrees, as the SETVAR command shows them, which
+/// Angle variables DraftCraft reports and takes in degrees, as the SETVAR command shows them, which
 /// AutoLISP's `getvar` and `setvar` give and take in radians, as AutoCAD 2024's do: each of these
 /// set to 30 by the SETVAR command, or to `(/ pi 6)` by `setvar`, reads 0.5235987755982987.
 const RADIAN_VARS: [&str; 6] = ["ANGBASE", "CHAMFERD", "DIMJOGANG", "HPANG", "POLARANG", "SNAPANG"];
@@ -248,20 +248,20 @@ fn convert_angles(kind: &str, tags: &mut [Tag], f: fn(f64) -> f64) {
             continue;
         }
         let v = match t.value {
-            rustdraft_dxf::Value::Real(r) => r,
-            rustdraft_dxf::Value::Int(i) => i as f64,
+            draftcraft_dxf::Value::Real(r) => r,
+            draftcraft_dxf::Value::Int(i) => i as f64,
             _ => continue,
         };
-        t.value = rustdraft_dxf::Value::Real(f(v));
+        t.value = draftcraft_dxf::Value::Real(f(v));
     }
 }
 
 fn tag_value(t: &Tag) -> Value {
     match &t.value {
-        rustdraft_dxf::Value::Str(s) | rustdraft_dxf::Value::Hex(s) => Value::str(s),
-        rustdraft_dxf::Value::Real(r) => Value::Real(*r),
-        rustdraft_dxf::Value::Int(i) => Value::Int(i32::try_from(*i).unwrap_or(if *i < 0 { i32::MIN } else { i32::MAX })),
-        rustdraft_dxf::Value::Bool(b) => Value::Int(i32::from(*b)),
+        draftcraft_dxf::Value::Str(s) | draftcraft_dxf::Value::Hex(s) => Value::str(s),
+        draftcraft_dxf::Value::Real(r) => Value::Real(*r),
+        draftcraft_dxf::Value::Int(i) => Value::Int(i32::try_from(*i).unwrap_or(if *i < 0 { i32::MIN } else { i32::MAX })),
+        draftcraft_dxf::Value::Bool(b) => Value::Int(i32::from(*b)),
     }
 }
 
@@ -336,7 +336,7 @@ fn codec() -> Result<&'static crate::cmd::file::EntityCodec, LispError> {
     crate::cmd::file::entity_codec().ok_or_else(|| LispError::new("entity lists are not available in this build"))
 }
 
-fn space_of(d: &rustdraft_doc::Drawing, h: Handle) -> Option<Space> {
+fn space_of(d: &draftcraft_doc::Drawing, h: Handle) -> Option<Space> {
     d.space_of(h)
 }
 
@@ -366,7 +366,7 @@ pub fn entget(ctx: &mut Ctx<'_>, a: Vec<Value>) -> Result<Flow, LispError> {
 }
 
 /// The entity a list describes, as the reader makes it; a missing layer (8) is the current one.
-fn entity_from_list(ctx: &Ctx<'_>, list: &Value) -> Result<(String, rustdraft_doc::Common, rustdraft_doc::EntityKind), LispError> {
+fn entity_from_list(ctx: &Ctx<'_>, list: &Value) -> Result<(String, draftcraft_doc::Common, draftcraft_doc::EntityKind), LispError> {
     let (kind, mut tags) = list_to_groups(list)?;
     convert_angles(&kind, &mut tags, f64::to_degrees);
     if !tags.iter().any(|t| t.code == 8) {
@@ -375,7 +375,9 @@ fn entity_from_list(ctx: &Ctx<'_>, list: &Value) -> Result<(String, rustdraft_do
     }
     match (codec()?.entity)(&kind, &tags) {
         // A type the reader only carries through (an unknown or invalid name) isn't made.
-        Some((_, rustdraft_doc::EntityKind::Unknown(_))) | None => Err(LispError::new(format!("bad DXF group: {kind} can't be made from this list"))),
+        Some((_, draftcraft_doc::EntityKind::Unknown(_))) | None => {
+            Err(LispError::new(format!("bad DXF group: {kind} can't be made from this list")))
+        }
         Some((common, k)) => Ok((kind, common, k)),
     }
 }
@@ -429,9 +431,9 @@ fn begin_block(ctx: &mut Ctx<'_>, list: &Value, tags: &[Tag]) -> Value {
     if flags & 4 != 0 || !(anonymous && name.starts_with('*') || crate::cmd::blocks::valid_block_name(&name)) {
         return Value::Nil;
     }
-    let mut b = rustdraft_doc::Block::new(&name);
+    let mut b = draftcraft_doc::Block::new(&name);
     b.anonymous = anonymous;
-    b.base = rustdraft_geom::Vec3::new(
+    b.base = draftcraft_geom::Vec3::new(
         group(10).map(Tag::f64).unwrap_or(0.0),
         group(20).map(Tag::f64).unwrap_or(0.0),
         group(30).map(Tag::f64).unwrap_or(0.0),
@@ -646,7 +648,7 @@ pub fn ssget(ctx: &mut Ctx<'_>, a: Vec<Value>) -> Result<Flow, LispError> {
             let (p1, p2) = (point(0)?, point(1)?);
             let s = &*ctx.s;
             let Ok(d) = s.doc() else { return Ok(Flow::Value(Value::Nil)) };
-            crate::select::select_window(d, &space, rustdraft_geom::Bounds2::from_points([p1, p2]), mode.as_deref() == Some("C"))
+            crate::select::select_window(d, &space, draftcraft_geom::Bounds2::from_points([p1, p2]), mode.as_deref() == Some("C"))
         }
         Some("F") | Some("WP") | Some("CP") => {
             let poly: Vec<Vec2> =
@@ -770,7 +772,7 @@ fn parse_filter_item(items: &[Value], i: &mut usize, depth: usize) -> Result<Fil
     })
 }
 
-fn matches_filter(d: &rustdraft_doc::Drawing, e: &Entity, f: &Filter) -> bool {
+fn matches_filter(d: &draftcraft_doc::Drawing, e: &Entity, f: &Filter) -> bool {
     let groups = || match crate::cmd::file::entity_codec() {
         Some(c) => {
             let (kind, mut tags) = (c.groups)(d, e);
@@ -917,17 +919,17 @@ pub fn ssgetfirst(ctx: &mut Ctx<'_>, a: Vec<Value>) -> Result<Flow, LispError> {
 
 // ---------------- symbol tables ----------------
 
-fn color_index(c: rustdraft_color::Color) -> i32 {
+fn color_index(c: draftcraft_color::Color) -> i32 {
     match c {
-        rustdraft_color::Color::Index(i) => i32::from(i),
-        rustdraft_color::Color::ByBlock => 0,
-        rustdraft_color::Color::ByLayer => 256,
-        rustdraft_color::Color::True(_) => 7,
+        draftcraft_color::Color::Index(i) => i32::from(i),
+        draftcraft_color::Color::ByBlock => 0,
+        draftcraft_color::Color::ByLayer => 256,
+        draftcraft_color::Color::True(_) => 7,
     }
 }
 
 /// The records of a symbol table, as `tblsearch` lists them.
-fn table_records(d: &rustdraft_doc::Drawing, table: &str) -> Vec<Value> {
+fn table_records(d: &draftcraft_doc::Drawing, table: &str) -> Vec<Value> {
     let pair = |c: i32, v: Value| Value::cons(Value::Int(c), v);
     match table {
         "LAYER" => d

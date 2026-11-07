@@ -3,14 +3,14 @@ use super::{Color, Ctx, Drawing, Entity, Ink, Lineweight, ink};
 
 /// An object's colour, lineweight (mm), linetype, linetype scale, visibility and the transparency
 /// of the layer it is drawn on (for ByLayer, see [`transparency`]).
-type Resolved = (Ink, f32, Option<rustdraft_doc::Linetype>, f64, bool, u8);
+type Resolved = (Ink, f32, Option<draftcraft_doc::Linetype>, f64, bool, u8);
 
 pub(crate) fn resolve(ctx: &Ctx, e: &Entity, plotting: bool) -> Resolved {
     resolve_common(ctx, &e.common, plotting)
 }
 
 /// [`resolve`] for an object's properties `c`.
-pub(crate) fn resolve_common(ctx: &Ctx, c: &rustdraft_doc::Common, plotting: bool) -> Resolved {
+pub(crate) fn resolve_common(ctx: &Ctx, c: &draftcraft_doc::Common, plotting: bool) -> Resolved {
     let d = ctx.d;
     // Layer "0" inside a block takes the insert's layer.
     let layer_name = if c.layer == "0" { ctx.block_layer.as_deref().unwrap_or("0") } else { c.layer.as_str() };
@@ -42,11 +42,11 @@ pub(crate) fn resolve_common(ctx: &Ctx, c: &rustdraft_doc::Common, plotting: boo
 /// layer's `layer` when ByLayer (layer 0 inside a block: the block reference's layer, as
 /// [`resolve_common`] finds it), the block reference's `block` when ByBlock (opaque outside
 /// blocks).
-pub(crate) fn transparency(t: rustdraft_doc::Transparency, layer: u8, block: u8) -> u8 {
+pub(crate) fn transparency(t: draftcraft_doc::Transparency, layer: u8, block: u8) -> u8 {
     let t = match t {
-        rustdraft_doc::Transparency::Percent(p) => p,
-        rustdraft_doc::Transparency::ByBlock => block,
-        rustdraft_doc::Transparency::ByLayer => layer,
+        draftcraft_doc::Transparency::Percent(p) => p,
+        draftcraft_doc::Transparency::ByBlock => block,
+        draftcraft_doc::Transparency::ByLayer => layer,
     };
     t.min(MAX_TRANSPARENCY)
 }

@@ -8,8 +8,8 @@
 
 use std::collections::BTreeSet;
 
-use rustdraft_doc::{Common, Drawing, Entity, EntityKind, EntityStore, Point};
-use rustdraft_geom::Vec3;
+use draftcraft_doc::{Common, Drawing, Entity, EntityKind, EntityStore, Point};
+use draftcraft_geom::Vec3;
 use serde_json::{Value, json};
 
 use super::super::file::{drops_unknown, io, not_saved, not_saved_message};
@@ -125,7 +125,7 @@ fn store(path: &str, bytes: &[u8]) -> Result<()> {
     #[cfg(not(target_arch = "wasm32"))]
     {
         // Exclusively create a fresh temporary file and rename it into place so a planted
-        // `<path>.rustdraft-tmp` symlink cannot redirect the write (CWE-59).
+        // `<path>.draftcraft-tmp` symlink cannot redirect the write (CWE-59).
         crate::atomic_write::write_atomic_making_folders(std::path::Path::new(path), bytes).map_err(|e| bad("layout.saveas", format!("{path}: {e}")))
     }
     #[cfg(target_arch = "wasm32")]

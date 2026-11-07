@@ -1,10 +1,10 @@
 //! Wipeouts hide what is drawn before them and show their frame per WIPEOUTFRAME (issue #291).
 
-use rustdraft_color::Rgb;
-use rustdraft_doc::{Common, Drawing, EntityKind, Line, Space, Wipeout};
-use rustdraft_geom::{Vec2, Vec3};
-use rustdraft_render::raster::{RasterOptions, View, render};
-use rustdraft_render::{DisplayList, Kind, Options, build, build_plot};
+use draftcraft_color::Rgb;
+use draftcraft_doc::{Common, Drawing, EntityKind, Line, Space, Wipeout};
+use draftcraft_geom::{Vec2, Vec3};
+use draftcraft_render::raster::{RasterOptions, View, render};
+use draftcraft_render::{DisplayList, Kind, Options, build, build_plot};
 
 fn line() -> EntityKind {
     EntityKind::Line(Line { a: Vec3::new(0.0, 0.0, 0.0), b: Vec3::new(10.0, 10.0, 0.0) })

@@ -1,15 +1,15 @@
 //! Opening a file that isn't a drawing (SVG, read into entities): the drawing gets no file name,
-//! so QSAVE asks for one instead of writing RustDraft's SVG export over the original.
+//! so QSAVE asks for one instead of writing DraftCraft's SVG export over the original.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::cmd::file::{IoHooks, set_io};
-use rustdraft_engine::doc::Drawing;
+use draftcraft_engine::Session;
+use draftcraft_engine::cmd::file::{IoHooks, set_io};
+use draftcraft_engine::doc::Drawing;
 use serde_json::json;
 
 #[test]
 fn an_opened_svg_is_not_saved_over() {
     set_io(IoHooks { read: |_, _| Ok(Drawing::new_metric()), write: |_, _| Ok(b"exported".to_vec()), plot: None });
-    let dir = std::env::temp_dir().join(format!("rustdraft-open-svg-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("draftcraft-open-svg-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let svg = dir.join("Logo.svg");
     std::fs::write(&svg, b"<svg/>").unwrap();

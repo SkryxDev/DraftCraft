@@ -1,6 +1,6 @@
-# RustDraft Simplified Chinese interface catalog — original translations.
+# DraftCraft Simplified Chinese interface catalog — original translations.
 # License: MIT OR Apache-2.0 (the repository LICENSE-MIT and LICENSE-APACHE).
-# Written from RustDraft's English strings; no proprietary translations were copied.
+# Written from DraftCraft's English strings; no proprietary translations were copied.
 # UTF-8: context<TAB>English source<TAB>Chinese translation.
 # Empty context = ordinary label; @plural = one|other forms with {n}.
 # Command IDs, typed keywords, technology/product names and user data stay unchanged.
@@ -106,6 +106,9 @@
 	Clear	清除
 	Clipboard	剪贴板
 	Close	关闭
+	Minimize	最小化
+	Maximize	最大化
+	Restore Down	向下还原
 	Close All	全部关闭
 	Closed	已关闭
 	Coincident	重合

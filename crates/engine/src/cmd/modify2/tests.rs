@@ -1,5 +1,5 @@
-use rustdraft_doc::{EntityKind, Handle, Space};
-use rustdraft_geom::{Arc, Polyline, Vec2};
+use draftcraft_doc::{EntityKind, Handle, Space};
+use draftcraft_geom::{Arc, Polyline, Vec2};
 use serde_json::{Value, json};
 
 use crate::Session;
@@ -24,7 +24,7 @@ fn pline(s: &mut Session, pts: Value, closed: bool) -> String {
     h(&s.execute("pline", &json!({"vertices": pts, "closed": closed})).unwrap())
 }
 
-fn poly(k: &EntityKind) -> rustdraft_doc::LwPolyline {
+fn poly(k: &EntityKind) -> draftcraft_doc::LwPolyline {
     match k {
         EntityKind::LwPolyline(p) => p.clone(),
         k => panic!("not a polyline: {k:?}"),
@@ -399,8 +399,8 @@ fn chspace_json_and_command_line() {
     let mut s = Session::new();
     let l = h(&s.execute("line", &json!({"points": [[0, 0], [10, 0]]})).unwrap());
     // A viewport on Layout1 showing model (0,0) at paper (5,5) at scale 1:2.
-    let vp = rustdraft_doc::Viewport {
-        center: rustdraft_geom::Vec3::new(5.0, 5.0, 0.0),
+    let vp = draftcraft_doc::Viewport {
+        center: draftcraft_geom::Vec3::new(5.0, 5.0, 0.0),
         width: 8.0,
         height: 6.0,
         view_center: Vec2::ZERO,
@@ -555,7 +555,7 @@ fn trim_and_extend_ellipse_and_spline() {
     let nh = r["handles"][0].as_str().unwrap().to_string();
     match kind(&s, &nh) {
         EntityKind::Ellipse(x) => {
-            let ge = rustdraft_geom::Ellipse { center: x.center.xy(), major: x.major.xy(), ratio: x.ratio, start: x.start, end: x.end };
+            let ge = draftcraft_geom::Ellipse { center: x.center.xy(), major: x.major.xy(), ratio: x.ratio, start: x.start, end: x.end };
             assert!((ge.sweep() - std::f64::consts::PI).abs() < 1e-6);
             assert!(ge.at_param(ge.start + ge.sweep() / 2.0).x < 0.0, "the right half was removed");
         }
@@ -569,7 +569,7 @@ fn trim_and_extend_ellipse_and_spline() {
     s2.execute("extend", &json!({"handle": ea, "pick": [0, 2]})).unwrap();
     match kind(&s2, &ea) {
         EntityKind::Ellipse(x) => {
-            let ge = rustdraft_geom::Ellipse { center: x.center.xy(), major: x.major.xy(), ratio: x.ratio, start: x.start, end: x.end };
+            let ge = draftcraft_geom::Ellipse { center: x.center.xy(), major: x.major.xy(), ratio: x.ratio, start: x.start, end: x.end };
             assert!((ge.at_param(ge.start).x - 2.0).abs() < 1e-6, "{:?}", ge.at_param(ge.start));
         }
         k => panic!("{k:?}"),
@@ -757,7 +757,7 @@ fn offset_polyline_arc_bulge_follows_joined_endpoints() {
     s.execute("offset", &json!({"handle": pl, "distance": 1, "side": [12, 5]})).unwrap();
     let p = poly(&last(&s));
     let (a, b) = (p.vertices[1], p.vertices[2]);
-    let (arc, ccw) = rustdraft_geom::bulge_to_arc(a.p, b.p, a.bulge).unwrap();
+    let (arc, ccw) = draftcraft_geom::bulge_to_arc(a.p, b.p, a.bulge).unwrap();
     assert!(ccw);
     assert!(near(arc.center, 10.0, 5.0), "arc centre drifted to {:?}", arc.center);
     assert!((arc.radius - 4.0).abs() < 1e-6, "radius {}", arc.radius);

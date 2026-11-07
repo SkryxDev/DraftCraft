@@ -9,8 +9,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use rustdraft_doc::{EntityKind, Handle};
-use rustdraft_geom::{Arc as GeoArc, EPS, Vec2};
+use draftcraft_doc::{EntityKind, Handle};
+use draftcraft_geom::{Arc as GeoArc, EPS, Vec2};
 use serde_json::{Value, json};
 
 use super::super::bad;

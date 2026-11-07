@@ -2,12 +2,12 @@
 //! PAGESETUP takes a device and its papers with their printable areas, and PLOT hands the
 //! plotter the device's output, paper and margins.
 
-use rustdraft_doc::{Drawing, Space};
-use rustdraft_engine::Session;
-use rustdraft_engine::cmd::file::{IoHooks, base64_decode, set_io};
-use rustdraft_engine::cmd::plotters::{PlotterStore, set_plotter_store};
-use rustdraft_engine::snap::tracking::CursorQuery;
-use rustdraft_engine::{Input, geom::Vec2};
+use draftcraft_doc::{Drawing, Space};
+use draftcraft_engine::Session;
+use draftcraft_engine::cmd::file::{IoHooks, base64_decode, set_io};
+use draftcraft_engine::cmd::plotters::{PlotterStore, set_plotter_store};
+use draftcraft_engine::snap::tracking::CursorQuery;
+use draftcraft_engine::{Input, geom::Vec2};
 use serde_json::{Value, json};
 
 /// The plot hook echoes the options it gets.
@@ -43,8 +43,8 @@ fn plotted(r: Value) -> Value {
 fn manage_devices() {
     let mut s = session();
     let n = names(&mut s);
-    assert_eq!(n[..3], ["RustDraft PDF", "RustDraft PNG", "RustDraft SVG"], "built-in devices first");
-    let pdf = s.execute("plottermanager", &json!({"action": "get", "name": "rustdraft pdf"})).unwrap();
+    assert_eq!(n[..3], ["DraftCraft PDF", "DraftCraft PNG", "DraftCraft SVG"], "built-in devices first");
+    let pdf = s.execute("plottermanager", &json!({"action": "get", "name": "draftcraft pdf"})).unwrap();
     assert!(pdf["builtin"].as_bool().unwrap());
     let papers = pdf["papers"].as_array().unwrap();
     assert!(papers.iter().any(|p| p["name"] == "ISO B1 (707.00 x 1000.00 MM)"));
@@ -61,14 +61,14 @@ fn manage_devices() {
     assert_eq!(r["resolution"], 150);
     assert!(names(&mut s).contains(&"Office Raster".to_string()));
     assert!(s.execute("plottermanager", &json!({"action": "new", "name": "OFFICE RASTER"})).is_err(), "duplicate");
-    assert!(s.execute("plottermanager", &json!({"action": "set", "name": "RustDraft PDF", "resolution": 100})).is_err(), "built-ins are fixed");
-    assert!(s.execute("plottermanager", &json!({"action": "delete", "name": "RustDraft SVG"})).is_err());
+    assert!(s.execute("plottermanager", &json!({"action": "set", "name": "DraftCraft PDF", "resolution": 100})).is_err(), "built-ins are fixed");
+    assert!(s.execute("plottermanager", &json!({"action": "delete", "name": "DraftCraft SVG"})).is_err());
     let bad_margins = json!({"name": "x", "width": 100, "height": 100, "margins": [60, 0, 60, 0]});
     assert!(s.execute("plottermanager", &json!({"action": "set", "name": "Office Raster", "paper": bad_margins})).is_err());
 
     // Save as text, load under another name, delete.
     let text = s.execute("plottermanager", &json!({"action": "save", "name": "Office Raster"})).unwrap()["text"].as_str().unwrap().to_string();
-    assert!(text.contains("\"rustdraftPlotter\": 1"), "{text}");
+    assert!(text.contains("\"draftcraftPlotter\": 1"), "{text}");
     s.execute("plottermanager", &json!({"action": "load", "text": text, "name": "Office Copy"})).unwrap();
     let copy = s.execute("plottermanager", &json!({"action": "get", "name": "Office Copy"})).unwrap();
     assert_eq!(copy["output"], "png");
@@ -92,13 +92,13 @@ fn page_setup_takes_a_device_and_its_papers() {
     let page = &s.doc().unwrap().layout("Layout1").unwrap().page;
     assert_eq!((page.width_mm, page.height_mm, page.margins_mm), (200.0, 600.0, [10.0, 20.0, 10.0, 20.0]));
     // The printable area shown in the layout follows the device paper.
-    let sheet = rustdraft_render::sheet(s.doc().unwrap(), "Layout1").unwrap();
+    let sheet = draftcraft_render::sheet(s.doc().unwrap(), "Layout1").unwrap();
     let mm = |v: f64| v * sheet.unit_mm;
     let got = [mm(sheet.printable.min.x), mm(sheet.printable.min.y), mm(sheet.printable.max.x), mm(sheet.printable.max.y)];
     assert!(got.iter().zip([10.0, 20.0, 190.0, 580.0]).all(|(a, b)| (a - b).abs() < 1e-9), "{got:?}");
 
     // Switching to a built-in device keeps a paper it has, else takes its default (A4).
-    s.execute("pagesetup", &json!({"layout": "Layout1", "device": "RustDraft PDF"})).unwrap();
+    s.execute("pagesetup", &json!({"layout": "Layout1", "device": "DraftCraft PDF"})).unwrap();
     let page = s.doc().unwrap().layout("Layout1").unwrap().page.clone();
     assert_eq!((page.paper.as_str(), page.margins_mm), ("ISO A4 (210.00 x 297.00 MM)", [5.0; 4]));
     s.execute("pagesetup", &json!({"layout": "Layout1", "paper": "A3"})).unwrap();
@@ -195,7 +195,7 @@ fn plotwindow_keeps_the_picked_window_for_the_plot_dialog() {
     s.cmdline("plotwindow").unwrap();
     assert_eq!(s.current_prompt().unwrap().message, "Specify first corner");
     s.cmdline("10,20").unwrap();
-    assert_eq!(s.preview(rustdraft_engine::geom::Vec2::new(40.0, 5.0)).len(), 4, "the rubber-band rectangle");
+    assert_eq!(s.preview(draftcraft_engine::geom::Vec2::new(40.0, 5.0)).len(), 4, "the rubber-band rectangle");
     s.cmdline("40,5").unwrap();
     assert!(s.running.is_none());
     let w = s.plot_window.expect("the picked window");

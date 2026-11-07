@@ -2,8 +2,8 @@
 //! same objects as without it: scripts and routines meant for every language write them that way
 //! (#1172).
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::EntityKind;
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::EntityKind;
 use serde_json::json;
 
 /// Three lines on the X axis: A 0–10, B 12–20, C 30–40.

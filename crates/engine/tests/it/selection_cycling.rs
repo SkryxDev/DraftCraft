@@ -1,9 +1,9 @@
 //! Selection cycling (SELECTIONCYCLING, #1143): the objects under the pick box a click chooses
 //! between, and picking one of them as the click would have.
 
-use rustdraft_engine::doc::{Handle, Space};
-use rustdraft_engine::geom::Vec2;
-use rustdraft_engine::{Session, select};
+use draftcraft_engine::doc::{Handle, Space};
+use draftcraft_engine::geom::Vec2;
+use draftcraft_engine::{Session, select};
 use serde_json::json;
 
 /// Two lines that overlap from x = 0 to x = 10 (the second drawn on top), and a line apart.
@@ -66,7 +66,7 @@ fn a_cycled_pick_selects_like_a_click() {
     // At "Select objects" the chosen object goes to the command.
     s.start("erase").unwrap();
     s.pick_cycled(hs[0], false).unwrap();
-    s.input(rustdraft_engine::Input::Enter).unwrap();
+    s.input(draftcraft_engine::Input::Enter).unwrap();
     assert!(s.running.is_none());
     let left: Vec<Handle> = s.doc().unwrap().model.iter().map(|e| e.handle).collect();
     assert_eq!(left, vec![hs[1], hs[2]]);

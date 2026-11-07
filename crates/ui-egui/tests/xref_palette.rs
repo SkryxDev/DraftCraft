@@ -1,14 +1,14 @@
 //! The External References palette (#525): XREF opens it; its rows and buttons act through the
 //! engine's -XREF commands.
 
+use draftcraft_engine::Session;
+use draftcraft_engine::cmd::file::{IoHooks, set_io};
+use draftcraft_engine::doc::geom::Vec3;
+use draftcraft_engine::doc::{Drawing, Entity, EntityKind, Handle, Layer, Line, XrefStatus};
+use draftcraft_ui_egui::{CadApp, Services, docking::Panel};
 use egui::vec2;
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
-use rustdraft_engine::Session;
-use rustdraft_engine::cmd::file::{IoHooks, set_io};
-use rustdraft_engine::doc::geom::Vec3;
-use rustdraft_engine::doc::{Drawing, Entity, EntityKind, Handle, Layer, Line, XrefStatus};
-use rustdraft_ui_egui::{CadApp, Services, docking::Panel};
 use serde_json::json;
 
 #[path = "support/temp_dir.rs"]

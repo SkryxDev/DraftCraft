@@ -3,9 +3,9 @@
 //! viewports. Changes go through `viewport.set` / `layer.new` / `layer.set`, so validation
 //! matches the JSON forms and the whole session is one undo step.
 
-use rustdraft_color::Color;
-use rustdraft_doc::{Handle, Space};
-use rustdraft_geom::Vec2;
+use draftcraft_color::Color;
+use draftcraft_doc::{Handle, Space};
+use draftcraft_geom::Vec2;
 use serde_json::{Value, json};
 
 use super::super::find_command;
@@ -284,7 +284,7 @@ impl VplayerM {
                         .layouts
                         .iter()
                         .flat_map(|l| l.entities.iter())
-                        .filter(|e| matches!(&e.kind, rustdraft_doc::EntityKind::Viewport(v) if v.id != 1))
+                        .filter(|e| matches!(&e.kind, draftcraft_doc::EntityKind::Viewport(v) if v.id != 1))
                         .map(|e| e.handle)
                         .collect();
                     let mut made = Vec::new();

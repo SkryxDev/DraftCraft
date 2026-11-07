@@ -1,10 +1,10 @@
-//! The Model layout's plot settings say what RustDraft plots for model space: the drawing extents
+//! The Model layout's plot settings say what DraftCraft plots for model space: the drawing extents
 //! fitted to the paper. Plot type 5 ("Layout information", DXF Reference, PLOTSETTINGS group 74)
 //! means nothing for model space; another program's Plot dialog then showed no plot area and no
 //! scale for Model.
 
-use rustdraft_doc::*;
-use rustdraft_geom::Vec3;
+use draftcraft_doc::*;
+use draftcraft_geom::Vec3;
 
 /// The (code, value) pairs of every `kind` record in DXF text.
 fn records(text: &str, kind: &str) -> Vec<Vec<(String, String)>> {
@@ -46,7 +46,7 @@ fn drawing() -> Drawing {
 
 #[test]
 fn model_layout_plots_extents_fitted_and_layouts_their_sheet() {
-    let p = plots(&rustdraft_io::write_dxf(&drawing()));
+    let p = plots(&draftcraft_io::write_dxf(&drawing()));
     let model = p.iter().find(|(n, _, _)| n == "Model").unwrap();
     assert_eq!((model.1, model.2), (Some(1), Some(0)), "Model: drawing extents, scaled to fit");
     // Paper-space layouts keep "Layout information" at 1:1.
@@ -57,9 +57,9 @@ fn model_layout_plots_extents_fitted_and_layouts_their_sheet() {
 
 #[test]
 fn model_layout_plot_type_survives_the_dwg_bridge() {
-    let dwg = rustdraft_io::write(&drawing(), "x.dwg").unwrap();
+    let dwg = draftcraft_io::write(&drawing(), "x.dwg").unwrap();
     // What the DWG holds, as the bridge's own DXF.
-    let dxf = String::from_utf8_lossy(&rustdraft_dwg::dwg_to_dxf(&dwg).unwrap()).to_string();
+    let dxf = String::from_utf8_lossy(&draftcraft_dwg::dwg_to_dxf(&dwg).unwrap()).to_string();
     let p = plots(&dxf);
     let model = p.iter().find(|(n, _, _)| n.eq_ignore_ascii_case("Model")).unwrap();
     assert_eq!(model.1, Some(1), "{p:?}");

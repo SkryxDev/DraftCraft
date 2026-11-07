@@ -1,10 +1,10 @@
 //! Layer and colour set on one attribute of a block reference: -ATTEDIT Layer/Color, drawn in
 //! place of the definition's, reset by ATTSYNC.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::color::{Color, Rgb};
-use rustdraft_engine::doc::{AttribProps, EntityKind, Handle, Space};
-use rustdraft_engine::render::{Options, build};
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::color::{Color, Rgb};
+use draftcraft_engine::doc::{AttribProps, EntityKind, Handle, Space};
+use draftcraft_engine::render::{Options, build};
 use serde_json::json;
 
 /// Block B (attributes T and U on layer 0) inserted at 100,0; layer A exists.

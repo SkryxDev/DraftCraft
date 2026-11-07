@@ -3,12 +3,12 @@
 
 use std::sync::Arc;
 
-use rustdraft_doc::{Block, Common, Drawing, Entity, EntityKind, Handle, Insert, Line, Space, Viewport};
-use rustdraft_geom::{Vec2, Vec3};
-use rustdraft_render::{MAX_BLOCK_EXPANSION, Options, build};
+use draftcraft_doc::{Block, Common, Drawing, Entity, EntityKind, Handle, Insert, Line, Space, Viewport};
+use draftcraft_geom::{Vec2, Vec3};
+use draftcraft_render::{MAX_BLOCK_EXPANSION, Options, build};
 
 fn read(text: &str) -> Drawing {
-    rustdraft_io::read(text.as_bytes(), "x.dxf").unwrap()
+    draftcraft_io::read(text.as_bytes(), "x.dxf").unwrap()
 }
 
 /// Block `A` holds a line and `refs` references to itself; model space holds one `A`.
@@ -50,7 +50,7 @@ fn block_expansion_bombs_are_bounded() {
         let list = build(&d, &Space::Model, &Options::default());
         assert!(!list.prims.is_empty() && list.prims.len() <= MAX_BLOCK_EXPANSION, "{}", list.prims.len());
         // Saving computes the extents again ($EXTMIN/$EXTMAX).
-        assert!(rustdraft_io::write_dxf(&d).contains("$EXTMAX"));
+        assert!(draftcraft_io::write_dxf(&d).contains("$EXTMAX"));
     }
 }
 
@@ -64,7 +64,7 @@ fn ordinary_nested_and_arrayed_blocks_are_drawn_whole() {
     // A self-referencing block draws its line at every level down to MAX_BLOCK_DEPTH.
     let d = read(&self_referencing(1));
     assert!(matches!(d.model.iter().next().map(|e| &e.kind), Some(EntityKind::Insert(_))));
-    assert_eq!(build(&d, &Space::Model, &Options::default()).prims.len(), rustdraft_doc::MAX_BLOCK_DEPTH);
+    assert_eq!(build(&d, &Space::Model, &Options::default()).prims.len(), draftcraft_doc::MAX_BLOCK_DEPTH);
 }
 
 #[test]

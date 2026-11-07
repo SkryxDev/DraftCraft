@@ -5,9 +5,9 @@
 //!
 //! The fonts are tiny synthetic TrueType files built here (no font files in the repository).
 
-use rustdraft_doc::{Common, Drawing, EntityKind, Space, Text, TextStyle, Viewport};
-use rustdraft_geom::{Vec2, Vec3};
-use rustdraft_io::plot;
+use draftcraft_doc::{Common, Drawing, EntityKind, Space, Text, TextStyle, Viewport};
+use draftcraft_geom::{Vec2, Vec3};
+use draftcraft_io::plot;
 use serde_json::json;
 
 #[path = "support/pdf_read.rs"]
@@ -153,9 +153,9 @@ fn test_font(fs_type: u16, metrics: usize) -> Vec<u8> {
 fn fonts() {
     static ONCE: std::sync::Once = std::sync::Once::new();
     ONCE.call_once(|| {
-        rustdraft_fonts::ttf::register("rustdraft-pdf-test.ttf", test_font(0, 3));
-        rustdraft_fonts::ttf::register("rustdraft-pdf-restricted.ttf", test_font(0x0002, 3));
-        rustdraft_fonts::ttf::register("rustdraft-pdf-short-hmtx.ttf", test_font(0, 1));
+        draftcraft_fonts::ttf::register("draftcraft-pdf-test.ttf", test_font(0, 3));
+        draftcraft_fonts::ttf::register("draftcraft-pdf-restricted.ttf", test_font(0x0002, 3));
+        draftcraft_fonts::ttf::register("draftcraft-pdf-short-hmtx.ttf", test_font(0, 1));
     });
 }
 
@@ -184,9 +184,9 @@ fn text(d: &mut Drawing, space: &Space, style: &str, at: (f64, f64), value: &str
 fn drawing() -> Drawing {
     fonts();
     let mut d = Drawing::new_metric();
-    style(&mut d, "Real", "rustdraft-pdf-test.ttf");
-    style(&mut d, "Locked", "rustdraft-pdf-restricted.ttf");
-    style(&mut d, "Short", "rustdraft-pdf-short-hmtx.ttf");
+    style(&mut d, "Real", "draftcraft-pdf-test.ttf");
+    style(&mut d, "Locked", "draftcraft-pdf-restricted.ttf");
+    style(&mut d, "Short", "draftcraft-pdf-short-hmtx.ttf");
     d
 }
 
@@ -263,8 +263,8 @@ fn the_subset_is_a_valid_truetype_font() {
     text(&mut d, &Space::Model, "Real", (0.0, 0.0), "A", (0.0, 1.0, 0.0));
     let doc = pdf(&d, &Space::Model, json!({}));
     let file = doc.pages[0].fonts[0].font_file.clone().expect("an embedded font file");
-    let face = rustdraft_fonts::ttf::Face::new(std::sync::Arc::new(file.clone()), 0).expect("the subset parses");
-    assert_eq!(rustdraft_fonts::subset::embedding(&face), rustdraft_fonts::subset::Embedding::Allowed);
+    let face = draftcraft_fonts::ttf::Face::new(std::sync::Arc::new(file.clone()), 0).expect("the subset parses");
+    assert_eq!(draftcraft_fonts::subset::embedding(&face), draftcraft_fonts::subset::Embedding::Allowed);
     // Glyph A kept, B (unused) left out: the subset is smaller than the font.
     assert!(file.len() < test_font(0, 3).len());
 }

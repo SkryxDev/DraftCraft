@@ -5,8 +5,8 @@
 //! zigzag; the Block option takes a block of the drawing that marks its attachment points with
 //! two POINT objects on the Defpoints layer and draws the symbol with lines and polylines.
 
-use rustdraft_doc::{Drawing, EntityKind};
-use rustdraft_geom::{PolyVertex, Vec2};
+use draftcraft_doc::{Drawing, EntityKind};
+use draftcraft_geom::{PolyVertex, Vec2};
 use serde_json::Value;
 
 use super::super::machines::number;

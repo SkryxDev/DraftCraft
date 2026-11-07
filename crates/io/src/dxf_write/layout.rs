@@ -4,7 +4,7 @@ use super::{Bounds2, Drawing, Entity, EntityKind, Handle, HashMap, Layout, Vec2,
 /// Layouts with viewports but without the paper-space viewport (id 1, the sheet itself), keyed
 /// by their first viewport. AutoCAD and DWG take a layout's first viewport as its paper-space
 /// viewport (DWG does not store viewport ids; readers number them in order), so a layout made in
-/// RustDraft, whose paper-space viewport is implicit, gets one written ahead of its viewports.
+/// DraftCraft, whose paper-space viewport is implicit, gets one written ahead of its viewports.
 pub(super) fn paper_views(d: &Drawing) -> HashMap<Handle, usize> {
     let mut out = HashMap::new();
     'layouts: for (i, l) in d.layouts.iter().enumerate() {
@@ -42,11 +42,11 @@ fn sheet_scale(l: &Layout) -> f64 {
 }
 
 /// The paper-space viewport (id 1) of the layout whose first viewport is `e`, if it needs one
-/// ([`paper_views`]): the whole sheet, viewed 1:1. Marked with RustDraft xdata so that our reader
+/// ([`paper_views`]): the whole sheet, viewed 1:1. Marked with DraftCraft xdata so that our reader
 /// leaves it implicit again.
 pub(super) fn paper_view(w: &mut W, d: &Drawing, e: &Entity, owner: &str, cx: &Ctx) {
     let Some(l) = cx.paper_views.get(&e.handle).and_then(|i| d.layouts.get(*i)) else { return };
-    let paper = rustdraft_render::paper::sheet(d, &l.name).map(|s| s.size).unwrap_or(Vec2::new(12.0, 9.0));
+    let paper = draftcraft_render::paper::sheet(d, &l.name).map(|s| s.size).unwrap_or(Vec2::new(12.0, 9.0));
     let size = paper / sheet_scale(l);
     let center = size * 0.5;
     let h = w.h();
@@ -78,7 +78,7 @@ pub(super) fn vport_table(w: &mut W, d: &Drawing, ext: Bounds2) {
         .iter()
         .find(|c| c.is_active() && c.tiles.len() == 1)
         .and_then(|c| c.tiles.first())
-        .map_or(0.0, |t| rustdraft_geom::norm_angle(t.twist));
+        .map_or(0.0, |t| draftcraft_geom::norm_angle(t.twist));
     // The extents fitted as the turned view sees them.
     let (center, height) = if ext.is_empty() {
         (Vec2::new(6.0, 4.5), 9.0)
@@ -104,7 +104,7 @@ pub(super) fn vport_table(w: &mut W, d: &Drawing, ext: Bounds2) {
         w.i(70, 0);
         w.p2(10, finite(t.min, Vec2::ZERO));
         w.p2(11, finite(t.max, Vec2::new(1.0, 1.0)));
-        let twist = rustdraft_geom::norm_angle(t.twist);
+        let twist = draftcraft_geom::norm_angle(t.twist);
         w.p2(12, dxf_ext::model_center_to_dcs(finite(t.center, Vec2::ZERO), twist));
         // Snap grid origin and rotation (SNAPBASE, SNAPANG in degrees): R13+ files keep them here.
         w.p2(13, d.header.point("SNAPBASE").map(|p| p.xy()).filter(|p| p.is_finite()).unwrap_or(Vec2::ZERO));

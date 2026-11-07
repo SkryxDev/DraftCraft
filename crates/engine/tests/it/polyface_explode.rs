@@ -1,8 +1,8 @@
 //! EXPLODE turns a polyface mesh into its 3D faces, as AutoCAD does; hidden edges stay hidden.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{Common, EntityKind, PolyfaceMesh, Space};
-use rustdraft_geom::Vec3;
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{Common, EntityKind, PolyfaceMesh, Space};
+use draftcraft_geom::Vec3;
 use serde_json::json;
 
 #[test]

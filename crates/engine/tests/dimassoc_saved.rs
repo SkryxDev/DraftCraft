@@ -1,9 +1,9 @@
-//! #1651: the issue's repro through the commands. Every dimension RustDraft reports as
+//! #1651: the issue's repro through the commands. Every dimension DraftCraft reports as
 //! associated (the diameter, radius and angular ones, as well as the linear control) is saved
 //! with a DIMASSOC object whose references name its geometry.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{EntityKind, Handle};
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{EntityKind, Handle};
 use serde_json::{Value, json};
 
 /// The entity handle a command result reports, from its `handle` field.
@@ -115,7 +115,7 @@ fn the_issue_repro_saves_every_associated_dimension_with_dimassoc() {
     let r = s.execute("dimreassociate", &json!({ "handles": hs })).unwrap();
     assert_eq!(r["associated"], json!(4), "{r}");
 
-    let text = rustdraft_io::write_dxf(s.doc().unwrap());
+    let text = draftcraft_io::write_dxf(s.doc().unwrap());
     for (h, what) in [(diameter, "diameter"), (radius, "radius"), (angular, "angular"), (linear, "linear")] {
         let rec = dimassoc(&text, h).unwrap_or_else(|| panic!("{what} dimension {} has a DIMASSOC", h.hex()));
         let refs = point_refs(&rec);

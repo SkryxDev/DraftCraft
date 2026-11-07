@@ -3,12 +3,12 @@
 
 use std::sync::Arc;
 
-use rustdraft_color::Color;
-use rustdraft_doc::{
+use draftcraft_color::Color;
+use draftcraft_doc::{
     Common, Drawing, EndStyle, EntityKind, FillStyle, JoinStyle, Line, LwPolyline, PlotStyle, PlotStyleTable, Solid, Space, Viewport,
 };
-use rustdraft_geom::{PolyVertex, Vec2, Vec3};
-use rustdraft_render::{DisplayList, Kind, Options, VIEWPORT_CONTENT, build, build_plot, pen};
+use draftcraft_geom::{PolyVertex, Vec2, Vec3};
+use draftcraft_render::{DisplayList, Kind, Options, VIEWPORT_CONTENT, build, build_plot, pen};
 
 /// A colour-dependent table whose colour 1 prints 1.00 mm wide with `style`'s end/join/fill.
 fn table(end: EndStyle, join: JoinStyle, fill: FillStyle) -> Options {

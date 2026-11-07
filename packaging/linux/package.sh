@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Build and package RustDraft for Linux (<arch> is x86_64 or aarch64, or riscv64 when cross-compiling):
+# Build and package DraftCraft for Linux (<arch> is x86_64 or aarch64, or riscv64 when cross-compiling):
 #
-#   $DIST/rustdraft-<version>-linux-<arch>.AppImage  any distro with glibc >= the build host's
-#   $DIST/rustdraft-<version>-linux-<arch>.AppImage.zsync  delta updates (needs zsyncmake)
-#   $DIST/rustdraft-<version>-linux-<arch>.deb       Debian, Ubuntu, Mint, Pop!_OS, ...
-#   $DIST/rustdraft-<version>-linux-<arch>.rpm       Fedora, openSUSE, RHEL, ...
-#   $DIST/rustdraft-<version>-linux-<arch>.tar.gz    plain FHS-style tree (bin/, share/)
+#   $DIST/draftcraft-<version>-linux-<arch>.AppImage  any distro with glibc >= the build host's
+#   $DIST/draftcraft-<version>-linux-<arch>.AppImage.zsync  delta updates (needs zsyncmake)
+#   $DIST/draftcraft-<version>-linux-<arch>.deb       Debian, Ubuntu, Mint, Pop!_OS, ...
+#   $DIST/draftcraft-<version>-linux-<arch>.rpm       Fedora, openSUSE, RHEL, ...
+#   $DIST/draftcraft-<version>-linux-<arch>.tar.gz    plain FHS-style tree (bin/, share/)
 #
 # Usage: packaging/linux/package.sh [--skip-build] [--formats "appimage deb rpm tar"]
 #
@@ -17,7 +17,7 @@ set -euo pipefail
 # shellcheck source=../env.sh
 . "$(dirname "${BASH_SOURCE[0]}")/../env.sh"
 HERE="$ROOT/packaging/linux"
-APP_ID=dev.skryx.rustdraft
+APP_ID=dev.skryx.draftcraft
 
 SKIP_BUILD=0
 FORMATS="appimage deb rpm tar"
@@ -39,21 +39,21 @@ case "$ARCH" in
   aarch64 | arm64) ARCH=aarch64; DEB_ARCH=arm64 ;;
   *) echo "unsupported architecture $ARCH" >&2; exit 2 ;;
 esac
-export RUSTDRAFT_MAINTAINER="${RUSTDRAFT_MAINTAINER:-Skryx Dev <skryx.dev@gmail.com>}"
-BASENAME="rustdraft-$VERSION-linux-$ARCH"
+export DRAFTCRAFT_MAINTAINER="${DRAFTCRAFT_MAINTAINER:-Skryx Dev <skryx.dev@gmail.com>}"
+BASENAME="draftcraft-$VERSION-linux-$ARCH"
 
-echo "==> RustDraft $VERSION for Linux $ARCH ($FORMATS)"
+echo "==> DraftCraft $VERSION for Linux $ARCH ($FORMATS)"
 
-# The man-and-completions example writes rustdraft-cli's man pages and shell completions below. It
+# The man-and-completions example writes draftcraft-cli's man pages and shell completions below. It
 # is built in its own cargo run: built with the binaries, its dev-dependencies' features would be
 # unified into them.
 if [[ "$SKIP_BUILD" = 0 ]]; then
   if [[ -n "${CROSS_TARGET:-}" ]]; then
-    (cd "$ROOT" && cargo build --release --locked -p rustdraft -p rustdraft-cli --target "$CROSS_TARGET")
-    (cd "$ROOT" && cargo build --release --locked -p rustdraft-cli --example man-and-completions --target "$CROSS_TARGET")
+    (cd "$ROOT" && cargo build --release --locked -p draftcraft -p draftcraft-cli --target "$CROSS_TARGET")
+    (cd "$ROOT" && cargo build --release --locked -p draftcraft-cli --example man-and-completions --target "$CROSS_TARGET")
   else
-    (cd "$ROOT" && cargo build --release --locked -p rustdraft -p rustdraft-cli)
-    (cd "$ROOT" && cargo build --release --locked -p rustdraft-cli --example man-and-completions)
+    (cd "$ROOT" && cargo build --release --locked -p draftcraft -p draftcraft-cli)
+    (cd "$ROOT" && cargo build --release --locked -p draftcraft-cli --example man-and-completions)
   fi
 fi
 BIN="$CARGO_TARGET_DIR/${CROSS_TARGET:+$CROSS_TARGET/}release"
@@ -62,27 +62,27 @@ STAGE="$WORK/root"
 rm -rf "$WORK"
 
 # ---- stage an FHS tree (shared by every format) -------------------------------------------------
-install -Dm755 "$BIN/rustdraft" "$STAGE/usr/bin/rustdraft"
-install -Dm755 "$BIN/rustdraft-cli" "$STAGE/usr/bin/rustdraft-cli"
-"${CROSS_COMPILE:-}strip" "$STAGE/usr/bin/rustdraft" "$STAGE/usr/bin/rustdraft-cli" 2>/dev/null || true
+install -Dm755 "$BIN/draftcraft" "$STAGE/usr/bin/draftcraft"
+install -Dm755 "$BIN/draftcraft-cli" "$STAGE/usr/bin/draftcraft-cli"
+"${CROSS_COMPILE:-}strip" "$STAGE/usr/bin/draftcraft" "$STAGE/usr/bin/draftcraft-cli" 2>/dev/null || true
 install -Dm644 "$HERE/$APP_ID.desktop" "$STAGE/usr/share/applications/$APP_ID.desktop"
 install -Dm644 "$HERE/$APP_ID.mime.xml" "$STAGE/usr/share/mime/packages/$APP_ID.xml"
 mkdir -p "$STAGE/usr/share/metainfo"
-sed -e "s/@VERSION@/$VERSION/g" -e "s/@DATE@/$RUSTDRAFT_BUILD_DATE/g" \
+sed -e "s/@VERSION@/$VERSION/g" -e "s/@DATE@/$DRAFTCRAFT_BUILD_DATE/g" \
   "$HERE/$APP_ID.metainfo.xml.in" >"$STAGE/usr/share/metainfo/$APP_ID.metainfo.xml"
 mkdir -p "$STAGE/usr/share/icons"
 cp -R "$ROOT/assets/app-icon/hicolor" "$STAGE/usr/share/icons/"
-mkdir -p "$STAGE/usr/share/doc/rustdraft"
-copy_docs "$STAGE/usr/share/doc/rustdraft"
-# rustdraft-cli's man pages and shell completions, from its clap definition, written by the
+mkdir -p "$STAGE/usr/share/doc/draftcraft"
+copy_docs "$STAGE/usr/share/doc/draftcraft"
+# draftcraft-cli's man pages and shell completions, from its clap definition, written by the
 # example built above. A cross build runs it through $EMULATOR, like the --version check at the
 # end, and leaves them out without one, as a --skip-build run whose prebuilt binaries came without
 # the example does. zsh reads site-functions on Fedora and openSUSE.
 CLI_DOCS="$BIN/examples/man-and-completions"
 if [[ -n "${CROSS_TARGET:-}" ]] && [[ -z "${EMULATOR:-}" ]]; then
-  warn "no EMULATOR to run the $CROSS_TARGET build, so rustdraft-cli's man pages and completions are left out"
+  warn "no EMULATOR to run the $CROSS_TARGET build, so draftcraft-cli's man pages and completions are left out"
 elif [[ ! -x "$CLI_DOCS" ]]; then
-  warn "$CLI_DOCS is not built, so rustdraft-cli's man pages and completions are left out"
+  warn "$CLI_DOCS is not built, so draftcraft-cli's man pages and completions are left out"
 else
   if [[ -n "${CROSS_TARGET:-}" ]]; then
     "$EMULATOR" "$CLI_DOCS" "$WORK/cli-docs"
@@ -90,9 +90,9 @@ else
     "$CLI_DOCS" "$WORK/cli-docs"
   fi
   install -Dm644 -t "$STAGE/usr/share/man/man1" "$WORK"/cli-docs/*.1
-  install -Dm644 "$WORK/cli-docs/rustdraft-cli.bash" "$STAGE/usr/share/bash-completion/completions/rustdraft-cli"
-  install -Dm644 "$WORK/cli-docs/_rustdraft-cli" "$STAGE/usr/share/zsh/site-functions/_rustdraft-cli"
-  install -Dm644 "$WORK/cli-docs/rustdraft-cli.fish" "$STAGE/usr/share/fish/vendor_completions.d/rustdraft-cli.fish"
+  install -Dm644 "$WORK/cli-docs/draftcraft-cli.bash" "$STAGE/usr/share/bash-completion/completions/draftcraft-cli"
+  install -Dm644 "$WORK/cli-docs/_draftcraft-cli" "$STAGE/usr/share/zsh/site-functions/_draftcraft-cli"
+  install -Dm644 "$WORK/cli-docs/draftcraft-cli.fish" "$STAGE/usr/share/fish/vendor_completions.d/draftcraft-cli.fish"
 fi
 
 if command -v desktop-file-validate >/dev/null; then
@@ -126,9 +126,9 @@ fi
 
 # ---- AppImage -----------------------------------------------------------------------------------
 if has appimage; then
-  APPDIR="$WORK/RustDraft.AppDir"
+  APPDIR="$WORK/DraftCraft.AppDir"
   cp -R "$STAGE" "$APPDIR"
-  ln -s usr/bin/rustdraft "$APPDIR/AppRun"
+  ln -s usr/bin/draftcraft "$APPDIR/AppRun"
   cp "$HERE/$APP_ID.desktop" "$APPDIR/$APP_ID.desktop"
   cp "$ROOT/assets/app-icon/hicolor/256x256/apps/$APP_ID.png" "$APPDIR/$APP_ID.png"
   ln -s "$APP_ID.png" "$APPDIR/.DirIcon"
@@ -152,8 +152,8 @@ if has appimage; then
   # fetch only the blocks that changed in a newer release, through the .zsync published next to
   # each AppImage on GitHub Releases. `latest` is the newest published release that is not a
   # pre-release. A fork's builds point at its own releases through GITHUB_REPOSITORY.
-  REPO="${GITHUB_REPOSITORY:-SkryxDev/RustDraft}"
-  UPDATE_INFO="gh-releases-zsync|${REPO%%/*}|${REPO#*/}|latest|rustdraft-*-linux-$ARCH.AppImage.zsync"
+  REPO="${GITHUB_REPOSITORY:-SkryxDev/DraftCraft}"
+  UPDATE_INFO="gh-releases-zsync|${REPO%%/*}|${REPO#*/}|latest|draftcraft-*-linux-$ARCH.AppImage.zsync"
   # Extract-and-run: works without FUSE (containers, CI). The output embeds the static runtime,
   # so users don't need libfuse2 either. With zsyncmake on the host (CI installs the zsync
   # package) appimagetool also writes the .zsync, into its working directory, hence the cd.
@@ -167,9 +167,9 @@ if has appimage; then
 fi
 
 if [[ -z "${CROSS_TARGET:-}" ]]; then
-  "$STAGE/usr/bin/rustdraft-cli" --version
+  "$STAGE/usr/bin/draftcraft-cli" --version
 elif [[ -n "${EMULATOR:-}" ]]; then
-  "$EMULATOR" "$STAGE/usr/bin/rustdraft-cli" --version
+  "$EMULATOR" "$STAGE/usr/bin/draftcraft-cli" --version
 fi
 echo "==> done"
 ls -lh "$DIST"

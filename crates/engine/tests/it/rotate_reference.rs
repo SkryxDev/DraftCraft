@@ -1,8 +1,8 @@
 //! ROTATE Reference: the reference angle (typed, or two points), then the new angle (typed, a
 //! point measured from the base point, or two points after `P`).
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::EntityKind;
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::EntityKind;
 
 fn session_with_line(l: &str) -> Session {
     let mut s = Session::new();

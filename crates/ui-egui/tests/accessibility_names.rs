@@ -4,11 +4,11 @@
 //! `hint_text` becomes an AccessKit placeholder, so a screen reader sees an unnamed text input
 //! unless the widget is associated with a visible label (`labelled_by`) or given a name.
 
+use draftcraft_engine::Session;
+use draftcraft_ui_egui::{CadApp, Services, i18n, menus};
 use egui::accesskit::Role;
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT, Queryable};
-use rustdraft_engine::Session;
-use rustdraft_ui_egui::{CadApp, Services, i18n, menus};
 use serde_json::json;
 
 /// A 1400×900 kittest harness whose frame runs `logic` and then `ui` on the supplied app.

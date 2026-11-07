@@ -3,9 +3,9 @@
 //! Model tab and inside an active layout viewport (whose twist is an undoable edit of the
 //! viewport), and not on a layout sheet.
 
-use rustdraft_doc::{EntityKind, Handle, Viewport};
-use rustdraft_engine::geom::Vec2;
-use rustdraft_engine::{Input, Session, View};
+use draftcraft_doc::{EntityKind, Handle, Viewport};
+use draftcraft_engine::geom::Vec2;
+use draftcraft_engine::{Input, Session, View};
 use serde_json::json;
 
 const SELECT: &str = "Select objects or <use DVIEWBLOCK>:";
@@ -314,8 +314,8 @@ fn a_viewport_twist_survives_a_dxf_round_trip() {
     let (mut s, h) = layout_session();
     s.execute("mspace", &json!({ "handle": h.hex() })).unwrap();
     s.execute("dview", &json!({ "twist": 30 })).unwrap();
-    let dxf = rustdraft_io::write_dxf(s.doc().unwrap());
-    let back = rustdraft_io::read_dxf(dxf.as_bytes()).unwrap();
+    let dxf = draftcraft_io::write_dxf(s.doc().unwrap());
+    let back = draftcraft_io::read_dxf(dxf.as_bytes()).unwrap();
     let twists: Vec<f64> = back
         .layouts
         .iter()

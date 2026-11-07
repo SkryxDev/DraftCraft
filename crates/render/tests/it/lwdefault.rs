@@ -1,8 +1,8 @@
 //! The "Default" lineweight is the width LWDEFAULT names (issue #292).
 
-use rustdraft_doc::{Common, Drawing, EntityKind, Line, Lineweight, Space};
-use rustdraft_geom::Vec3;
-use rustdraft_render::{Kind, Options, build};
+use draftcraft_doc::{Common, Drawing, EntityKind, Line, Lineweight, Space};
+use draftcraft_geom::Vec3;
+use draftcraft_render::{Kind, Options, build};
 
 /// Lineweights (mm) of a ByLayer line on layer 0 (lineweight Default) and an explicit 0.50 mm line.
 fn widths(lwdefault: Option<i64>) -> Vec<f32> {

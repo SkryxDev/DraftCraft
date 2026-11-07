@@ -15,7 +15,7 @@ use std::cell::Cell;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-use rustdraft_doc::Handle;
+use draftcraft_doc::Handle;
 
 use super::LispError;
 

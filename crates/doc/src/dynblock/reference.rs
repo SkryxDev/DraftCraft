@@ -9,7 +9,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use rustdraft_geom::Vec3;
+use draftcraft_geom::Vec3;
 use serde::Serialize;
 
 use super::{ActionKind, DynamicBlock, ParameterKind, dynamic_block};
@@ -51,7 +51,7 @@ pub struct CustomProperty {
     /// The values it may be set to, when it is a choice (visibility states, lookup values, a
     /// distance's list).
     pub choices: Vec<String>,
-    /// RustDraft can change it ([`super::set_property`]): a visibility state, a distance, a
+    /// DraftCraft can change it ([`super::set_property`]): a visibility state, a distance, a
     /// position, or a lookup whose tables set only those.
     pub editable: bool,
 }

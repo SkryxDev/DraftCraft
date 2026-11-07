@@ -7,12 +7,12 @@
 
 use std::sync::Arc;
 
+use draftcraft_color::Rgb;
+use draftcraft_engine::blockedit::CURRENT_DRAWING;
+use draftcraft_engine::doc::{Drawing, EntityKind};
+use draftcraft_geom::Vec2;
+use draftcraft_render::DisplayList;
 use egui::{RichText, Stroke, vec2};
-use rustdraft_color::Rgb;
-use rustdraft_engine::blockedit::CURRENT_DRAWING;
-use rustdraft_engine::doc::{Drawing, EntityKind};
-use rustdraft_geom::Vec2;
-use rustdraft_render::DisplayList;
 use serde_json::{Value, json};
 
 use crate::CadApp;
@@ -120,12 +120,15 @@ fn preview(app: &mut CadApp, name: &str) -> Option<Arc<DisplayList>> {
     }
     // The drawing itself shows its model space.
     let entities = if name.eq_ignore_ascii_case(CURRENT_DRAWING) { &st.doc.model } else { &st.doc.block(name)?.entities };
-    let rough = rustdraft_render::build_entities(&st.doc, entities.iter().map(|e| e.as_ref()), &rustdraft_render::Options::default());
+    let rough = draftcraft_render::build_entities(&st.doc, entities.iter().map(|e| e.as_ref()), &draftcraft_render::Options::default());
     let size = rough.bounds.width().max(rough.bounds.height());
     // About half a pixel of the preview's 200 points.
-    let opts = rustdraft_render::Options { tolerance: (size / 400.0).max(1e-9), ..Default::default() };
-    let list =
-        Arc::new(if rough.bounds.is_empty() { rough } else { rustdraft_render::build_entities(&st.doc, entities.iter().map(|e| e.as_ref()), &opts) });
+    let opts = draftcraft_render::Options { tolerance: (size / 400.0).max(1e-9), ..Default::default() };
+    let list = Arc::new(if rough.bounds.is_empty() {
+        rough
+    } else {
+        draftcraft_render::build_entities(&st.doc, entities.iter().map(|e| e.as_ref()), &opts)
+    });
     app.bedit.preview = Some((key, list.clone()));
     Some(list)
 }

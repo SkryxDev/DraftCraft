@@ -1,8 +1,8 @@
 //! Options listed at the dimension and multileader prompts take effect (#243).
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{DimKind, Dimension, EntityKind, MLeader};
-use rustdraft_engine::geom::Vec2;
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{DimKind, Dimension, EntityKind, MLeader};
+use draftcraft_engine::geom::Vec2;
 
 fn last(s: &Session) -> EntityKind {
     s.doc().unwrap().model.last().unwrap().kind.clone()
@@ -23,7 +23,7 @@ fn last_mleader(s: &Session) -> MLeader {
 }
 
 fn value(s: &Session, d: &Dimension) -> String {
-    rustdraft_engine::render::dimension_in(s.doc().unwrap(), d).value
+    draftcraft_engine::render::dimension_in(s.doc().unwrap(), d).value
 }
 
 fn near(a: Vec2, b: Vec2) -> bool {

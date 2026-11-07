@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use rustdraft_doc::Block;
+use draftcraft_doc::Block;
 use serde_json::{Value, json};
 
 use super::bedit::selected_reference;

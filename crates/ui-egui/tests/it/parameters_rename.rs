@@ -1,12 +1,12 @@
 //! Double-clicking a name in the Parameters Manager edits it in place, as in AutoCAD (#1134):
 //! the keys go to the name field, not to the command line, and Enter renames the parameter.
 
+use draftcraft_engine::Session;
+use draftcraft_ui_egui::{CadApp, Services};
 use egui::accesskit::Role;
 use egui::{Event, Modifiers, PointerButton, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{By, Queryable};
-use rustdraft_engine::Session;
-use rustdraft_ui_egui::{CadApp, Services};
 use serde_json::json;
 
 fn harness() -> Harness<'static, CadApp> {

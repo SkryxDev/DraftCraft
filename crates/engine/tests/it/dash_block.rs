@@ -1,8 +1,8 @@
 //! -BLOCK erases the selected objects, and asks before redefining a block (issue #307). BLOCK
 //! (the menu's Make...) and the JSON form still convert the selection to a block reference.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::EntityKind;
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::EntityKind;
 use serde_json::json;
 
 fn prompt(s: &Session) -> String {

@@ -4,8 +4,8 @@
 
 use std::sync::Arc;
 
-use rustdraft_doc::{Block, Common, Drawing, Entity, EntityKind, Handle, Line};
-use rustdraft_geom::Vec3;
+use draftcraft_doc::{Block, Common, Drawing, Entity, EntityKind, Handle, Line};
+use draftcraft_geom::Vec3;
 
 use super::{Incomplete, Scan, entity_total};
 

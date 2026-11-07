@@ -11,8 +11,8 @@ pub(crate) mod load;
 
 use std::sync::Arc;
 
-use rustdraft_doc::{Block, Drawing, EntityKind, EntityStore, XrefStatus};
-use rustdraft_geom::Vec2;
+use draftcraft_doc::{Block, Drawing, EntityKind, EntityStore, XrefStatus};
+use draftcraft_geom::Vec2;
 use serde_json::{Value, json};
 
 use self::load::{Outcome, Sym};
@@ -60,7 +60,7 @@ pub(crate) fn after_open(s: &mut Session, i: usize) {
     let path = st.path.clone();
     let out = load::load_all(Arc::make_mut(&mut st.doc), path.as_deref());
     st.saved = st.doc.clone();
-    let ext = st.doc.extents(&rustdraft_doc::Space::Model);
+    let ext = st.doc.extents(&draftcraft_doc::Space::Model);
     if !ext.is_empty() {
         // Fit in the frame of the saved twist, which open_drawing has restored.
         let twist = st.view().twist;

@@ -8,9 +8,9 @@
 use std::collections::HashMap;
 
 use craft_pdf::write::backend::text::Font;
-use rustdraft_fonts::subset::{self, Embedding};
-use rustdraft_fonts::ttf::Face;
-use rustdraft_render::{DisplayList, PlotText};
+use draftcraft_fonts::subset::{self, Embedding};
+use draftcraft_fonts::ttf::Face;
+use draftcraft_render::{DisplayList, PlotText};
 
 /// Most embedded fonts in one file.
 const MAX_FONTS: usize = 64;

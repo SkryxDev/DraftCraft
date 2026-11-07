@@ -8,8 +8,8 @@
 
 use std::sync::Arc;
 
-use rustdraft_doc::{Drawing, EntityKind, Handle};
-use rustdraft_geom::{Mat3, Vec2};
+use draftcraft_doc::{Drawing, EntityKind, Handle};
+use draftcraft_geom::{Mat3, Vec2};
 
 use super::gripcmds::stretch_grips;
 use super::helpers::line;

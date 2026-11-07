@@ -1,7 +1,7 @@
 //! Selection modes typed at "Select objects": Window, Crossing, Fence, WPolygon, CPolygon.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::EntityKind;
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::EntityKind;
 
 /// Three lines on the X axis: A 0–10, B 12–20, C 30–40.
 fn drawing() -> Session {

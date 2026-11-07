@@ -5,8 +5,8 @@
 //! The fixture is synthetic, laid out as the DXF Reference describes these attributes: block TAG
 //! with a multiline definition LABEL, and a reference whose LABEL attribute has its own text.
 
-use rustdraft_doc::{Drawing, EntityKind};
-use rustdraft_io::{SaveOptions, Version, read_dxf};
+use draftcraft_doc::{Drawing, EntityKind};
+use draftcraft_io::{SaveOptions, Version, read_dxf};
 
 /// DXF text from lines of `code value` (the value may be empty).
 fn dxf(src: &str) -> String {
@@ -224,17 +224,17 @@ const FIXTURE: &str = "
 
 /// The drawing saved as the app saves it (`write`: its own version, AutoCAD 2018 here).
 fn save(d: &Drawing) -> String {
-    String::from_utf8(rustdraft_io::write(d, "x.dxf").unwrap()).unwrap()
+    String::from_utf8(draftcraft_io::write(d, "x.dxf").unwrap()).unwrap()
 }
 
-fn reference(d: &Drawing) -> &rustdraft_doc::Insert {
+fn reference(d: &Drawing) -> &draftcraft_doc::Insert {
     match d.model.iter().find_map(|e| if let EntityKind::Insert(i) = &e.kind { Some(i) } else { None }) {
         Some(i) => i,
         None => panic!("no reference"),
     }
 }
 
-fn definition(d: &Drawing) -> &rustdraft_doc::Attrib {
+fn definition(d: &Drawing) -> &draftcraft_doc::Attrib {
     match d.block("TAG").and_then(|b| b.entities.iter().find_map(|e| if let EntityKind::AttDef(a) = &e.kind { Some(a) } else { None })) {
         Some(a) => a,
         None => panic!("no definition"),
@@ -262,8 +262,8 @@ fn multiline_attributes_are_read_with_their_text() {
 #[test]
 fn a_multiline_attribute_is_drawn() {
     let d = read_dxf(dxf(FIXTURE).as_bytes()).unwrap();
-    let opts = rustdraft_render::Options::default();
-    let with = rustdraft_render::build(&d, &rustdraft_doc::Space::Model, &opts);
+    let opts = draftcraft_render::Options::default();
+    let with = draftcraft_render::build(&d, &draftcraft_doc::Space::Model, &opts);
     let mut bare = d.clone();
     let first = bare.model.iter().next().map(|e| e.handle);
     if let Some(e) = first {
@@ -273,7 +273,7 @@ fn a_multiline_attribute_is_drawn() {
             }
         });
     }
-    let without = rustdraft_render::build(&bare, &rustdraft_doc::Space::Model, &opts);
+    let without = draftcraft_render::build(&bare, &draftcraft_doc::Space::Model, &opts);
     assert!(
         with.prims.len() > without.prims.len() + 4,
         "the attribute's two lines of text are drawn ({} vs {})",
@@ -313,7 +313,7 @@ fn an_edited_value_replaces_the_multiline_text() {
 fn files_before_2007_get_single_line_attributes() {
     let d = read_dxf(dxf(FIXTURE).as_bytes()).unwrap();
     let out =
-        String::from_utf8(rustdraft_io::write_with(&d, "x.dxf", &SaveOptions { version: Some(Version::R2004), binary: false }).unwrap()).unwrap();
+        String::from_utf8(draftcraft_io::write_with(&d, "x.dxf", &SaveOptions { version: Some(Version::R2004), binary: false }).unwrap()).unwrap();
     assert!(!out.contains("Embedded Object"));
     let again = read_dxf(out.as_bytes()).unwrap();
     let a = &reference(&again).attribs[0];
@@ -331,7 +331,7 @@ fn damaged_embedded_text_does_not_panic() {
     ] {
         let src = FIXTURE.replacen(from, to, 1);
         let d = read_dxf(dxf(&src).as_bytes()).unwrap();
-        let _ = rustdraft_render::build(&d, &rustdraft_doc::Space::Model, &rustdraft_render::Options::default());
+        let _ = draftcraft_render::build(&d, &draftcraft_doc::Space::Model, &draftcraft_render::Options::default());
         let _ = read_dxf(save(&d).as_bytes()).unwrap();
     }
 }
@@ -344,9 +344,9 @@ fn entmod_leaves_the_embedded_text_alone() {
     let Some(e) = d.block("TAG").and_then(|b| b.entities.iter().find(|e| matches!(e.kind, EntityKind::AttDef(_)))) else {
         panic!("no definition");
     };
-    let (kind, groups) = rustdraft_io::entity_groups(&d, e);
+    let (kind, groups) = draftcraft_io::entity_groups(&d, e);
     let embedded: Vec<String> = groups.iter().skip_while(|t| t.code != 101).filter(|t| t.code == 1).map(|t| t.str()).collect();
     assert_eq!(embedded, ["SITE^ JNAME"]);
-    let Some((_, EntityKind::AttDef(a))) = rustdraft_io::entity_from_groups(&kind, &groups) else { panic!("no ATTDEF") };
+    let Some((_, EntityKind::AttDef(a))) = draftcraft_io::entity_from_groups(&kind, &groups) else { panic!("no ATTDEF") };
     assert_eq!(a.multiline.map(|m| m.mtext.contents), Some("SITE^JNAME".to_string()));
 }

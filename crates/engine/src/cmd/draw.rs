@@ -1,8 +1,8 @@
 //! Draw commands: LINE, PLINE, CIRCLE, ARC, RECTANG, POLYGON, ELLIPSE, POINT, XLINE, RAY,
 //! SPLINE, DONUT, SOLID, TEXT, MTEXT. Each has a JSON form and an interactive prompt sequence.
 
-use rustdraft_doc::{EntityKind, HAlign, MText, Point, RayLine, Text, VAlign};
-use rustdraft_geom::{Arc, Circle, Ellipse, PolyVertex, Polyline, Spline, Vec2, arc_to_bulge, bulge_to_arc};
+use draftcraft_doc::{EntityKind, HAlign, MText, Point, RayLine, Text, VAlign};
+use draftcraft_geom::{Arc, Circle, Ellipse, PolyVertex, Polyline, Spline, Vec2, arc_to_bulge, bulge_to_arc};
 use serde_json::{Value, json};
 
 use super::helpers::{arc, circle, line, lwpoly, polygon_from_edge, polygon_typed_radius_point, polygon_vertices, v3};
@@ -125,7 +125,7 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
-fn added(h: rustdraft_doc::Handle) -> Result<Value> {
+fn added(h: draftcraft_doc::Handle) -> Result<Value> {
     Ok(json!({ "handle": h.hex() }))
 }
 

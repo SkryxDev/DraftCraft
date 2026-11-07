@@ -28,8 +28,8 @@ use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::Duration;
 
-use rustdraft_engine::Input;
-use rustdraft_geom::Vec2;
+use draftcraft_engine::Input;
+use draftcraft_geom::Vec2;
 use serde_json::{Value, json};
 
 use crate::CadApp;
@@ -107,7 +107,7 @@ struct Widget {
 
 /// egui temp-data key holding the widgets observed during the current frame.
 fn widgets_id() -> egui::Id {
-    egui::Id::unique("rustdraft-observed-widgets")
+    egui::Id::unique("draftcraft-observed-widgets")
 }
 
 pub(crate) fn begin_frame(ctx: &egui::Context) {
@@ -228,7 +228,7 @@ fn methods_json() -> Value {
 
 pub fn all_commands(app: &CadApp) -> Value {
     let mut v: Vec<Value> =
-        rustdraft_engine::command_specs().iter().map(|c| serde_json::to_value(c.info(&app.session)).unwrap_or_default()).collect();
+        draftcraft_engine::command_specs().iter().map(|c| serde_json::to_value(c.info(&app.session)).unwrap_or_default()).collect();
     for (id, label, menu, sc) in crate::menus::UI_COMMANDS {
         v.push(json!({"id": id, "label": label, "menu": menu, "shortcut": sc, "enabled": true, "ui": true}));
     }
@@ -480,32 +480,32 @@ pub fn handle(app: &mut CadApp, ctx: &egui::Context, req: &ControlRequest) -> Ou
             // `window`: just that area, at the size given or matching its shape.
             let window = render_window(p);
             // `background` and `plot_style` (#803), read as the headless MCP backend reads them.
-            let look = match rustdraft_engine::render_look::RenderLook::from_params(&st.doc, p) {
+            let look = match draftcraft_engine::render_look::RenderLook::from_params(&st.doc, p) {
                 Ok(look) => look,
                 Err(e) => return err(e),
             };
-            let opts = rustdraft_render::Options {
+            let opts = draftcraft_render::Options {
                 view: window,
                 transparency: app.session.settings.transparency_display,
                 plot_style_table: look.plot_style_table.clone(),
                 ..Default::default()
             };
-            let list = rustdraft_render::build(&st.doc, &st.space, &opts);
+            let list = draftcraft_render::build(&st.doc, &st.space, &opts);
             let v = st.view();
             let fit = p.get("fit").and_then(Value::as_bool).unwrap_or(true);
             let view = match &window {
-                Some(win) => rustdraft_render::raster::View::of_window(win, f("width").map(|x| x as u32), f("height").map(|x| x as u32)),
+                Some(win) => draftcraft_render::raster::View::of_window(win, f("width").map(|x| x as u32), f("height").map(|x| x as u32)),
                 None => render_view(&list.bounds, v.center, v.height, fit, w, h),
             };
             let (w, h) = (view.width, view.height);
-            let Some(png) = rustdraft_render::raster::render_png(&list, &view, &look.raster()) else {
+            let Some(png) = draftcraft_render::raster::render_png(&list, &view, &look.raster()) else {
                 return err("render failed");
             };
             #[cfg(not(target_arch = "wasm32"))]
             if let Some(path) = s("path") {
                 let file = std::path::Path::new(&path);
-                let folder = rustdraft_engine::atomic_write::missing_folder(file);
-                if let Err(e) = rustdraft_engine::atomic_write::write_atomic_making_folders(file, &png) {
+                let folder = draftcraft_engine::atomic_write::missing_folder(file);
+                if let Err(e) = draftcraft_engine::atomic_write::write_atomic_making_folders(file, &png) {
                     return err(e);
                 }
                 let mut reply = render_reply(&png, w, h, Some(path), list.truncated);
@@ -537,23 +537,23 @@ pub fn handle(app: &mut CadApp, ctx: &egui::Context, req: &ControlRequest) -> Ou
 
 /// The `window` of a `ui.render` request: two finite corners [[x0, y0], [x1, y1]] around an area
 /// (`None` when absent or unusable).
-pub fn render_window(p: &Value) -> Option<rustdraft_geom::Bounds2> {
+pub fn render_window(p: &Value) -> Option<draftcraft_geom::Bounds2> {
     let a = p.get("window")?.as_array().filter(|a| a.len() == 2)?;
-    let pt = |v: &Value| -> Option<rustdraft_geom::Vec2> {
+    let pt = |v: &Value| -> Option<draftcraft_geom::Vec2> {
         let c = v.as_array().filter(|c| c.len() == 2)?;
         let (x, y) = (c[0].as_f64()?, c[1].as_f64()?);
-        (x.is_finite() && y.is_finite()).then(|| rustdraft_geom::Vec2::new(x, y))
+        (x.is_finite() && y.is_finite()).then(|| draftcraft_geom::Vec2::new(x, y))
     };
-    let b = rustdraft_geom::Bounds2::new(pt(&a[0])?, pt(&a[1])?);
+    let b = draftcraft_geom::Bounds2::new(pt(&a[0])?, pt(&a[1])?);
     (b.width() > 0.0 && b.height() > 0.0).then_some(b)
 }
 
 /// The raster view for `ui.render`: fitted to the drawing's bounds, or the current screen view.
-fn render_view(bounds: &rustdraft_geom::Bounds2, center: Vec2, height: f64, fit: bool, w: u32, h: u32) -> rustdraft_render::raster::View {
+fn render_view(bounds: &draftcraft_geom::Bounds2, center: Vec2, height: f64, fit: bool, w: u32, h: u32) -> draftcraft_render::raster::View {
     if fit {
-        rustdraft_render::raster::View::fit(bounds, w, h, 0.05)
+        draftcraft_render::raster::View::fit(bounds, w, h, 0.05)
     } else {
-        rustdraft_render::raster::View { center, scale: f64::from(h) / height.max(1e-12), width: w, height: h }
+        draftcraft_render::raster::View { center, scale: f64::from(h) / height.max(1e-12), width: w, height: h }
     }
 }
 
@@ -561,7 +561,7 @@ fn render_view(bounds: &rustdraft_geom::Bounds2, center: Vec2, height: f64, fit:
 /// `bytes`, `path` and `truncated` (the build left block contents out, see #1070).
 fn render_reply(png: &[u8], w: u32, h: u32, path: Option<&str>, truncated: bool) -> Value {
     let mut v =
-        json!({"pngBase64": rustdraft_engine::cmd::file::base64_encode(png), "width": w, "height": h, "bytes": png.len(), "truncated": truncated});
+        json!({"pngBase64": draftcraft_engine::cmd::file::base64_encode(png), "width": w, "height": h, "bytes": png.len(), "truncated": truncated});
     if let (Some(path), Some(o)) = (path, v.as_object_mut()) {
         o.insert("path".to_string(), json!(path));
     }
@@ -586,13 +586,13 @@ fn next_pathless_nonce() -> u64 {
     NEXT.fetch_add(1, Ordering::Relaxed)
 }
 
-/// Create at most 32 exclusive `rustdraft-shots-<pid>-<stamp>-<nonce>` directories in the temp dir; only `AlreadyExists` is retried.
+/// Create at most 32 exclusive `draftcraft-shots-<pid>-<stamp>-<nonce>` directories in the temp dir; only `AlreadyExists` is retried.
 fn create_private_shot_dir() -> std::io::Result<std::path::PathBuf> {
     let base = std::env::temp_dir();
     let stamp = crate::now_ms().to_bits();
     for _ in 0..32 {
         let nonce = next_pathless_nonce();
-        let dir = base.join(format!("rustdraft-shots-{}-{stamp:x}-{nonce}", std::process::id()));
+        let dir = base.join(format!("draftcraft-shots-{}-{stamp:x}-{nonce}", std::process::id()));
         match create_private_dir(&dir) {
             Ok(()) => return Ok(dir),
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
@@ -662,7 +662,7 @@ impl Drop for PathlessShots {
         let Ok(dir) = private_shot_dir() else { return };
         if let Ok(entries) = std::fs::read_dir(&dir) {
             for entry in entries.flatten() {
-                if entry.file_name().to_string_lossy().starts_with("rustdraft-shot-") {
+                if entry.file_name().to_string_lossy().starts_with("draftcraft-shot-") {
                     let _ = std::fs::remove_file(entry.path());
                 }
             }
@@ -690,7 +690,7 @@ fn save_pathless_screenshot(img: &image::RgbaImage, token: u64) -> std::io::Resu
         }
     }
     for _ in 0..64 {
-        let path = dir.join(format!("rustdraft-shot-{token}-{}.png", next_pathless_nonce()));
+        let path = dir.join(format!("draftcraft-shot-{token}-{}.png", next_pathless_nonce()));
         match create_private_file(&path) {
             Ok(mut file) => {
                 let written = img.write_to(&mut file, image::ImageFormat::Png).map_err(std::io::Error::other).and_then(|()| file.flush());
@@ -743,7 +743,7 @@ mod tests {
 
     #[test]
     fn render_view_fit_finds_offscreen_drawing() {
-        let far = rustdraft_geom::Bounds2::new(Vec2::new(9000.0, 9000.0), Vec2::new(9100.0, 9050.0));
+        let far = draftcraft_geom::Bounds2::new(Vec2::new(9000.0, 9000.0), Vec2::new(9100.0, 9050.0));
         let fitted = render_view(&far, Vec2::ZERO, 100.0, true, 800, 500);
         assert_eq!(fitted.center, far.center());
         let kept = render_view(&far, Vec2::ZERO, 100.0, false, 800, 500);
@@ -823,7 +823,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn private_screenshot_file_refuses_a_preexisting_symlink() {
-        let dir = std::env::temp_dir().join(format!("rustdraft-shot-symlink-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("draftcraft-shot-symlink-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         create_private_dir(&dir).expect("private test directory");
         let target = dir.join("target.txt");
@@ -852,7 +852,7 @@ mod tests {
     /// The reply to a `ui.render` request in an app showing one line along y = 0: colour 7, or
     /// red on a red layer.
     fn render_line(red: bool, params: Value) -> Value {
-        let mut app = CadApp::new(rustdraft_engine::Session::empty(), crate::Services::default());
+        let mut app = CadApp::new(draftcraft_engine::Session::empty(), crate::Services::default());
         app.session.new_drawing(false);
         if red {
             app.session.execute("layer.new", &json!({"name": "Red", "color": "red", "current": true})).unwrap();
@@ -867,7 +867,7 @@ mod tests {
 
     /// The RGB of a reply's corner pixel and of its middle column's darkest pixel.
     fn corner_and_darkest(reply: &Value) -> ([u8; 3], [u8; 3]) {
-        let png = rustdraft_engine::cmd::file::base64_decode(reply["result"]["pngBase64"].as_str().unwrap_or_default()).unwrap();
+        let png = draftcraft_engine::cmd::file::base64_decode(reply["result"]["pngBase64"].as_str().unwrap_or_default()).unwrap();
         let img = image::load_from_memory(&png).unwrap().to_rgb8();
         let corner = img.get_pixel(0, 0).0;
         let darkest = (0..img.height()).map(|y| img.get_pixel(img.width() / 2, y).0).min_by_key(|p| p.iter().map(|&c| u32::from(c)).sum::<u32>());

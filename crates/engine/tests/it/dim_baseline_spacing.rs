@@ -2,8 +2,8 @@
 //! continues: SETVAR DIM* overrides count, and DIMSCALE 0 falls back to the drawing's DIMSCALE
 //! (issue #364). DIMSPACE's default spacing uses the same scale.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{EntityKind, Handle};
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{EntityKind, Handle};
 use serde_json::{Value, json};
 
 fn dim_line_y(s: &Session, h: &Value) -> f64 {

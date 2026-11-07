@@ -2,8 +2,8 @@
 //! whichever side of the stored start vertex the pick is on (a pick after the last cutting edge
 //! used to keep one extra circuit of the shape).
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::EntityKind;
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::EntityKind;
 use serde_json::json;
 
 type Vertex = (f64, f64, f64);

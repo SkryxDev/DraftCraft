@@ -1,8 +1,8 @@
 //! ZOOM Window's opposite corner ignores ortho: the window stays a rectangle (#787).
 
-use rustdraft_engine::Session;
-use rustdraft_engine::snap::tracking::CursorQuery;
-use rustdraft_geom::Vec2;
+use draftcraft_engine::Session;
+use draftcraft_engine::snap::tracking::CursorQuery;
+use draftcraft_geom::Vec2;
 use serde_json::json;
 
 /// Move the cursor to `raw` at the current prompt, as the canvas does.

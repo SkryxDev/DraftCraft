@@ -1,8 +1,8 @@
 //! STRETCH: repeated crossing selections until Enter, the `C`/`W` selection keywords, and the
 //! Displacement option (typed, or Enter at the base point prompt).
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::EntityKind;
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::EntityKind;
 
 /// Every line as ((ax, ay), (bx, by)), sorted by the first x.
 fn lines(s: &Session) -> Vec<((f64, f64), (f64, f64))> {

@@ -7,7 +7,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
-use rustdraft_doc::Drawing;
+use draftcraft_doc::Drawing;
 
 /// Add the entries of `theirs` whose names `ours` lacks (compared without letter case; a name that
 /// exists keeps `ours`' definition). Returns how many were added.
@@ -63,7 +63,7 @@ pub(crate) fn block_renames(d: &Drawing, src: &Drawing, defining: Option<&str>) 
 mod tests {
     use std::sync::Arc;
 
-    use rustdraft_doc::{Block, Layer};
+    use draftcraft_doc::{Block, Layer};
 
     use super::*;
 

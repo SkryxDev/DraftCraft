@@ -1,8 +1,8 @@
 //! PEDIT Multiple: edit several polylines (and lines and arcs turned into polylines) at once, as
 //! AutoCAD does after `M` at "Select polyline". Join joins the selected objects with each other.
 
-use rustdraft_doc::{Drawing, EntityKind, Handle};
-use rustdraft_geom::PolyVertex;
+use draftcraft_doc::{Drawing, EntityKind, Handle};
+use draftcraft_geom::PolyVertex;
 use serde_json::json;
 
 use super::super::curves;

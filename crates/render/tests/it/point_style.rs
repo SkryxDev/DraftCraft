@@ -1,8 +1,8 @@
 //! POINT display: point style (PDMODE) and size (PDSIZE) (issue #261).
 
-use rustdraft_doc::{Common, Drawing, EntityKind, Line, Point, Space};
-use rustdraft_geom::{Bounds2, Vec3};
-use rustdraft_render::{DisplayList, Kind, Options, build};
+use draftcraft_doc::{Common, Drawing, EntityKind, Line, Point, Space};
+use draftcraft_geom::{Bounds2, Vec3};
+use draftcraft_render::{DisplayList, Kind, Options, build};
 
 /// A point at (5,5) and a vertical line 100 units long (the extents are 100 high).
 fn drawing(pdmode: i64, pdsize: f64) -> Drawing {

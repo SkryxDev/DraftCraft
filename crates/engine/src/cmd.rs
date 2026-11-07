@@ -55,8 +55,8 @@ pub mod helpers;
 pub mod machines;
 pub mod options;
 
-use rustdraft_doc::Handle;
-use rustdraft_geom::Vec2;
+use draftcraft_doc::Handle;
+use draftcraft_geom::Vec2;
 use serde::Serialize;
 use serde_json::Value;
 

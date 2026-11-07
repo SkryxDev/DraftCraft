@@ -2,9 +2,9 @@
 //! are the source's, for selected objects and for a block, as AutoCAD's `-WBLOCK` does. So are its
 //! other settings and styles: a metric drawing's text size, dimension style and scale list.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::cmd::file::{IoHooks, set_io};
-use rustdraft_engine::doc::Drawing;
+use draftcraft_engine::Session;
+use draftcraft_engine::cmd::file::{IoHooks, set_io};
+use draftcraft_engine::doc::Drawing;
 use serde_json::json;
 
 #[path = "support/temp_dir.rs"]

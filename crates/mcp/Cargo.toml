@@ -1,6 +1,6 @@
 [package]
-name = "rustdraft-mcp"
-description = "RustDraft MCP server: JSON-RPC 2.0 over stdio, driving a running app or a headless session"
+name = "draftcraft-mcp"
+description = "DraftCraft MCP server: JSON-RPC 2.0 over stdio, driving a running app or a headless session"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,9 +9,9 @@ license.workspace = true
 workspace = true
 
 [dependencies]
-rustdraft-engine = { workspace = true }
-rustdraft-render = { workspace = true }
-rustdraft-io = { workspace = true }
+draftcraft-engine = { workspace = true }
+draftcraft-render = { workspace = true }
+draftcraft-io = { workspace = true }
 clap = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }

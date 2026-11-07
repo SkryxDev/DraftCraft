@@ -15,10 +15,10 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
+use draftcraft_doc::{Block, BlockBoundsCache, DimStyle, Drawing, Entity, EntityKind, EntityStore, Space, entity_bounds_cached};
+use draftcraft_geom::Bounds2;
 use rstar::primitives::{GeomWithData, Rectangle};
 use rstar::{AABB, RTree};
-use rustdraft_doc::{Block, BlockBoundsCache, DimStyle, Drawing, Entity, EntityKind, EntityStore, Space, entity_bounds_cached};
-use rustdraft_geom::Bounds2;
 
 /// Spaces with fewer entities than this are scanned directly (building an index costs more).
 pub const MIN_INDEXED: usize = 256;
@@ -202,7 +202,7 @@ impl SpatialIndex {
         let (c, l) = self.locate(i)?;
         c.ents.get(l)
     }
-    /// The bounds of the entity at draw index `i` (as [`rustdraft_doc::entity_bounds`] computes them).
+    /// The bounds of the entity at draw index `i` (as [`draftcraft_doc::entity_bounds`] computes them).
     pub fn bounds(&self, i: u32) -> Bounds2 {
         self.locate(i).and_then(|(c, l)| c.bounds.get(l).copied()).unwrap_or(Bounds2::EMPTY)
     }
@@ -275,8 +275,8 @@ pub fn clear_cache() {
 mod tests {
     use super::*;
     use crate::{select, snap};
-    use rustdraft_doc::{Common, Insert, Text};
-    use rustdraft_geom::{PolyVertex, Vec2, Vec3};
+    use draftcraft_doc::{Common, Insert, Text};
+    use draftcraft_geom::{PolyVertex, Vec2, Vec3};
 
     struct Rng(u64);
     impl Rng {
@@ -313,7 +313,7 @@ mod tests {
             array: None,
         };
         blk.entities
-            .push(Entity::new(rustdraft_doc::Handle(1_000_000), EntityKind::Circle(rustdraft_doc::Circle { center: v3(0.0, 0.0), radius: 1.0 })));
+            .push(Entity::new(draftcraft_doc::Handle(1_000_000), EntityKind::Circle(draftcraft_doc::Circle { center: v3(0.0, 0.0), radius: 1.0 })));
         d.blocks.insert("B".into(), Arc::new(blk));
         d.ensure_layer("OFF");
         if let Some(l) = d.layer_mut("OFF") {
@@ -324,10 +324,10 @@ mod tests {
             let (x, y) = (r.r(0.0, 100.0), r.r(0.0, 100.0));
             let s = r.r(0.2, 6.0);
             let kind = match i % 10 {
-                0 | 1 => EntityKind::Line(rustdraft_doc::Line { a: v3(x, y), b: v3(x + r.r(-s, s), y + r.r(-s, s)) }),
-                2 => EntityKind::Circle(rustdraft_doc::Circle { center: v3(x, y), radius: s * 0.5 }),
-                3 => EntityKind::Arc(rustdraft_doc::Arc { center: v3(x, y), radius: s * 0.5, start: r.r(0.0, 3.0), end: r.r(3.2, 6.2) }),
-                4 => EntityKind::LwPolyline(rustdraft_doc::LwPolyline {
+                0 | 1 => EntityKind::Line(draftcraft_doc::Line { a: v3(x, y), b: v3(x + r.r(-s, s), y + r.r(-s, s)) }),
+                2 => EntityKind::Circle(draftcraft_doc::Circle { center: v3(x, y), radius: s * 0.5 }),
+                3 => EntityKind::Arc(draftcraft_doc::Arc { center: v3(x, y), radius: s * 0.5, start: r.r(0.0, 3.0), end: r.r(3.2, 6.2) }),
+                4 => EntityKind::LwPolyline(draftcraft_doc::LwPolyline {
                     vertices: (0..5)
                         .map(|k| PolyVertex {
                             p: Vec2::new(x + f64::from(k) * s * 0.3, y + r.r(-s, s) * 0.3),
@@ -353,7 +353,7 @@ mod tests {
                     halign: Default::default(),
                     valign: Default::default(),
                 }),
-                6 => EntityKind::Point(rustdraft_doc::Point { p: v3(x, y), angle: 0.0 }),
+                6 => EntityKind::Point(draftcraft_doc::Point { p: v3(x, y), angle: 0.0 }),
                 7 => EntityKind::Insert(Insert {
                     block: "B".into(),
                     insert: v3(x, y),
@@ -366,9 +366,9 @@ mod tests {
                     row_spacing: 0.0,
                     clip: None,
                 }),
-                8 if i % 40 == 8 => EntityKind::XLine(rustdraft_doc::RayLine { base: v3(x, y), dir: v3(r.r(-1.0, 1.0), 1.0) }),
-                8 if i % 40 == 18 => EntityKind::Ray(rustdraft_doc::RayLine { base: v3(x, y), dir: v3(1.0, r.r(-1.0, 1.0)) }),
-                _ => EntityKind::Circle(rustdraft_doc::Circle { center: v3(x, y), radius: s * 0.1 }),
+                8 if i % 40 == 8 => EntityKind::XLine(draftcraft_doc::RayLine { base: v3(x, y), dir: v3(r.r(-1.0, 1.0), 1.0) }),
+                8 if i % 40 == 18 => EntityKind::Ray(draftcraft_doc::RayLine { base: v3(x, y), dir: v3(1.0, r.r(-1.0, 1.0)) }),
+                _ => EntityKind::Circle(draftcraft_doc::Circle { center: v3(x, y), radius: s * 0.1 }),
             };
             let common = if i % 17 == 0 { Common { layer: "OFF".into(), ..Common::default() } } else { Common::default() };
             d.add(&Space::Model, common, kind).unwrap();
@@ -508,13 +508,14 @@ mod tests {
         assert!(!Arc::ptr_eq(&first, &second));
         assert_eq!(select::pick(&d, &Space::Model, Vec2::new(500.5, 500.0), 0.1), Some(h));
         // A new entity is found too.
-        let nh = d.add(&Space::Model, Common::default(), EntityKind::Circle(rustdraft_doc::Circle { center: v3(-300.0, 0.0), radius: 1.0 })).unwrap();
+        let nh =
+            d.add(&Space::Model, Common::default(), EntityKind::Circle(draftcraft_doc::Circle { center: v3(-300.0, 0.0), radius: 1.0 })).unwrap();
         assert_eq!(select::pick(&d, &Space::Model, Vec2::new(-299.0, 0.0), 0.1), Some(nh));
         // Redefining the block changes insert bounds: the index is rebuilt.
         let before = index(&d, &Space::Model).unwrap();
         let mut blk = (**d.blocks.get("B").unwrap()).clone();
         blk.entities
-            .push(Entity::new(rustdraft_doc::Handle(2_000_000), EntityKind::Circle(rustdraft_doc::Circle { center: v3(0.0, 0.0), radius: 50.0 })));
+            .push(Entity::new(draftcraft_doc::Handle(2_000_000), EntityKind::Circle(draftcraft_doc::Circle { center: v3(0.0, 0.0), radius: 50.0 })));
         d.blocks.insert("B".into(), Arc::new(blk));
         assert!(!Arc::ptr_eq(&before, &index(&d, &Space::Model).unwrap()));
     }
@@ -527,15 +528,15 @@ mod tests {
         let mut blk = (**drawing(1, 0).blocks.get("B").unwrap()).clone();
         let big = Common { layer: "HID".into(), ..Common::default() };
         blk.entities.push(Entity {
-            handle: rustdraft_doc::Handle(2_000_000),
+            handle: draftcraft_doc::Handle(2_000_000),
             common: big,
-            kind: EntityKind::Circle(rustdraft_doc::Circle { center: v3(0.0, 0.0), radius: 50.0 }),
+            kind: EntityKind::Circle(draftcraft_doc::Circle { center: v3(0.0, 0.0), radius: 50.0 }),
         });
         d.blocks.insert("B".into(), Arc::new(blk));
         d.ensure_layer("HID");
         for i in 0..MIN_INDEXED {
             let x = 1000.0 + i as f64;
-            d.add(&Space::Model, Common::default(), EntityKind::Line(rustdraft_doc::Line { a: v3(x, 0.0), b: v3(x, 1.0) })).unwrap();
+            d.add(&Space::Model, Common::default(), EntityKind::Line(draftcraft_doc::Line { a: v3(x, 0.0), b: v3(x, 1.0) })).unwrap();
         }
         let insert = Insert {
             block: "B".into(),
@@ -584,14 +585,14 @@ mod tests {
                 }
                 1 => {
                     let c = v3(r.r(-50.0, 150.0), r.r(-50.0, 150.0));
-                    d.add(&Space::Model, Common::default(), EntityKind::Circle(rustdraft_doc::Circle { center: c, radius: r.r(0.1, 5.0) })).unwrap();
+                    d.add(&Space::Model, Common::default(), EntityKind::Circle(draftcraft_doc::Circle { center: c, radius: r.r(0.1, 5.0) })).unwrap();
                 }
                 2 => {
                     d.model.send_to_back(h);
                 }
                 _ => {
                     let (dx, dy) = (r.r(-20.0, 20.0), r.r(-20.0, 20.0));
-                    d.modify_entity(h, |e| e.kind.transform(&rustdraft_geom::Mat3::translate(Vec2::new(dx, dy)))).unwrap();
+                    d.modify_entity(h, |e| e.kind.transform(&draftcraft_geom::Mat3::translate(Vec2::new(dx, dy)))).unwrap();
                 }
             }
             let inc = SpatialIndex::build_from(&d, &d.model, Some(&prev));

@@ -1,40 +1,40 @@
 //! DXF data shared by the reader and the writer beyond plain entity geometry:
 //! dimension-variable group codes (DIMSTYLE records and the `ACAD` "DSTYLE" override xdata,
 //! both per the DXF Reference), arrowhead block names, extended-data helpers and the
-//! RustDraft-owned payloads (exact associativity, table flags, hatch gradients, parametric
+//! DraftCraft-owned payloads (exact associativity, table flags, hatch gradients, parametric
 //! constraints).
 //!
-//! RustDraft's own data lives under the registered application `RUSTDRAFT` (xdata) and the
-//! named-object-dictionary entries `RUSTDRAFT_CONSTRAINTS`, `RUSTDRAFT_LAYERSTATES`,
-//! `RUSTDRAFT_PLOTSTYLES`, `RUSTDRAFT_HANDSEED` and `RUSTDRAFT_MLEADERSTYLE` (XRECORDs). Other
+//! DraftCraft's own data lives under the registered application `DRAFTCRAFT` (xdata) and the
+//! named-object-dictionary entries `DRAFTCRAFT_CONSTRAINTS`, `DRAFTCRAFT_LAYERSTATES`,
+//! `DRAFTCRAFT_PLOTSTYLES`, `DRAFTCRAFT_HANDSEED` and `DRAFTCRAFT_MLEADERSTYLE` (XRECORDs). Other
 //! readers keep or ignore them.
 
 use std::collections::HashMap;
 
-use rustdraft_color::Color;
-use rustdraft_doc::{ArrayParams, AssocSnap, Constraint, DimAssoc, DimStyle, Handle, LayerState, Parametric, PlotStyleTable};
-use rustdraft_dxf::{Tag, Version};
-use rustdraft_render::Arrowhead;
+use draftcraft_color::Color;
+use draftcraft_doc::{ArrayParams, AssocSnap, Constraint, DimAssoc, DimStyle, Handle, LayerState, Parametric, PlotStyleTable};
+use draftcraft_dxf::{Tag, Version};
+use draftcraft_render::Arrowhead;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// Registered application name of RustDraft's extended data.
-pub(crate) const APP: &str = "RUSTDRAFT";
+/// Registered application name of DraftCraft's extended data.
+pub(crate) const APP: &str = "DRAFTCRAFT";
 /// Named-object-dictionary key of the constraint XRECORD.
-pub(crate) const CONSTRAINTS_KEY: &str = "RUSTDRAFT_CONSTRAINTS";
+pub(crate) const CONSTRAINTS_KEY: &str = "DRAFTCRAFT_CONSTRAINTS";
 /// Named-object-dictionary key of the saved layer states XRECORD.
-pub(crate) const LAYER_STATES_KEY: &str = "RUSTDRAFT_LAYERSTATES";
+pub(crate) const LAYER_STATES_KEY: &str = "DRAFTCRAFT_LAYERSTATES";
 /// Named-object-dictionary key of the drawing's plot style tables XRECORD.
-pub(crate) const PLOT_STYLES_KEY: &str = "RUSTDRAFT_PLOTSTYLES";
+pub(crate) const PLOT_STYLES_KEY: &str = "DRAFTCRAFT_PLOTSTYLES";
 /// Named-object-dictionary key of the annotative scaling XRECORD.
-pub(crate) const ANNOTATION_KEY: &str = "RUSTDRAFT_ANNOTATION";
+pub(crate) const ANNOTATION_KEY: &str = "DRAFTCRAFT_ANNOTATION";
 /// Named-object-dictionary key of the plot style names dictionary (DXF Reference): its entries
 /// name `ACDBPLACEHOLDER` objects, and layers and objects point at them with group 390.
 pub(crate) const PLOT_STYLE_NAMES_KEY: &str = "ACAD_PLOTSTYLENAME";
 /// Named-object-dictionary key of the XRECORD holding the drawing's next entity handle (hex).
-pub(crate) const HANDSEED_KEY: &str = "RUSTDRAFT_HANDSEED";
+pub(crate) const HANDSEED_KEY: &str = "DRAFTCRAFT_HANDSEED";
 /// Named-object-dictionary key of the XRECORD holding the current multileader style.
-pub(crate) const MLEADER_STYLE_KEY: &str = "RUSTDRAFT_MLEADERSTYLE";
+pub(crate) const MLEADER_STYLE_KEY: &str = "DRAFTCRAFT_MLEADERSTYLE";
 /// Most plot style tables and plot style names read from a file.
 pub(crate) const MAX_PLOT_STYLE_TABLES: usize = 1000;
 pub(crate) const MAX_PLOT_STYLE_NAMES: usize = 100_000;
@@ -150,7 +150,7 @@ pub(crate) const DIMPOST: i32 = 3;
 /// Variables newer than R2000: DIMFXL, DIMJOGANG, DIMTFILL, DIMTFILLCLR, DIMARCSYM, DIMFXLON,
 /// DIMLTYPE, DIMLTEX1, DIMLTEX2. Files of a variable's [`newer_since`] version or later get it as
 /// a DIMSTYLE group (R2004, and R2007 for DIMTFILL and DIMTFILLCLR); older files get it in a
-/// style's `RUSTDRAFT` "DIMVARS" xdata (`1070 <code>` then the value, like DSTYLE) instead of a
+/// style's `DRAFTCRAFT` "DIMVARS" xdata (`1070 <code>` then the value, like DSTYLE) instead of a
 /// group an older reader doesn't expect. The reader takes both.
 pub(crate) const NEWER_CODES: &[i32] = &[49, 50, 69, 70, 90, 290, 345, 346, 347];
 /// The first version with [`NEWER_CODES`] as DIMSTYLE groups, except DIMTFILL and DIMTFILLCLR
@@ -389,7 +389,7 @@ pub(crate) fn read_dstyle(
     read_dimvar_list(xdata_list(xdata(tags, "ACAD"), "DSTYLE"), styles, blocks, ltypes)
 }
 
-/// A style's [`NEWER_CODES`] variables from its `RUSTDRAFT` "DIMVARS" xdata.
+/// A style's [`NEWER_CODES`] variables from its `DRAFTCRAFT` "DIMVARS" xdata.
 pub(crate) fn read_newer_dimvars(
     tags: &[Tag],
     styles: &HashMap<String, String>,
@@ -423,17 +423,17 @@ fn read_dimvar_list(
 }
 
 /// Xdata marker of the paper-space viewport (id 1) the writer adds to layouts that have none;
-/// RustDraft keeps that viewport implicit, so the reader drops it.
+/// DraftCraft keeps that viewport implicit, so the reader drops it.
 pub(crate) const PAPER_VIEW: &str = "PAPERVIEW";
 
-/// True for a VIEWPORT record carrying the [`PAPER_VIEW`] marker as the first string of its RustDraft
+/// True for a VIEWPORT record carrying the [`PAPER_VIEW`] marker as the first string of its DraftCraft
 /// xdata, where the writer puts it. Later strings are layer names (VPFROZEN, VPCOLORS), so a layer
 /// called PAPERVIEW does not count.
 pub(crate) fn is_paper_view(tags: &[Tag]) -> bool {
     xdata(tags, APP).iter().find(|t| t.code == 1000).is_some_and(|t| t.str().trim().eq_ignore_ascii_case(PAPER_VIEW))
 }
 
-/// Snap kinds in RustDraft's ASSOC xdata.
+/// Snap kinds in DraftCraft's ASSOC xdata.
 fn snap_code(s: &AssocSnap) -> i64 {
     match s {
         AssocSnap::Start => 0,
@@ -446,7 +446,7 @@ fn snap_code(s: &AssocSnap) -> i64 {
     }
 }
 
-/// Exact associativity as RustDraft xdata groups: per link `1000 point`, `1005 object`,
+/// Exact associativity as DraftCraft xdata groups: per link `1000 point`, `1005 object`,
 /// `1070 snap` and the snap's argument (`1040 angle`, `1005 other object`, `1071 vertex`).
 pub(crate) fn assoc_xdata(assoc: &[DimAssoc]) -> Vec<Tag> {
     let mut v = vec![Tag::s(1000, "ASSOC"), Tag::s(1002, "{")];
@@ -467,19 +467,19 @@ pub(crate) fn assoc_xdata(assoc: &[DimAssoc]) -> Vec<Tag> {
     v
 }
 
-/// An arc-length dimension as RustDraft xdata: `1000 ARCLEN`, `1002 {`, the arc centre as an xdata
+/// An arc-length dimension as DraftCraft xdata: `1000 ARCLEN`, `1002 {`, the arc centre as an xdata
 /// point (`1010`/`1020`/`1030`), `1002 }`. The record itself stays a standard aligned dimension
 /// (DXF has no arc-length DIMENSION type), so other programs still read it.
-pub(crate) fn arclen_xdata(center: rustdraft_geom::Vec3) -> Vec<Tag> {
+pub(crate) fn arclen_xdata(center: draftcraft_geom::Vec3) -> Vec<Tag> {
     vec![Tag::s(1000, "ARCLEN"), Tag::s(1002, "{"), Tag::f(1010, center.x), Tag::f(1020, center.y), Tag::f(1030, center.z), Tag::s(1002, "}")]
 }
 
-/// Dimension marks as RustDraft xdata (`1000 MARKS`, `1002 {`, items, `1002 }`): `1000 JOGLINE`
+/// Dimension marks as DraftCraft xdata (`1000 MARKS`, `1002 {`, items, `1002 }`): `1000 JOGLINE`
 /// and a point; `1000 JOGGED`, the centre and the jog point; `1000 BREAK`, a point, `1040` size
 /// and `1070` auto; `1000 INSPECT`, `1070` shape, `1000` label and `1000` rate. Points are
 /// `1010/1020/1030`. The oblique angle is the standard group 52 instead.
-pub(crate) fn marks_xdata(m: &rustdraft_doc::DimMarks) -> Vec<Tag> {
-    let pt = |v: &mut Vec<Tag>, p: rustdraft_geom::Vec3| v.extend([Tag::f(1010, p.x), Tag::f(1020, p.y), Tag::f(1030, p.z)]);
+pub(crate) fn marks_xdata(m: &draftcraft_doc::DimMarks) -> Vec<Tag> {
+    let pt = |v: &mut Vec<Tag>, p: draftcraft_geom::Vec3| v.extend([Tag::f(1010, p.x), Tag::f(1020, p.y), Tag::f(1030, p.z)]);
     let mut v = Vec::new();
     if let Some(j) = m.jog_line {
         v.push(Tag::s(1000, "JOGLINE"));
@@ -509,12 +509,12 @@ pub(crate) fn marks_xdata(m: &rustdraft_doc::DimMarks) -> Vec<Tag> {
 
 /// The marks written by [`marks_xdata`] (no oblique angle); empty for other writers. Damaged
 /// items are skipped.
-pub(crate) fn read_marks(tags: &[Tag]) -> rustdraft_doc::DimMarks {
+pub(crate) fn read_marks(tags: &[Tag]) -> draftcraft_doc::DimMarks {
     let list = xdata_list(xdata(tags, APP), "MARKS");
     let list = list.get(..list.len().min(MAX_XDATA_ITEMS)).unwrap_or(&[]);
-    let mut m = rustdraft_doc::DimMarks::default();
+    let mut m = draftcraft_doc::DimMarks::default();
     let num = |i: usize, code: i32| list.get(i).filter(|t| t.code == code).map(Tag::f64).filter(|x| x.is_finite());
-    let point = |i: usize| Some(rustdraft_geom::Vec3::new(num(i, 1010)?, num(i + 1, 1020)?, num(i + 2, 1030)?));
+    let point = |i: usize| Some(draftcraft_geom::Vec3::new(num(i, 1010)?, num(i + 1, 1020)?, num(i + 2, 1030)?));
     let text = |i: usize| list.get(i).filter(|t| t.code == 1000).map(Tag::str);
     for (i, t) in list.iter().enumerate() {
         if t.code != 1000 {
@@ -524,20 +524,20 @@ pub(crate) fn read_marks(tags: &[Tag]) -> rustdraft_doc::DimMarks {
             "JOGLINE" => m.jog_line = point(i + 1).or(m.jog_line),
             "JOGGED" => {
                 if let (Some(center), Some(jog)) = (point(i + 1), point(i + 4)) {
-                    m.jogged = Some(rustdraft_doc::JoggedRadius { center, jog });
+                    m.jogged = Some(draftcraft_doc::JoggedRadius { center, jog });
                 }
             }
             "BREAK" => {
                 let size = list.get(i + 4).filter(|t| t.code == 1040).map(Tag::f64).filter(|x| x.is_finite() && *x > 0.0);
                 let auto = list.get(i + 5).filter(|t| t.code == 1070).is_some_and(|t| t.i64() != 0);
                 if let (Some(at), Some(size)) = (point(i + 1), size) {
-                    m.breaks.push(rustdraft_doc::DimBreak { at, size, auto });
+                    m.breaks.push(draftcraft_doc::DimBreak { at, size, auto });
                 }
             }
             "INSPECT" => {
                 let shape = list.get(i + 1).filter(|t| t.code == 1070).and_then(|t| u8::try_from(t.i64()).ok()).filter(|s| *s <= 2);
                 if let (Some(shape), Some(label), Some(rate)) = (shape, text(i + 2), text(i + 3)) {
-                    m.inspect = Some(rustdraft_doc::Inspection { shape, label, rate });
+                    m.inspect = Some(draftcraft_doc::Inspection { shape, label, rate });
                 }
             }
             _ => {}
@@ -547,13 +547,13 @@ pub(crate) fn read_marks(tags: &[Tag]) -> rustdraft_doc::DimMarks {
 }
 
 /// The arc centre written by [`arclen_xdata`]; None for other dimensions and other writers.
-pub(crate) fn read_arclen(tags: &[Tag]) -> Option<rustdraft_geom::Vec3> {
+pub(crate) fn read_arclen(tags: &[Tag]) -> Option<draftcraft_geom::Vec3> {
     let list = xdata_list(xdata(tags, APP), "ARCLEN");
     let g = |c: i32| list.iter().find(|t| t.code == c).map(Tag::f64).filter(|v| v.is_finite());
-    Some(rustdraft_geom::Vec3::new(g(1010)?, g(1020)?, g(1030).unwrap_or(0.0)))
+    Some(draftcraft_geom::Vec3::new(g(1010)?, g(1020)?, g(1030).unwrap_or(0.0)))
 }
 
-/// A viewport's frozen layer names as RustDraft xdata: `1000 VPFROZEN`, `1002 {`, one `1000` per layer, `1002 }`.
+/// A viewport's frozen layer names as DraftCraft xdata: `1000 VPFROZEN`, `1002 {`, one `1000` per layer, `1002 }`.
 pub(crate) fn frozen_xdata(layers: &[String]) -> Vec<Tag> {
     let mut v = vec![Tag::s(1000, "VPFROZEN"), Tag::s(1002, "{")];
     v.extend(layers.iter().map(|l| Tag::s(1000, l.clone())));
@@ -567,7 +567,7 @@ pub(crate) fn read_frozen(tags: &[Tag]) -> Vec<String> {
     list.iter().take(MAX_XDATA_ITEMS).filter(|t| t.code == 1000).map(Tag::str).collect()
 }
 
-/// A viewport's layer colour overrides as RustDraft xdata: `1000 VPCOLORS`, `1002 {`, then per override
+/// A viewport's layer colour overrides as DraftCraft xdata: `1000 VPCOLORS`, `1002 {`, then per override
 /// `1000 layer` and `1000 colour` (the [`Color::name`] text, which keeps true colours), `1002 }`.
 pub(crate) fn layer_colors_xdata(colors: &[(String, Color)]) -> Vec<Tag> {
     let mut v = vec![Tag::s(1000, "VPCOLORS"), Tag::s(1002, "{")];
@@ -588,7 +588,7 @@ pub(crate) fn read_layer_colors(tags: &[Tag]) -> Vec<(String, Color)> {
 
 const POINT_NAMES: [&str; 5] = ["defpt", "p13", "p14", "p15", "p16"];
 
-/// Associativity links from RustDraft xdata; malformed links are skipped.
+/// Associativity links from DraftCraft xdata; malformed links are skipped.
 pub(crate) fn read_assoc(tags: &[Tag]) -> Vec<DimAssoc> {
     let list = xdata_list(xdata(tags, APP), "ASSOC");
     let mut out = Vec::new();
@@ -633,7 +633,7 @@ pub(crate) fn read_assoc(tags: &[Tag]) -> Vec<DimAssoc> {
     out
 }
 
-/// The parametric payload stored in the `RUSTDRAFT_CONSTRAINTS` XRECORD.
+/// The parametric payload stored in the `DRAFTCRAFT_CONSTRAINTS` XRECORD.
 #[derive(Serialize, Deserialize)]
 struct Payload {
     version: u32,
@@ -676,7 +676,7 @@ fn json_chunks(json: &str) -> Vec<String> {
     chars.chunks(250).map(|c| c.iter().collect()).collect()
 }
 
-/// An associative array's parameters as RustDraft xdata on its block record: `1000 ARRAY`,
+/// An associative array's parameters as DraftCraft xdata on its block record: `1000 ARRAY`,
 /// `1002 {`, the JSON text in `1000` strings short enough for the 255-byte limit even when
 /// characters are written as `\U+XXXX` escapes, `1002 }`.
 pub(crate) fn array_xdata(p: &ArrayParams) -> Vec<Tag> {
@@ -712,7 +712,7 @@ pub(crate) fn read_array(tags: &[Tag]) -> Option<ArrayParams> {
     p.is_valid().then_some(p)
 }
 
-/// The saved layer states stored in the `RUSTDRAFT_LAYERSTATES` XRECORD.
+/// The saved layer states stored in the `DRAFTCRAFT_LAYERSTATES` XRECORD.
 #[derive(Serialize, Deserialize)]
 struct LayerStatesPayload {
     version: u32,
@@ -742,7 +742,7 @@ pub(crate) fn parse_layer_states(text: &str) -> Option<Vec<LayerState>> {
     Some(p.states)
 }
 
-/// The drawing's plot style tables stored in the `RUSTDRAFT_PLOTSTYLES` XRECORD.
+/// The drawing's plot style tables stored in the `DRAFTCRAFT_PLOTSTYLES` XRECORD.
 #[derive(Serialize, Deserialize)]
 struct PlotStylesPayload {
     version: u32,
@@ -772,10 +772,10 @@ pub(crate) fn parse_plot_styles(text: &str) -> Option<Vec<PlotStyleTable>> {
     Some(p.tables.into_iter().map(PlotStyleTable::sanitized).filter(|t| !t.name.is_empty()).collect())
 }
 
-/// Annotative scaling stored in the `RUSTDRAFT_ANNOTATION` XRECORD: the current annotation scale
+/// Annotative scaling stored in the `DRAFTCRAFT_ANNOTATION` XRECORD: the current annotation scale
 /// (CANNOSCALE), ANNOALLVISIBLE, the annotative blocks and the scales each annotative object
 /// supports, by handle. The DXF Reference doesn't document how objects refer to their scales,
-/// so this is RustDraft's own record; the scale list itself is the standard `ACAD_SCALELIST`.
+/// so this is DraftCraft's own record; the scale list itself is the standard `ACAD_SCALELIST`.
 #[derive(Default, Serialize, Deserialize)]
 pub(crate) struct AnnoPayload {
     version: u32,
@@ -792,7 +792,7 @@ pub(crate) struct AnnoPayload {
 #[derive(Serialize, Deserialize)]
 struct AnnoObject {
     handle: String,
-    scales: Vec<rustdraft_doc::AnnoScale>,
+    scales: Vec<draftcraft_doc::AnnoScale>,
 }
 
 /// Most annotative objects read from one file.
@@ -800,7 +800,7 @@ const MAX_ANNO_OBJECTS: usize = 1_000_000;
 
 /// JSON chunks for the annotative scaling XRECORD, or `None` when nothing differs from a new
 /// drawing (1:1, ANNOALLVISIBLE 1, no annotative objects or blocks).
-pub(crate) fn anno_chunks(d: &rustdraft_doc::Drawing) -> Option<Vec<String>> {
+pub(crate) fn anno_chunks(d: &draftcraft_doc::Drawing) -> Option<Vec<String>> {
     let cannoscale = d.header.str("CANNOSCALE", "1:1");
     let annoallvisible = d.header.i64("ANNOALLVISIBLE", 1);
     let blocks: Vec<String> = d.blocks.values().filter(|b| b.annotative).map(|b| b.name.clone()).collect();
@@ -808,7 +808,7 @@ pub(crate) fn anno_chunks(d: &rustdraft_doc::Drawing) -> Option<Vec<String>> {
         .model
         .iter()
         .chain(d.layouts.iter().flat_map(|l| l.entities.iter()))
-        .filter(|e| rustdraft_doc::is_annotative(e))
+        .filter(|e| draftcraft_doc::is_annotative(e))
         .map(|e| AnnoObject { handle: e.handle.hex(), scales: e.common.anno_scales.clone() })
         .collect();
     if cannoscale == "1:1" && annoallvisible == 1 && blocks.is_empty() && objects.is_empty() {
@@ -829,7 +829,7 @@ pub(crate) fn parse_anno(text: &str) -> Option<AnnoPayload> {
 
 /// Apply a parsed annotative scaling record: variables, annotative blocks and each object's
 /// scales (invalid scales and objects that can't be annotative are skipped).
-pub(crate) fn apply_anno(d: &mut rustdraft_doc::Drawing, p: AnnoPayload) {
+pub(crate) fn apply_anno(d: &mut draftcraft_doc::Drawing, p: AnnoPayload) {
     if let Some(c) = p.cannoscale.filter(|c| !c.trim().is_empty() && c.len() <= 255) {
         d.header.set_str("CANNOSCALE", &c);
     }
@@ -846,14 +846,14 @@ pub(crate) fn apply_anno(d: &mut rustdraft_doc::Drawing, p: AnnoPayload) {
     }
     for o in p.objects {
         let Some(h) = Handle::parse_hex(&o.handle) else { continue };
-        let mut scales: Vec<rustdraft_doc::AnnoScale> = Vec::new();
+        let mut scales: Vec<draftcraft_doc::AnnoScale> = Vec::new();
         for s in o.scales.into_iter().filter(|s| s.is_valid() && !s.name.trim().is_empty()) {
-            if scales.len() < rustdraft_doc::MAX_SCALES && !scales.iter().any(|x| x.name.eq_ignore_ascii_case(&s.name)) {
+            if scales.len() < draftcraft_doc::MAX_SCALES && !scales.iter().any(|x| x.name.eq_ignore_ascii_case(&s.name)) {
                 scales.push(s);
             }
         }
         let _ = d.modify_entity(h, |e| {
-            if rustdraft_doc::can_be_annotative(&e.kind) {
+            if draftcraft_doc::can_be_annotative(&e.kind) {
                 e.common.anno_scales = scales;
             }
         });
@@ -862,10 +862,10 @@ pub(crate) fn apply_anno(d: &mut rustdraft_doc::Drawing, p: AnnoPayload) {
 
 /// A SCALE object (DXF Reference, OBJECTS section): name (300), paper units (140), drawing
 /// units (141); `None` when unusable.
-pub(crate) fn read_scale(tags: &[Tag]) -> Option<rustdraft_doc::AnnoScale> {
+pub(crate) fn read_scale(tags: &[Tag]) -> Option<draftcraft_doc::AnnoScale> {
     let name = tags.iter().find(|t| t.code == 300).map(Tag::str)?;
     let num = |c: i32| tags.iter().find(|t| t.code == c).map(Tag::f64);
-    let s = rustdraft_doc::AnnoScale::new(name.trim(), num(140)?, num(141)?);
+    let s = draftcraft_doc::AnnoScale::new(name.trim(), num(140)?, num(141)?);
     (s.is_valid() && !s.name.is_empty() && s.name.len() <= 255).then_some(s)
 }
 
@@ -886,14 +886,14 @@ pub(crate) fn parse_constraints(text: &str) -> Option<(Vec<Constraint>, Parametr
 /// origin is the view's `target` (VIEWPORT and VPORT group 17, VIEW group 12) and their axes are
 /// turned by the view's `twist` (radians). Turning back keeps a twisted view on its part of the
 /// drawing however far that is from the origin; a non-finite result keeps the stored centre.
-pub(crate) fn dcs_center_to_model(c: rustdraft_geom::Vec2, twist: f64, target: rustdraft_geom::Vec2) -> rustdraft_geom::Vec2 {
-    let m = c.rotate(-twist) + if target.is_finite() { target } else { rustdraft_geom::Vec2::ZERO };
+pub(crate) fn dcs_center_to_model(c: draftcraft_geom::Vec2, twist: f64, target: draftcraft_geom::Vec2) -> draftcraft_geom::Vec2 {
+    let m = c.rotate(-twist) + if target.is_finite() { target } else { draftcraft_geom::Vec2::ZERO };
     if m.is_finite() { m } else { c }
 }
 
 /// The display-coordinate view centre a file stores for the drawing point `m` at the middle of
 /// a view with `twist`, its target at the origin (the inverse of [`dcs_center_to_model`]).
-pub(crate) fn model_center_to_dcs(m: rustdraft_geom::Vec2, twist: f64) -> rustdraft_geom::Vec2 {
+pub(crate) fn model_center_to_dcs(m: draftcraft_geom::Vec2, twist: f64) -> draftcraft_geom::Vec2 {
     let c = m.rotate(twist);
     if c.is_finite() { c } else { m }
 }
@@ -904,7 +904,7 @@ mod tests {
 
     #[test]
     fn every_dimvar_has_a_code() {
-        for (_, field) in rustdraft_doc::DIMVARS {
+        for (_, field) in draftcraft_doc::DIMVARS {
             assert!(dim_code(field).is_some(), "{field} has no DXF group code");
         }
     }

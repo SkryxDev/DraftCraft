@@ -7,7 +7,7 @@
 //! explicitly. Other differences fail.
 //! Native-object conformance checks bypass one bridge direction, not the underlying codec.
 //!
-//! Run `cargo test -p rustdraft-io --test it roundtrip::dwg`; add `-- --ignored` to reproduce
+//! Run `cargo test -p draftcraft-io --test it roundtrip::dwg`; add `-- --ignored` to reproduce
 //! pending defects. No DWG bytes are imported from another application or kept as fixtures.
 
 mod conformance;
@@ -15,9 +15,9 @@ mod dimensions;
 mod entities;
 mod extended;
 
-use rustdraft_color::Color;
-use rustdraft_doc::{Drawing, EntityKind, Transparency};
-use rustdraft_io::{SaveOptions, Version, read, write_with};
+use draftcraft_color::Color;
+use draftcraft_doc::{Drawing, EntityKind, Transparency};
+use draftcraft_io::{SaveOptions, Version, read, write_with};
 
 use super::{cases, compare};
 
@@ -62,7 +62,7 @@ fn check_version_using(case: &str, original: &Drawing, expected: &Drawing, versi
     for pass in 1..=2 {
         let context = format!("{case} · DWG {version} · pass={pass}");
         let bytes = write_with(&current, "memory.dwg", &options).unwrap_or_else(|e| panic!("{context}: write: {e}"));
-        assert_eq!(rustdraft_dwg::version(&bytes).as_deref(), Some(version.code()), "{context}: wire version");
+        assert_eq!(draftcraft_dwg::version(&bytes).as_deref(), Some(version.code()), "{context}: wire version");
         let back = read(&bytes, "memory.dwg").unwrap_or_else(|e| panic!("{context}: read: {e}"));
         assert!(back.read_notes.is_empty(), "{context}: read notes: {:?}", back.read_notes);
         assert!(back.skipped_records.is_empty(), "{context}: skipped records: {:?}", back.skipped_records);

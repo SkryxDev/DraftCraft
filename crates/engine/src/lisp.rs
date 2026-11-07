@@ -16,7 +16,7 @@ pub mod value;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use rustdraft_doc::{Drawing, Handle};
+use draftcraft_doc::{Drawing, Handle};
 
 use crate::{Input, Prompt, Session, undoctl};
 use eval::{Ctx, Machine, Need, Outcome};
@@ -53,14 +53,14 @@ pub struct Env {
     pub files: HashMap<u32, builtins::LispFile>,
     pub next_file: u32,
     /// Entities `entdel` deleted (it brings them back when called again), with their space.
-    pub deleted: HashMap<Handle, (rustdraft_doc::Space, Arc<rustdraft_doc::Entity>)>,
+    pub deleted: HashMap<Handle, (draftcraft_doc::Space, Arc<draftcraft_doc::Entity>)>,
     /// Every entity's handle in creation order, for the drawing it was taken from (`entnext`).
     pub order: Option<(usize, Arc<Vec<Handle>>)>,
     /// `tblnext`'s place in each table.
     pub tblnext: HashMap<String, usize>,
     /// A block definition `entmake` has begun (a BLOCK list) and not yet ended (ENDBLK): the
     /// entities made meanwhile go into it, numbered when it ends.
-    pub pending_block: Option<(rustdraft_doc::Block, Vec<rustdraft_doc::Entity>)>,
+    pub pending_block: Option<(draftcraft_doc::Block, Vec<draftcraft_doc::Entity>)>,
     /// The command history's length after LISP last printed a line: when something else wrote since
     /// (a prompt, a command's echo), a leading newline only ends that line.
     pub printed_at: Option<usize>,
@@ -531,14 +531,15 @@ impl Session {
 
     /// The rubber band of a waiting `get…` function: a rectangle from `getcorner`'s corner, a
     /// line from the base point of the others. `None` when no routine waits for input.
-    pub(crate) fn lisp_preview(&self, cursor: rustdraft_geom::Vec2) -> Option<Vec<rustdraft_doc::EntityKind>> {
+    pub(crate) fn lisp_preview(&self, cursor: draftcraft_geom::Vec2) -> Option<Vec<draftcraft_doc::EntityKind>> {
         let Need::Get(req) = self.lisp.run.as_ref()?.waiting.as_ref()? else { return None };
-        let line =
-            |a: rustdraft_geom::Vec2, b: rustdraft_geom::Vec2| rustdraft_doc::EntityKind::Line(rustdraft_doc::Line { a: a.to3(0.0), b: b.to3(0.0) });
-        let Some(b) = req.first.or(req.base).map(|p| rustdraft_geom::Vec2::new(p[0], p[1])) else { return Some(Vec::new()) };
+        let line = |a: draftcraft_geom::Vec2, b: draftcraft_geom::Vec2| {
+            draftcraft_doc::EntityKind::Line(draftcraft_doc::Line { a: a.to3(0.0), b: b.to3(0.0) })
+        };
+        let Some(b) = req.first.or(req.base).map(|p| draftcraft_geom::Vec2::new(p[0], p[1])) else { return Some(Vec::new()) };
         Some(match req.kind {
             input::GetKind::Corner => {
-                let (c1, c2) = (rustdraft_geom::Vec2::new(cursor.x, b.y), rustdraft_geom::Vec2::new(b.x, cursor.y));
+                let (c1, c2) = (draftcraft_geom::Vec2::new(cursor.x, b.y), draftcraft_geom::Vec2::new(b.x, cursor.y));
                 vec![line(b, c1), line(c1, cursor), line(cursor, c2), line(c2, b)]
             }
             input::GetKind::Point | input::GetKind::Dist | input::GetKind::Angle { .. } => vec![line(b, cursor)],

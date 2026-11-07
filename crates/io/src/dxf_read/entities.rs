@@ -7,7 +7,7 @@ use super::{
     LwPolyline, MAX_FRAME_CHARS, Point, PolyVertex, Polyline3d, RawTag, RayLine, Rx, Solid, Spline, Table, TableCell, Tag, Tolerance, Unknown, Vec2,
     Vec3, Viewport, Wipeout, records,
 };
-use rustdraft_doc::PolyfaceMesh;
+use draftcraft_doc::PolyfaceMesh;
 
 /// Parse one entity record. POLYLINE/INSERT followers are handled by the caller.
 pub(super) fn entity(kind: &str, tags: &[Tag]) -> Option<(Common, EntityKind)> {
@@ -21,8 +21,8 @@ fn arc(c: &Common, t: &T) -> Arc {
     if c.extrusion.z < 0.0 {
         // Mirrored OCS: angles run the other way.
         let (s, e) = (std::f64::consts::PI - a.end, std::f64::consts::PI - a.start);
-        a.start = rustdraft_geom::norm_angle(s);
-        a.end = rustdraft_geom::norm_angle(e);
+        a.start = draftcraft_geom::norm_angle(s);
+        a.end = draftcraft_geom::norm_angle(e);
     }
     a
 }
@@ -35,18 +35,18 @@ fn ellipse(c: &Common, t: &T) -> Ellipse {
         start: t.fd(41, 0.0),
         end: t.fd(42, std::f64::consts::TAU),
     };
-    if c.extrusion.z < 0.0 && (rustdraft_geom::ccw_sweep(e.start, e.end) - std::f64::consts::TAU).abs() > 1e-9 {
+    if c.extrusion.z < 0.0 && (draftcraft_geom::ccw_sweep(e.start, e.end) - std::f64::consts::TAU).abs() > 1e-9 {
         // Centre and major axis are WCS, but the minor axis is extrusion × major: with (0,0,-1)
         // it points the other way, so parameter t lands where -t does in the XY plane. A full
         // ellipse is symmetric and stays as it is.
         let (s, e2) = (-e.end, -e.start);
-        e.start = rustdraft_geom::norm_angle(s);
-        e.end = rustdraft_geom::norm_angle(e2);
+        e.start = draftcraft_geom::norm_angle(s);
+        e.end = draftcraft_geom::norm_angle(e2);
     }
     e
 }
 
-/// A LWPOLYLINE, or the region RustDraft wrote as one.
+/// A LWPOLYLINE, or the region DraftCraft wrote as one.
 fn lwpolyline(tags: &[Tag], c: &Common, t: &T) -> Option<EntityKind> {
     let mut verts = Vec::new();
     let mut cur: Option<PolyVertex> = None;
@@ -90,7 +90,7 @@ fn lwpolyline(tags: &[Tag], c: &Common, t: &T) -> Option<EntityKind> {
         }
     }
     let pl = LwPolyline { vertices: verts, closed: flags & 1 != 0, const_width: t.fd(43, 0.0), elevation: t.fd(38, 0.0), plinegen: flags & 128 != 0 };
-    // A region RustDraft wrote as polylines (`dxf_region`).
+    // A region DraftCraft wrote as polylines (`dxf_region`).
     crate::dxf_region::from_polyline(tags, pl)
 }
 
@@ -102,7 +102,7 @@ fn spline(t: &T) -> Spline {
     let fit = t.pts(11);
     let tangent = |c: i32| t.f(c).map(|_| t.p(c).xy());
     let fit_opts =
-        rustdraft_geom::FitOptions { knots: Default::default(), start_tangent: tangent(12), end_tangent: tangent(13), tolerance: t.fd(44, 0.0) }
+        draftcraft_geom::FitOptions { knots: Default::default(), start_tangent: tangent(12), end_tangent: tangent(13), tolerance: t.fd(44, 0.0) }
             .sanitized();
     let closed = t.i(70).unwrap_or(0) & 1 != 0;
     let mut sp = Spline { degree, knots, control, weights, fit: fit.clone(), closed, fit_opts };
@@ -239,14 +239,14 @@ pub(super) fn entity_with_table_budget(kind: &str, tags: &[Tag], table_cells_lef
                     v.p.x = -v.p.x;
                     v.bulge = -v.bulge;
                 }
-                h.angle = rustdraft_geom::norm_angle(std::f64::consts::PI - h.angle);
+                h.angle = draftcraft_geom::norm_angle(std::f64::consts::PI - h.angle);
             }
             k
         }
         "ACAD_TABLE" => EntityKind::Table(acad_table(tags, table_cells_left)),
         "VIEWPORT" => EntityKind::Viewport({
             // View twist (group 51, degrees).
-            let twist = t.f(51).map_or(0.0, |a| rustdraft_geom::norm_angle(a.to_radians()));
+            let twist = t.f(51).map_or(0.0, |a| draftcraft_geom::norm_angle(a.to_radians()));
             Viewport {
                 center: t.p(10),
                 width: t.fd(40, 1.0),
@@ -292,7 +292,7 @@ pub(super) fn entity_with_table_budget(kind: &str, tags: &[Tag], table_cells_lef
     Some((c, k))
 }
 
-/// An ACAD_TABLE entity: sizes, cell texts and merges (DXF Reference), plus RustDraft's
+/// An ACAD_TABLE entity: sizes, cell texts and merges (DXF Reference), plus DraftCraft's
 /// title/header flags, text height and style name from xdata when present.
 pub(super) fn acad_table(tags: &[Tag], table_cells_left: &mut usize) -> Table {
     const MAX_CELLS: usize = 1_000_000;
@@ -343,7 +343,7 @@ pub(super) fn acad_table(tags: &[Tag], table_cells_left: &mut usize) -> Table {
         text.push_str(&c.s(1).unwrap_or_default());
         let span = |code: i32| c.i(code).and_then(|v| u32::try_from(v).ok());
         // A merge starts at the cell whose span (rows 176, columns 175) is more than one cell.
-        // Its own merged flag (173) varies by writer: RustDraft sets it, while AutoCAD-style
+        // Its own merged flag (173) varies by writer: DraftCraft sets it, while AutoCAD-style
         // writers (acadrust 0.6.4) set it only on the cells the merge covers, whose span is 0.
         let merged = match (span(176), span(175)) {
             (Some(rs), Some(cs)) if rs >= 1 && cs >= 1 && (rs, cs) != (1, 1) => Some((rs, cs)),
@@ -384,7 +384,7 @@ pub(super) fn acad_table(tags: &[Tag], table_cells_left: &mut usize) -> Table {
 
 /// The plot style names of a file: the entries of the `ACAD_PLOTSTYLENAME` dictionary of the
 /// named object dictionary (the first object), by placeholder handle.
-pub(super) fn plot_style_names(secs: &[rustdraft_dxf::Section]) -> HashMap<String, String> {
+pub(super) fn plot_style_names(secs: &[draftcraft_dxf::Section]) -> HashMap<String, String> {
     let mut out = HashMap::new();
     let Some(objects) = secs.iter().find(|s| s.name == "OBJECTS") else { return out };
     let recs = records(&objects.tags);
@@ -461,7 +461,7 @@ pub(super) fn entity_extras(kind: &str, tags: &[Tag], h: Handle, k: &mut EntityK
                 _ => None,
             };
             if let (Some(base), Some(o)) = (base, T(tags).f(52).filter(|o| o.is_finite() && o.rem_euclid(180.0) != 0.0)) {
-                dm.marks.oblique = Some(rustdraft_geom::norm_angle(base + o.to_radians()));
+                dm.marks.oblique = Some(draftcraft_geom::norm_angle(base + o.to_radians()));
             }
         }
         ("ACAD_TABLE", EntityKind::Table(_)) => {
@@ -485,7 +485,7 @@ pub(super) fn entity_extras(kind: &str, tags: &[Tag], h: Handle, k: &mut EntityK
             rx.mleader_fix.push((h, pending));
         }
         // The frozen layers: the LAYER handles of group 331 (341 in DXF 2000), outside `102 {…}`
-        // application groups, then the names in RustDraft's VPFROZEN xdata, which holds those
+        // application groups, then the names in DraftCraft's VPFROZEN xdata, which holds those
         // without one; each layer once.
         ("VIEWPORT", EntityKind::Viewport(v)) => {
             let mut app_group = false;

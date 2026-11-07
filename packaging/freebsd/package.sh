@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Build and package RustDraft for FreeBSD:
+# Build and package DraftCraft for FreeBSD:
 #
-#   $DIST/rustdraft-<version>-freebsd-<arch>.tar.gz   a /usr/local-style tree (<arch> is x86_64, or
+#   $DIST/draftcraft-<version>-freebsd-<arch>.tar.gz   a /usr/local-style tree (<arch> is x86_64, or
 #       aarch64 when CARGO_BUILD_TARGET=aarch64-unknown-freebsd):
-#       rustdraft-<version>-freebsd-<arch>/{bin, man/man1, share/applications, share/icons,
-#       share/mime, share/metainfo, share/doc/rustdraft, share/{bash-completion,zsh,fish}}
+#       draftcraft-<version>-freebsd-<arch>/{bin, man/man1, share/applications, share/icons,
+#       share/mime, share/metainfo, share/doc/draftcraft, share/{bash-completion,zsh,fish}}
 #
 # Install by copying the tree's contents into /usr/local, e.g.
-#   tar -xzf rustdraft-*-freebsd-x86_64.tar.gz --strip-components 1 -C /usr/local
+#   tar -xzf draftcraft-*-freebsd-x86_64.tar.gz --strip-components 1 -C /usr/local
 #
 # Usage: packaging/freebsd/package.sh [--skip-build] [--dry-run]
 #   --dry-run  print the resolved target, archive and cargo commands, then exit without building
@@ -18,7 +18,7 @@ set -euo pipefail
 # shellcheck source=../env.sh
 . "$(dirname "${BASH_SOURCE[0]}")/../env.sh"
 LINUX="$ROOT/packaging/linux"
-APP_ID=dev.skryx.rustdraft
+APP_ID=dev.skryx.draftcraft
 
 SKIP_BUILD=0
 DRY_RUN=0
@@ -56,23 +56,23 @@ HOST_ARCH="$(release_arch "$(uname -m)" 2>/dev/null)" || HOST_ARCH="$(uname -m)"
 if [[ -n "${CARGO_BUILD_TARGET:-}" ]] && [[ "$(uname -s)" != FreeBSD ]]; then
   HOST_ARCH="$(uname -s) $HOST_ARCH"
 fi
-BASENAME="rustdraft-$VERSION-freebsd-$ARCH"
+BASENAME="draftcraft-$VERSION-freebsd-$ARCH"
 
-echo "==> RustDraft $VERSION for FreeBSD $ARCH"
+echo "==> DraftCraft $VERSION for FreeBSD $ARCH"
 
-# rustdraft-cli's man-and-completions example is built on its own, not with the binaries: its
+# draftcraft-cli's man-and-completions example is built on its own, not with the binaries: its
 # dev-dependencies would otherwise be unified into them (packaging/linux/package.sh). It runs on
 # this machine, so a cross build builds it without the target.
 CARGO_BUILD_FLAGS=(--release --locked ${CARGO_BUILD_TARGET:+--target "$CARGO_BUILD_TARGET"})
 if [[ "$DRY_RUN" = 1 ]]; then
   echo "dry run: archive $DIST/$BASENAME.tar.gz"
-  echo "dry run: (cd $ROOT && cargo build ${CARGO_BUILD_FLAGS[*]} -p rustdraft -p rustdraft-cli)"
-  echo "dry run: (cd $ROOT && env -u CARGO_BUILD_TARGET cargo build --release --locked -p rustdraft-cli --example man-and-completions)"
+  echo "dry run: (cd $ROOT && cargo build ${CARGO_BUILD_FLAGS[*]} -p draftcraft -p draftcraft-cli)"
+  echo "dry run: (cd $ROOT && env -u CARGO_BUILD_TARGET cargo build --release --locked -p draftcraft-cli --example man-and-completions)"
   exit 0
 fi
 if [[ "$SKIP_BUILD" = 0 ]]; then
-  (cd "$ROOT" && cargo build "${CARGO_BUILD_FLAGS[@]}" -p rustdraft -p rustdraft-cli)
-  (cd "$ROOT" && env -u CARGO_BUILD_TARGET cargo build --release --locked -p rustdraft-cli --example man-and-completions)
+  (cd "$ROOT" && cargo build "${CARGO_BUILD_FLAGS[@]}" -p draftcraft -p draftcraft-cli)
+  (cd "$ROOT" && env -u CARGO_BUILD_TARGET cargo build --release --locked -p draftcraft-cli --example man-and-completions)
 fi
 # Cargo puts a cross build under target/<triple>/release.
 BIN="$CARGO_TARGET_DIR/${CARGO_BUILD_TARGET:+$CARGO_BUILD_TARGET/}release"
@@ -82,17 +82,17 @@ rm -rf "$WORK"
 
 # ---- stage a /usr/local-style tree ---------------------------------------------------------------
 mkdir -p "$STAGE/bin" "$STAGE/share/applications" "$STAGE/share/mime/packages" "$STAGE/share/metainfo" \
-  "$STAGE/share/icons" "$STAGE/share/doc/rustdraft"
-install -m 755 "$BIN/rustdraft" "$BIN/rustdraft-cli" "$STAGE/bin/"
-strip "$STAGE/bin/rustdraft" "$STAGE/bin/rustdraft-cli" 2>/dev/null || true
+  "$STAGE/share/icons" "$STAGE/share/doc/draftcraft"
+install -m 755 "$BIN/draftcraft" "$BIN/draftcraft-cli" "$STAGE/bin/"
+strip "$STAGE/bin/draftcraft" "$STAGE/bin/draftcraft-cli" 2>/dev/null || true
 # The desktop entry, MIME type and metainfo are the freedesktop files the Linux packages use.
 install -m 644 "$LINUX/$APP_ID.desktop" "$STAGE/share/applications/$APP_ID.desktop"
 install -m 644 "$LINUX/$APP_ID.mime.xml" "$STAGE/share/mime/packages/$APP_ID.xml"
-sed -e "s/@VERSION@/$VERSION/g" -e "s/@DATE@/$RUSTDRAFT_BUILD_DATE/g" \
+sed -e "s/@VERSION@/$VERSION/g" -e "s/@DATE@/$DRAFTCRAFT_BUILD_DATE/g" \
   "$LINUX/$APP_ID.metainfo.xml.in" >"$STAGE/share/metainfo/$APP_ID.metainfo.xml"
 cp -R "$ROOT/assets/app-icon/hicolor" "$STAGE/share/icons/"
-copy_docs "$STAGE/share/doc/rustdraft"
-# rustdraft-cli's man pages and shell completions, from its clap definition, written by the
+copy_docs "$STAGE/share/doc/draftcraft"
+# draftcraft-cli's man pages and shell completions, from its clap definition, written by the
 # example built above.
 CLI_DOCS="$CARGO_TARGET_DIR/release/examples/man-and-completions"
 if [[ ! -x "$CLI_DOCS" ]]; then
@@ -103,9 +103,9 @@ fi
 mkdir -p "$STAGE/man/man1" "$STAGE/share/bash-completion/completions" \
   "$STAGE/share/zsh/site-functions" "$STAGE/share/fish/vendor_completions.d"
 install -m 644 "$WORK"/cli-docs/*.1 "$STAGE/man/man1/"
-install -m 644 "$WORK/cli-docs/rustdraft-cli.bash" "$STAGE/share/bash-completion/completions/rustdraft-cli"
-install -m 644 "$WORK/cli-docs/_rustdraft-cli" "$STAGE/share/zsh/site-functions/_rustdraft-cli"
-install -m 644 "$WORK/cli-docs/rustdraft-cli.fish" "$STAGE/share/fish/vendor_completions.d/rustdraft-cli.fish"
+install -m 644 "$WORK/cli-docs/draftcraft-cli.bash" "$STAGE/share/bash-completion/completions/draftcraft-cli"
+install -m 644 "$WORK/cli-docs/_draftcraft-cli" "$STAGE/share/zsh/site-functions/_draftcraft-cli"
+install -m 644 "$WORK/cli-docs/draftcraft-cli.fish" "$STAGE/share/fish/vendor_completions.d/draftcraft-cli.fish"
 
 # ---- .tar.gz -------------------------------------------------------------------------------------
 mkdir -p "$DIST"
@@ -113,7 +113,7 @@ tar -C "$WORK" -czf "$DIST/$BASENAME.tar.gz" "$BASENAME"
 echo "wrote $DIST/$BASENAME.tar.gz"
 
 if [[ -z "${CARGO_BUILD_TARGET:-}" ]] && [[ "$ARCH" = "$HOST_ARCH" ]]; then
-  "$STAGE/bin/rustdraft-cli" --version
+  "$STAGE/bin/draftcraft-cli" --version
 else
   # They cannot run here, so check what they are instead: executables, not libraries or objects.
   # An older file(1) calls a PIE a shared object; its interpreter still marks it as a program.

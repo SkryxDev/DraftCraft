@@ -3,14 +3,14 @@
 
 use std::sync::Arc;
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{Attrib, Block, Common, Entity, EntityKind, Handle, MText, MultilineAttrib, Text};
-use rustdraft_engine::geom::Vec3;
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{Attrib, Block, Common, Entity, EntityKind, Handle, MText, MultilineAttrib, Text};
+use draftcraft_engine::geom::Vec3;
 use serde_json::json;
 
 /// A session whose block TAG has a multiline definition LABEL ("SITE" / "NAME") at (10, 3).
 fn session() -> Session {
-    let mut d = rustdraft_engine::doc::Drawing::new_imperial();
+    let mut d = draftcraft_engine::doc::Drawing::new_imperial();
     let text = Text {
         insert: Vec3::new(2.0, 2.0, 0.0),
         align_pt: None,

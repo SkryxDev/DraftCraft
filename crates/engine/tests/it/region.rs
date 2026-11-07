@@ -2,9 +2,9 @@
 //! them; UNION, SUBTRACT and INTERSECT combine regions whose boundaries don't meet; they move,
 //! explode and snap like other objects.
 
-use rustdraft_doc::{EntityKind, Handle, Region, Space};
-use rustdraft_engine::Session;
-use rustdraft_geom::{PI, Vec2};
+use draftcraft_doc::{EntityKind, Handle, Region, Space};
+use draftcraft_engine::Session;
+use draftcraft_geom::{PI, Vec2};
 use serde_json::{Value, json};
 
 fn h(v: &Value) -> Handle {
@@ -187,13 +187,13 @@ fn regions_move_grip_explode_and_snap() {
     // One grip in the middle; dragging it moves the region.
     let k = s.doc().unwrap().entity(a).unwrap().kind.clone();
     assert_eq!(k.grips(), vec![Vec2::new(3.0, 6.0)]);
-    let EntityKind::Region(m) = rustdraft_engine::grips::stretch_grip(&k, 0, Vec2::new(4.0, 6.0)).unwrap() else { panic!() };
+    let EntityKind::Region(m) = draftcraft_engine::grips::stretch_grip(&k, 0, Vec2::new(4.0, 6.0)).unwrap() else { panic!() };
     assert!(m.bounds().min.near(Vec2::new(2.0, 1.0), 1e-9));
     // A corner snaps; a pick on the edge picks it.
     let d = s.doc().unwrap();
-    let hit = rustdraft_engine::snap::osnap(d, &Space::Model, Vec2::new(5.05, 11.05), 0.3, rustdraft_engine::snap::mode::END, None, false).unwrap();
+    let hit = draftcraft_engine::snap::osnap(d, &Space::Model, Vec2::new(5.05, 11.05), 0.3, draftcraft_engine::snap::mode::END, None, false).unwrap();
     assert!(hit.point.near(Vec2::new(5.0, 11.0), 1e-9));
-    assert_eq!(rustdraft_engine::select::pick(d, &Space::Model, Vec2::new(3.0, 1.0), 0.1), Some(a));
+    assert_eq!(draftcraft_engine::select::pick(d, &Space::Model, Vec2::new(3.0, 1.0), 0.1), Some(a));
     // EXPLODE: the boundary's lines and arcs.
     s.execute("explode", &json!({"handles": [a.hex()]})).unwrap();
     let d = s.doc().unwrap();

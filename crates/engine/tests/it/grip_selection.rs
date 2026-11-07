@@ -2,10 +2,10 @@
 //! coincident grips of the other selected objects with it, and Move/Rotate/Scale/Mirror
 //! transform every selected object.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{EntityKind, Handle};
-use rustdraft_engine::geom::Vec2;
-use rustdraft_engine::grips::GripMode;
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{EntityKind, Handle};
+use draftcraft_engine::geom::Vec2;
+use draftcraft_engine::grips::GripMode;
 use serde_json::json;
 
 fn line(s: &mut Session, a: [f64; 2], b: [f64; 2]) -> Handle {

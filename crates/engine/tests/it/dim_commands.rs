@@ -1,16 +1,16 @@
 //! DIMEDIT (Home/New/Rotate/Oblique), DIMJOGGED, DIMJOGLINE, DIMBREAK and DIMINSPECT: the JSON
 //! forms, the prompt sequences and what they draw.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{Dimension, EntityKind, Handle};
-use rustdraft_engine::geom::Vec2;
-use rustdraft_engine::render::{DimGeometry, LineRole};
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{Dimension, EntityKind, Handle};
+use draftcraft_engine::geom::Vec2;
+use draftcraft_engine::render::{DimGeometry, LineRole};
 use serde_json::{Value, json};
 
 fn dim_of(s: &Session, h: &str) -> (Dimension, DimGeometry) {
     let d = s.doc().unwrap();
     match &d.entity(Handle::parse_hex(h).unwrap()).unwrap().kind {
-        EntityKind::Dimension(dm) => (dm.clone(), rustdraft_engine::render::dimension_in(d, dm)),
+        EntityKind::Dimension(dm) => (dm.clone(), draftcraft_engine::render::dimension_in(d, dm)),
         k => panic!("not a dimension: {k:?}"),
     }
 }
@@ -213,7 +213,7 @@ fn inspection_dimensions() {
     let plain = {
         let mut p = dm.clone();
         p.marks.inspect = None;
-        rustdraft_engine::render::dimension_in(s.doc().unwrap(), &p)
+        draftcraft_engine::render::dimension_in(s.doc().unwrap(), &p)
     };
     assert_eq!(g.lines_of(LineRole::Dim).count(), plain.lines_of(LineRole::Dim).count() + 6);
     s.execute("diminspect", &json!({ "handles": [h], "shape": "none", "label": "", "rate": "" })).unwrap();
@@ -250,9 +250,9 @@ fn marks_follow_move_and_rotate_and_hostile_values_do_not_panic() {
     d.modify_entity(hh, |e| {
         if let EntityKind::Dimension(dm) = &mut e.kind {
             dm.marks.oblique = Some(f64::NAN);
-            dm.marks.jog_line = Some(rustdraft_engine::geom::Vec3::new(f64::INFINITY, 0.0, 0.0));
-            dm.marks.breaks.push(rustdraft_engine::doc::DimBreak { at: Default::default(), size: f64::NAN, auto: false });
-            dm.marks.inspect = Some(rustdraft_engine::doc::Inspection { shape: 9, label: "x".into(), rate: String::new() });
+            dm.marks.jog_line = Some(draftcraft_engine::geom::Vec3::new(f64::INFINITY, 0.0, 0.0));
+            dm.marks.breaks.push(draftcraft_engine::doc::DimBreak { at: Default::default(), size: f64::NAN, auto: false });
+            dm.marks.inspect = Some(draftcraft_engine::doc::Inspection { shape: 9, label: "x".into(), rate: String::new() });
         }
     })
     .unwrap();

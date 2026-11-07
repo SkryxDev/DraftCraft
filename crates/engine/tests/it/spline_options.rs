@@ -1,9 +1,9 @@
 //! SPLINE's Knots, start/end Tangency, toLerance and Object options, at the command line and in
 //! the JSON form (#408).
 
-use rustdraft_doc::EntityKind;
-use rustdraft_engine::Session;
-use rustdraft_geom::{KnotParam, Spline, Vec2};
+use draftcraft_doc::EntityKind;
+use draftcraft_engine::Session;
+use draftcraft_geom::{KnotParam, Spline, Vec2};
 use serde_json::json;
 
 fn last(s: &Session) -> EntityKind {

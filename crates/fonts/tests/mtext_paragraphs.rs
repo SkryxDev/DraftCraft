@@ -1,8 +1,8 @@
 //! MTEXT paragraph formatting and columns in the layout (#532): `\p` indents, tabs, lists,
 //! alignment, column flow and column breaks, and hostile codes.
 
-use rustdraft_fonts::{MTextColumnSpec, MTextLayout, MTextParams, layout_mtext_with};
-use rustdraft_geom::Vec2;
+use draftcraft_fonts::{MTextColumnSpec, MTextLayout, MTextParams, layout_mtext_with};
+use draftcraft_geom::Vec2;
 
 fn lay(s: &str, width: f64, columns: Option<MTextColumnSpec>) -> MTextLayout {
     layout_mtext_with(s, &MTextParams { width, columns, ..MTextParams::new(Vec2::ZERO, 1.0) })

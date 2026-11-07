@@ -1,6 +1,6 @@
 [package]
-name = "rustdraft-engine"
-description = "RustDraft engine: sessions, commands, the command line and prompts, snaps, selection, undo"
+name = "draftcraft-engine"
+description = "DraftCraft engine: sessions, commands, the command line and prompts, snaps, selection, undo"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,13 +9,13 @@ license.workspace = true
 workspace = true
 
 [dependencies]
-rustdraft-geom = { workspace = true }
-rustdraft-color = { workspace = true }
-rustdraft-doc = { workspace = true }
-rustdraft-dxf = { workspace = true }
-rustdraft-constraints = { workspace = true }
-rustdraft-fonts = { workspace = true }
-rustdraft-render = { workspace = true }
+draftcraft-geom = { workspace = true }
+draftcraft-color = { workspace = true }
+draftcraft-doc = { workspace = true }
+draftcraft-dxf = { workspace = true }
+draftcraft-constraints = { workspace = true }
+draftcraft-fonts = { workspace = true }
+draftcraft-render = { workspace = true }
 craft-docpath = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -29,4 +29,4 @@ libc = "0.2"
 
 [dev-dependencies]
 # Real DXF files for the external reference tests (io is a lower layer).
-rustdraft-io = { workspace = true }
+draftcraft-io = { workspace = true }

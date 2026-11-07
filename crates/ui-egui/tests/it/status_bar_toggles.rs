@@ -1,13 +1,13 @@
 //! The drafting toggles on the status bar are transparent, as F7-F12 are: clicking Grid or Snap
 //! while drawing a line changes the setting and leaves LINE running (#1108).
 
+use draftcraft_engine::doc::{Drawing, EntityKind, Space};
+use draftcraft_engine::geom::Vec2;
+use draftcraft_engine::{Input, Session};
+use draftcraft_ui_egui::{CadApp, Services};
 use egui::vec2;
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
-use rustdraft_engine::doc::{Drawing, EntityKind, Space};
-use rustdraft_engine::geom::Vec2;
-use rustdraft_engine::{Input, Session};
-use rustdraft_ui_egui::{CadApp, Services};
 
 fn harness() -> Harness<'static, CadApp> {
     let mut session = Session::empty();

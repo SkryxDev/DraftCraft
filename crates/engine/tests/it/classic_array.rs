@@ -3,15 +3,15 @@
 
 use std::f64::consts::TAU;
 
-use rustdraft_engine::Session;
-use rustdraft_engine::cmd::file::{EntityCodec, set_entity_codec};
-use rustdraft_engine::doc::EntityKind;
+use draftcraft_engine::Session;
+use draftcraft_engine::cmd::file::{EntityCodec, set_entity_codec};
+use draftcraft_engine::doc::EntityKind;
 use serde_json::json;
 
 /// A session with the object `made` (an entity list) as `a` in LISP, after `code`.
 fn run(made: &str, code: &str) -> Session {
     // `entmake` goes through the DXF codec, as in the app.
-    set_entity_codec(EntityCodec { groups: rustdraft_io::entity_groups, entity: rustdraft_io::entity_from_groups });
+    set_entity_codec(EntityCodec { groups: draftcraft_io::entity_groups, entity: draftcraft_io::entity_from_groups });
     let mut s = Session::new();
     s.cmdline(&format!("(progn (setq a (progn (entmake '({made})) (entlast))) {code})")).unwrap();
     s

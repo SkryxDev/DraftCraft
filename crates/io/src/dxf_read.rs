@@ -2,15 +2,15 @@
 
 use std::collections::HashMap;
 
-use rustdraft_color::{Color, Rgb};
-use rustdraft_doc::{
+use draftcraft_color::{Color, Rgb};
+use draftcraft_doc::{
     Arc, AssocSnap, Attrib, AttribModes, AttribProps, Block, Circle, Common, DashElement, DimAssoc, DimKind, DimStyle, Dimension, Drawing, Ellipse,
     Entity, EntityKind, Face3d, Gradient, Group, HAlign, HVal, Handle, Hatch, HatchLoop, Helix, HelixConstrain, Insert, Layer, Layout, Leader, Line,
     Linetype, Lineweight, LwPolyline, MAX_FRAME_CHARS, MLeaderStyle, MText, MultilineAttrib, NamedView, PageSetup, Point, Polyline3d, RawTag,
     RayLine, Solid, Table, TableCell, Text, TextStyle, Tolerance, Transparency, Ucs, Unknown, VAlign, Viewport, VportConfig, VportTile, Wipeout,
 };
-use rustdraft_dxf::{Tag, records, sections};
-use rustdraft_geom::{PolyVertex, Spline, Vec2, Vec3};
+use draftcraft_dxf::{Tag, records, sections};
+use draftcraft_geom::{PolyVertex, Spline, Vec2, Vec3};
 
 use crate::{IoError, Result};
 
@@ -58,7 +58,7 @@ struct Rx {
     /// Plot style name placeholder handle (upper case) → plot style name (`ACAD_PLOTSTYLENAME`).
     pstyles: HashMap<String, String>,
     /// Upper-case block name → associative array parameters from its BLOCK_RECORD.
-    block_arrays: HashMap<String, rustdraft_doc::ArrayParams>,
+    block_arrays: HashMap<String, draftcraft_doc::ArrayParams>,
     /// LAYER record handle (upper case) → layer name (VIEWPORT group 331/341 frozen layers).
     layers: HashMap<String, String>,
 }
@@ -78,7 +78,8 @@ type LayoutDef = (String, u32, String, PageSetup, Option<(Vec2, Vec2)>);
 
 /// Import DXF sections while sharing one materialized-table-cell budget across blocks and entity sections.
 fn read_budgeted(bytes: &[u8], mut table_cells_left: usize) -> Result<Drawing> {
-    let tags = rustdraft_dxf::parse(bytes).map_err(|e| IoError::Format(e.to_string()))?;
+    let mut tags = draftcraft_dxf::parse(bytes).map_err(|e| IoError::Format(e.to_string()))?;
+    crate::legacy_names::upgrade(&mut tags);
     let secs = sections(&tags);
     if secs.is_empty() {
         return Err(IoError::Format("no sections found".into()));
@@ -95,7 +96,7 @@ fn read_budgeted(bytes: &[u8], mut table_cells_left: usize) -> Result<Drawing> {
     // Every handle another program's file already uses is taken before anything gets a new one:
     // its $HANDSEED can be lower than its handles, and entities made while reading (the faces of
     // a polygon mesh) would otherwise get handles that records further on still have. A file
-    // RustDraft wrote names its own next handle, above which its rebuilt records are numbered
+    // DraftCraft wrote names its own next handle, above which its rebuilt records are numbered
     // (#495), so it is left to that.
     let ours = secs.iter().any(|s| s.name == "OBJECTS" && s.tags.iter().any(|t| t.code == 3 && t.str() == crate::dxf_ext::HANDSEED_KEY));
     for t in secs.iter().filter(|_| !ours).flat_map(|s| s.tags.iter()).filter(|t| t.code == 5 || t.code == 105) {
@@ -120,7 +121,7 @@ fn read_budgeted(bytes: &[u8], mut table_cells_left: usize) -> Result<Drawing> {
             _ => {}
         }
     }
-    // A file RustDraft wrote names its own next handle (#495): its table records and objects
+    // A file DraftCraft wrote names its own next handle (#495): its table records and objects
     // are numbered above it and rebuilt on save, so following $HANDSEED would drift every save.
     let own_seed = objs.xrecord_text(crate::dxf_ext::HANDSEED_KEY).and_then(|t| Handle::parse_hex(t.trim()));
     let (paper_block_for, first_layout) = setup_layouts(&mut d, &mut layout_objs, &rx);

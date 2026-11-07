@@ -1,8 +1,8 @@
 //! LAYOUT / -LAYOUT typed at the command line asks for an option and the layout names it needs
 //! instead of running the next inputs as commands.
 
-use rustdraft_doc::Space;
-use rustdraft_engine::Session;
+use draftcraft_doc::Space;
+use draftcraft_engine::Session;
 
 fn layouts(s: &Session) -> Vec<String> {
     let mut ls: Vec<_> = s.doc().unwrap().layouts.iter().map(|l| (l.tab_order, l.name.clone())).collect();
@@ -35,7 +35,7 @@ fn typed_layout_options_prompt_for_names() {
     s.cmdline("LAYOUT N").unwrap();
     s.cmdline("Layout1").unwrap();
     assert!(s.current_prompt().is_some_and(|p| p.message == "Enter name of new layout"));
-    s.input(rustdraft_engine::Input::Cancel).unwrap();
+    s.input(draftcraft_engine::Input::Cancel).unwrap();
     s.script("LAYOUT\n\nModel\n").unwrap();
     assert_eq!(s.layout_space(), Space::Model);
 

@@ -1,9 +1,9 @@
 //! Midpoint, Quadrant, Perpendicular and Tangent snaps on elliptical arcs and splines (#332).
 
-use rustdraft_doc::{EntityKind, Space};
-use rustdraft_engine::Session;
-use rustdraft_engine::snap::{self, mode};
-use rustdraft_geom::Vec2;
+use draftcraft_doc::{EntityKind, Space};
+use draftcraft_engine::Session;
+use draftcraft_engine::snap::{self, mode};
+use draftcraft_geom::Vec2;
 
 fn last(s: &Session) -> EntityKind {
     s.doc().unwrap().model.iter().last().map(|e| e.kind.clone()).unwrap()

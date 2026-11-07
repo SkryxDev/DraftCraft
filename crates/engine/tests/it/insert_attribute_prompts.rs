@@ -1,16 +1,16 @@
 //! INSERT's attribute questions as AutoCAD 2024 asks them from AutoLISP's `command` (accoreconsole,
 //! the attributes read back with `entget`).
 
-use rustdraft_engine::cmd::file::{EntityCodec, set_entity_codec};
-use rustdraft_engine::doc::EntityKind;
-use rustdraft_engine::geom::Vec2;
-use rustdraft_engine::{Input, Session};
+use draftcraft_engine::cmd::file::{EntityCodec, set_entity_codec};
+use draftcraft_engine::doc::EntityKind;
+use draftcraft_engine::geom::Vec2;
+use draftcraft_engine::{Input, Session};
 
 /// A session with block K: a circle and attributes (tag, DXF flags, default value), each with the
 /// prompt "P" + tag.
 fn with_block(defs: &[(&str, i32, &str)]) -> Session {
     // `entmake` goes through the DXF codec, as in the app.
-    set_entity_codec(EntityCodec { groups: rustdraft_io::entity_groups, entity: rustdraft_io::entity_from_groups });
+    set_entity_codec(EntityCodec { groups: draftcraft_io::entity_groups, entity: draftcraft_io::entity_from_groups });
     let mut s = Session::new();
     let mut code =
         String::from("(entmake '((0 . \"BLOCK\") (2 . \"K\") (70 . 2) (10 0.0 0.0 0.0))) (entmake '((0 . \"CIRCLE\") (10 0.0 0.0 0.0) (40 . 3.0)))");

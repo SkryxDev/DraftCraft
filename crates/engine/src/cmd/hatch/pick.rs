@@ -2,8 +2,8 @@
 //! origin, or the hatches to edit), kept in the session for the dialog to take. It never changes
 //! the drawing.
 
-use rustdraft_doc::{EntityKind, Handle, HatchLoop};
-use rustdraft_geom::Vec2;
+use draftcraft_doc::{EntityKind, Handle, HatchLoop};
+use draftcraft_geom::Vec2;
 use serde_json::{Value, json};
 
 use super::{HatchSettings, closed_loop, loops_at, loops_from_handles};

@@ -1,8 +1,8 @@
 //! A closed fit-point spline is periodic: DXF flags it closed + periodic (group 70 bits 1 and 2)
 //! and it reads back as the same smooth closed curve.
 
-use rustdraft_doc::{Common, Drawing, EntityKind, Space};
-use rustdraft_geom::{Spline, Vec2};
+use draftcraft_doc::{Common, Drawing, EntityKind, Space};
+use draftcraft_geom::{Spline, Vec2};
 
 #[test]
 fn closed_fit_spline_roundtrips_as_periodic() {
@@ -10,11 +10,11 @@ fn closed_fit_spline_roundtrips_as_periodic() {
     let sp = Spline::from_fit_points_closed(&fit);
     let mut d = Drawing::new_metric();
     d.add(&Space::Model, Common::default(), EntityKind::Spline(sp.clone())).unwrap();
-    let bytes = rustdraft_io::write(&d, "a.dxf").unwrap();
+    let bytes = draftcraft_io::write(&d, "a.dxf").unwrap();
     let text = String::from_utf8(bytes.clone()).unwrap();
     let spline = &text[text.find("SPLINE").unwrap()..];
     assert!(spline.contains("70\r\n11\r\n"), "planar + closed + periodic");
-    let back = rustdraft_io::read(&bytes, "a.dxf").unwrap();
+    let back = draftcraft_io::read(&bytes, "a.dxf").unwrap();
     let Some(EntityKind::Spline(r)) = back.model.iter().map(|e| e.kind.clone()).next() else { panic!("no spline") };
     assert!(r.closed && r.is_periodic());
     assert_eq!(r.fit.len(), 4);
@@ -44,11 +44,11 @@ fn conic_splines_keep_their_weights() {
             assert!(sp.eval(lo).near(start, 1e-9) && sp.eval(hi).near(end, 1e-9), "{what}");
         }
     };
-    check(&rustdraft_io::read(&rustdraft_io::write(&d, "c.dxf").unwrap(), "c.dxf").unwrap(), "dxf");
+    check(&draftcraft_io::read(&draftcraft_io::write(&d, "c.dxf").unwrap(), "c.dxf").unwrap(), "dxf");
     #[cfg(not(target_arch = "wasm32"))]
-    for v in rustdraft_io::Version::ALL {
-        let opts = rustdraft_io::SaveOptions { version: Some(v), binary: false };
-        let dwg = rustdraft_io::write_with(&d, "c.dwg", &opts).unwrap();
-        check(&rustdraft_io::read(&dwg, "c.dwg").unwrap(), &format!("dwg {v}"));
+    for v in draftcraft_io::Version::ALL {
+        let opts = draftcraft_io::SaveOptions { version: Some(v), binary: false };
+        let dwg = draftcraft_io::write_with(&d, "c.dwg", &opts).unwrap();
+        check(&draftcraft_io::read(&dwg, "c.dwg").unwrap(), &format!("dwg {v}"));
     }
 }

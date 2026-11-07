@@ -2,9 +2,9 @@
 //! boundary fill the hatch again; erasing an island lets the hatch fill it; erasing or opening
 //! the outer boundary, or moving the hatch on its own, ends the link.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{EntityKind, Handle, Hatch, HatchLoop};
-use rustdraft_engine::geom::{Bounds2, PolyVertex, Polyline, Vec2, shoelace};
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{EntityKind, Handle, Hatch, HatchLoop};
+use draftcraft_engine::geom::{Bounds2, PolyVertex, Polyline, Vec2, shoelace};
 use serde_json::{Value, json};
 
 fn hatch(s: &Session, h: &str) -> Hatch {

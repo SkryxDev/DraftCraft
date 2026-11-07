@@ -19,8 +19,8 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use rustdraft_doc::color::{Color, Rgb};
-use rustdraft_doc::{Block, CellStyle, DimStyle, Drawing, Entity, EntityKind, EntityStore, Group, Handle, Layer, MAX_BLOCK_DEPTH, TableStyle};
+use draftcraft_doc::color::{Color, Rgb};
+use draftcraft_doc::{Block, CellStyle, DimStyle, Drawing, Entity, EntityKind, EntityStore, Group, Handle, Layer, MAX_BLOCK_DEPTH, TableStyle};
 use serde_json::{Value, json};
 
 use super::super::super::{CommandSpec, bad};

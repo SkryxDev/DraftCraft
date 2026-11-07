@@ -4,12 +4,12 @@
 //! Reference documents (text style 7, height 140, alignment 170, text colour 62, fill colour 63
 //! with flag 283, border lineweights 274–279, visibility 284–289 and colours 64–69). Everything
 //! else — custom cell styles, per-style margins, data format and precision, true colours — goes
-//! into RustDraft xdata (`CELLSTYLES`, JSON). ACAD_TABLE: the cell texts are the evaluated values;
-//! row and cell styles and the formulas go into RustDraft xdata (`TABLEX`, JSON).
+//! into DraftCraft xdata (`CELLSTYLES`, JSON). ACAD_TABLE: the cell texts are the evaluated values;
+//! row and cell styles and the formulas go into DraftCraft xdata (`TABLEX`, JSON).
 
-use rustdraft_color::Color;
-use rustdraft_doc::{CellBorder, CellStyle, DataLink, Lineweight, MAX_CELL_STYLES, MAX_TABLE_PARTS, Table, TableBreak, TableStyle};
-use rustdraft_dxf::Tag;
+use draftcraft_color::Color;
+use draftcraft_doc::{CellBorder, CellStyle, DataLink, Lineweight, MAX_CELL_STYLES, MAX_TABLE_PARTS, Table, TableBreak, TableStyle};
+use draftcraft_dxf::Tag;
 use serde::{Deserialize, Serialize};
 
 use crate::dxf_ext::{APP, xdata};
@@ -243,13 +243,13 @@ mod tests {
     fn the_version_280_before_the_description_is_not_the_title_flag() {
         let style = |groups: &str| {
             let text = format!("0\nTABLESTYLE\n100\nAcDbTableStyle\n{groups}7\nStandard\n140\n2.5\n0\nEOF\n");
-            let tags = rustdraft_dxf::parse(text.as_bytes()).unwrap();
+            let tags = draftcraft_dxf::parse(text.as_bytes()).unwrap();
             let s = read_table_style("S", &tags);
             (s.title, s.header)
         };
         assert_eq!(style("280\n0\n3\n\n70\n0\n71\n1\n40\n1.0\n41\n1.0\n280\n1\n281\n0\n"), (false, true));
         assert_eq!(style("280\n0\n3\n\n70\n0\n71\n0\n40\n1.0\n41\n1.0\n280\n0\n281\n1\n"), (true, false));
-        // Without the version group, as RustDraft and older files write it.
+        // Without the version group, as DraftCraft and older files write it.
         assert_eq!(style("3\n\n70\n0\n71\n0\n40\n1.0\n41\n1.0\n280\n1\n281\n1\n"), (false, false));
     }
 }

@@ -1,11 +1,11 @@
 //! Only colour 7 flips between white and black with the background; every other colour,
 //! however light or dark, is drawn as its own RGB (issue #272).
 
-use rustdraft_color::{Color, Rgb, aci_rgb};
-use rustdraft_doc::{Block, Common, Drawing, Entity, EntityKind, Handle, Insert, Line, Space};
-use rustdraft_geom::{Vec2, Vec3};
-use rustdraft_render::raster::{RasterOptions, View, render};
-use rustdraft_render::{Options, build};
+use draftcraft_color::{Color, Rgb, aci_rgb};
+use draftcraft_doc::{Block, Common, Drawing, Entity, EntityKind, Handle, Insert, Line, Space};
+use draftcraft_geom::{Vec2, Vec3};
+use draftcraft_render::raster::{RasterOptions, View, render};
+use draftcraft_render::{Options, build};
 
 const WHITE: Rgb = Rgb(255, 255, 255);
 const BLACK: Rgb = Rgb(0, 0, 0);

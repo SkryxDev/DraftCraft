@@ -1,9 +1,9 @@
 //! NEW and OPEN end a command left waiting for input (#715): it belongs to the drawing it started
 //! in, so its changes are undone there, and undo in the new drawing never brings back the other.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::cmd::file::{IoHooks, set_io};
-use rustdraft_engine::doc::Drawing;
+use draftcraft_engine::Session;
+use draftcraft_engine::cmd::file::{IoHooks, set_io};
+use draftcraft_engine::doc::Drawing;
 use serde_json::json;
 
 fn count(s: &Session) -> usize {

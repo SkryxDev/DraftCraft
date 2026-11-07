@@ -2,9 +2,9 @@
 //! default save version, User Preferences the time-sensitive right-click, all in the JSON form.
 //! (Its own test binary: SAVETIME and SAVEFILEPATH are process-wide.)
 
-use rustdraft_engine::Session;
-use rustdraft_engine::autosave;
-use rustdraft_ui_egui::{CadApp, Services};
+use draftcraft_engine::Session;
+use draftcraft_engine::autosave;
+use draftcraft_ui_egui::{CadApp, Services};
 use serde_json::json;
 
 fn app() -> CadApp {

@@ -3,7 +3,7 @@
 Choose **Edit → Interface Language** and select **Auto (system language)**, **English**,
 **Українська**, **Português (Brasil)**, **Deutsch**, **Español**, **Čeština** (Czech), **Русский**, **Français**, **简体中文**, **Italiano**, **한국어** (Korean), **Svenska** (Swedish), **العربية** (Arabic), **Magyar** (Hungarian), **Türkçe** (Turkish), or **Ελληνικά** (Greek).
 The interface updates without restarting, including the native macOS menus.
-The choice is saved with the other interface preferences (`rustdraft.prefs`, beside the theme):
+The choice is saved with the other interface preferences (`draftcraft.prefs`, beside the theme):
 eframe storage on the desktop, browser local storage on the web. Installations without a saved
 choice use Auto.
 
@@ -12,7 +12,7 @@ browser's `navigator.languages` on the web. BCP 47 and POSIX tags select their p
 `uk-UA` → `uk`, `de_AT.UTF-8` → `de`, `es-MX` → `es`, `pt_BR.UTF-8` → `pt-BR`,
 `cs-CZ` and `cs_CZ.UTF-8` → `cs`, `it-IT` and `it_CH.UTF-8` → `it`, `ko-KR` and `ko_KR.UTF-8` → `ko`,
 `sv-SE`, `sv-FI` and `sv_SE.UTF-8` → `sv`, `hu-HU` and `hu_HU.UTF-8` → `hu`, `tr-TR` and `tr_TR.UTF-8` → `tr`. Unsupported languages fall back to English.
-Set `RUSTDRAFT_LOCALE=cs-CZ` to override the desktop's locale for a launch.
+Set `DRAFTCRAFT_LOCALE=cs-CZ` to override the desktop's locale for a launch.
 An explicit saved language choice takes precedence over that override.
 
 Automation can select the language through the existing control channel:
@@ -61,7 +61,7 @@ single-form count templates. It covers the reference catalog and every marked UI
 including Options, prompts, dialogs, and tooltips; only **Méretezés / Méret** (Dimension) differs
 between the menu heading and the object label. The interface addresses the user informally, and
 a count takes one form because a Hungarian numeral is followed by the singular. The translation
-was written from the meaning of RustDraft's English strings; no other product's localization was
+was written from the meaning of DraftCraft's English strings; no other product's localization was
 used as a source. It has not yet been proofread by an independent native speaker.
 
 Turkish has **1,330 rows**: the union of the existing catalogs, four contextual menu headings
@@ -144,10 +144,10 @@ Interface strings are translated at display time from catalogs compiled into the
   only its English label.
 - Catalogs are embedded and parsed once. Missing or malformed rows cannot crash the app;
   tests reject invalid rows, duplicate keys, changed placeholders, and mismatched ellipses.
-- `cargo test -p rustdraft-ui-egui i18n` checks the catalogs, locale resolution, preferences,
+- `cargo test -p draftcraft-ui-egui i18n` checks the catalogs, locale resolution, preferences,
   integer plurals, bundled glyphs and actual egui renders with language switching.
   `cargo xtask i18n` prints the strings each language shows in English. `cargo xtask assets` checks asset attribution;
   `cargo xtask ci` runs the workspace quality gates.
 
 Translations are original work under `MIT OR Apache-2.0`, written from the meaning of
-RustDraft's English strings. Do not copy proprietary localization resources.
+DraftCraft's English strings. Do not copy proprietary localization resources.

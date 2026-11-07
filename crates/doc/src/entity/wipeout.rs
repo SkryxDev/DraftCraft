@@ -5,7 +5,7 @@
 
 use std::borrow::Cow;
 
-use rustdraft_geom::Vec2;
+use draftcraft_geom::Vec2;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

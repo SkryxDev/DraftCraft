@@ -1,11 +1,11 @@
 //! Hatch drawing: island detection styles, background colour, two-colour gradients and
 //! pattern definitions kept from a file (issues #289, #290).
 
-use rustdraft_color::{Color, Rgb, aci_rgb};
-use rustdraft_doc::library::PatternLine;
-use rustdraft_doc::{Common, Drawing, EntityKind, Gradient, Hatch, HatchLoop, Layer, Space};
-use rustdraft_geom::{PolyVertex, Vec2};
-use rustdraft_render::{DisplayList, Kind, Options, build};
+use draftcraft_color::{Color, Rgb, aci_rgb};
+use draftcraft_doc::library::PatternLine;
+use draftcraft_doc::{Common, Drawing, EntityKind, Gradient, Hatch, HatchLoop, Layer, Space};
+use draftcraft_geom::{PolyVertex, Vec2};
+use draftcraft_render::{DisplayList, Kind, Options, build};
 
 fn square(lo: f64, hi: f64) -> HatchLoop {
     let v = [(lo, lo), (hi, lo), (hi, hi), (lo, hi)].into_iter().map(|(x, y)| PolyVertex::new(Vec2::new(x, y))).collect();
@@ -167,8 +167,8 @@ fn pattern_lines_from_a_file_are_drawn_for_unknown_names() {
 
 #[test]
 fn pattern_swatches_stay_in_their_square_and_show_a_few_repeats() {
-    for p in rustdraft_doc::library::standard_patterns() {
-        let runs = rustdraft_render::pattern_swatch(&p.lines, 1.0);
+    for p in draftcraft_doc::library::standard_patterns() {
+        let runs = draftcraft_render::pattern_swatch(&p.lines, 1.0);
         if p.lines.is_empty() {
             assert!(runs.is_empty(), "{}", p.name);
             continue;
@@ -179,7 +179,7 @@ fn pattern_swatches_stay_in_their_square_and_show_a_few_repeats() {
             assert!((-1e-9..=1.0 + 1e-9).contains(&v.x) && (-1e-9..=1.0 + 1e-9).contains(&v.y), "{} at {v:?}", p.name);
         }
     }
-    assert!(rustdraft_render::pattern_swatch(&[], 1.0).is_empty());
+    assert!(draftcraft_render::pattern_swatch(&[], 1.0).is_empty());
 }
 
 #[test]

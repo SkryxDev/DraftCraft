@@ -1,32 +1,32 @@
 //! Saving over a drawing keeps the previous file as `<name>.bak` (ISAVEBAK, #540), and the
 //! save itself replaces the file atomically: no temporary files are left behind.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::cmd::file::{IoHooks, backup_path, looks_complete, looks_like_drawing, save_keeps_current, set_io};
+use draftcraft_engine::Session;
+use draftcraft_engine::cmd::file::{IoHooks, backup_path, looks_complete, looks_like_drawing, save_keeps_current, set_io};
 use serde_json::json;
 
 fn hooks() {
     set_io(IoHooks {
-        read: |b, n| rustdraft_io::read(b, n).map_err(|e| e.to_string()),
-        write: |d, n| rustdraft_io::write(d, n).map_err(|e| e.to_string()),
+        read: |b, n| draftcraft_io::read(b, n).map_err(|e| e.to_string()),
+        write: |d, n| draftcraft_io::write(d, n).map_err(|e| e.to_string()),
         plot: None,
     });
     // Saves at a chosen version (a DWG 2000), as the app's.
-    rustdraft_engine::cmd::file::set_write_as(|d, n, o| {
-        rustdraft_io::write_with(d, n, &rustdraft_io::SaveOptions { version: o.version, binary: o.binary }).map_err(|e| e.to_string())
+    draftcraft_engine::cmd::file::set_write_as(|d, n, o| {
+        draftcraft_io::write_with(d, n, &draftcraft_io::SaveOptions { version: o.version, binary: o.binary }).map_err(|e| e.to_string())
     });
 }
 
 fn temp_dir(tag: &str) -> std::path::PathBuf {
-    let d = std::env::temp_dir().join(format!("rustdraft-bak-{tag}-{}", std::process::id()));
+    let d = std::env::temp_dir().join(format!("draftcraft-bak-{tag}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&d);
     std::fs::create_dir_all(&d).unwrap();
     d
 }
 
 fn circles(path: &std::path::Path) -> usize {
-    let d = rustdraft_io::read(&std::fs::read(path).unwrap(), &*path.to_string_lossy()).unwrap();
-    d.model.iter().filter(|e| matches!(e.kind, rustdraft_engine::doc::EntityKind::Circle(_))).count()
+    let d = draftcraft_io::read(&std::fs::read(path).unwrap(), &*path.to_string_lossy()).unwrap();
+    d.model.iter().filter(|e| matches!(e.kind, draftcraft_engine::doc::EntityKind::Circle(_))).count()
 }
 
 /// Only the drawing and its backup are in the folder: atomic saves leave no staging files.
@@ -44,13 +44,13 @@ struct Saving(#[allow(dead_code)] std::sync::MutexGuard<'static, ()>);
 
 impl Drop for Saving {
     fn drop(&mut self) {
-        rustdraft_engine::autosave::set_isavebak(true);
+        draftcraft_engine::autosave::set_isavebak(true);
     }
 }
 
 fn saving() -> Saving {
     let g = SAVES.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    rustdraft_engine::autosave::set_isavebak(true);
+    draftcraft_engine::autosave::set_isavebak(true);
     Saving(g)
 }
 
@@ -290,7 +290,7 @@ fn the_backup_a_save_promises_is_the_one_it_writes() {
     s.execute("qsave", &json!({})).unwrap();
     assert_eq!(std::fs::read(backup_path(&path)).unwrap(), old, "cut off: nothing was promised");
 
-    rustdraft_engine::autosave::set_isavebak(false);
+    draftcraft_engine::autosave::set_isavebak(false);
     assert!(!save_keeps_current(&path), "backups off");
     let _ = std::fs::remove_dir_all(&dir);
 }

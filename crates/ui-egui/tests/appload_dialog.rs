@@ -6,12 +6,12 @@ use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use rustdraft_engine::Session;
-use rustdraft_ui_egui::{CadApp, Services};
+use draftcraft_engine::Session;
+use draftcraft_ui_egui::{CadApp, Services};
 use serde_json::json;
 
 fn temp_dir(tag: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("rustdraft-appload-{tag}-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("draftcraft-appload-{tag}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("a temporary directory");
     dir

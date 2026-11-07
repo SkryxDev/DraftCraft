@@ -12,9 +12,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-use rustdraft_doc::{Block, Circle, Drawing, Entity, EntityKind, Handle, Space};
-use rustdraft_geom::Vec3;
-use rustdraft_io::Version;
+use draftcraft_doc::{Block, Circle, Drawing, Entity, EntityKind, Handle, Space};
+use draftcraft_geom::Vec3;
+use draftcraft_io::Version;
 
 use super::super::{
     cases::{self, Case, complex},

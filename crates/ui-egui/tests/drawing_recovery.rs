@@ -2,16 +2,16 @@
 //! Open makes an unsaved copy whose file stays until it is saved, Discard deletes the file.
 //! SAVETIME and SAVEFILEPATH are process-wide, so everything runs in one test.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::autosave;
-use rustdraft_engine::cmd::file::{IoHooks, set_io};
-use rustdraft_engine::doc::Drawing;
-use rustdraft_ui_egui::{CadApp, Services};
+use draftcraft_engine::Session;
+use draftcraft_engine::autosave;
+use draftcraft_engine::cmd::file::{IoHooks, set_io};
+use draftcraft_engine::doc::Drawing;
+use draftcraft_ui_egui::{CadApp, Services};
 
 #[test]
 fn recovery_list_opens_copies_and_discards_files() {
     set_io(IoHooks { read: |_, _| Ok(Drawing::new_metric()), write: |_, _| Ok(b"0\nEOF\n".to_vec()), plot: None });
-    let dir = std::env::temp_dir().join(format!("rustdraft-recovery-ui-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("draftcraft-recovery-ui-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let plan = dir.join("Plan.dxf_1-a_3.sv$");
@@ -55,14 +55,14 @@ fn recovery_list_opens_copies_and_discards_files() {
     let _ = std::fs::remove_dir_all(&dir);
 
     // SAVETIME and SAVEFILEPATH survive restarts (process-wide, so checked in this one test).
-    rustdraft_ui_egui::autosave::load_prefs(r#"{"savetime": 25, "saveFilePath": "/tmp/cc-autosave-prefs"}"#);
+    draftcraft_ui_egui::autosave::load_prefs(r#"{"savetime": 25, "saveFilePath": "/tmp/cc-autosave-prefs"}"#);
     assert_eq!(autosave::savetime(), 25);
-    let saved = rustdraft_ui_egui::autosave::prefs_json();
-    rustdraft_ui_egui::autosave::load_prefs("not json");
-    rustdraft_ui_egui::autosave::load_prefs(r#"{"savetime": "often"}"#);
+    let saved = draftcraft_ui_egui::autosave::prefs_json();
+    draftcraft_ui_egui::autosave::load_prefs("not json");
+    draftcraft_ui_egui::autosave::load_prefs(r#"{"savetime": "often"}"#);
     assert_eq!(autosave::savetime(), 25, "bad values are ignored");
-    rustdraft_ui_egui::autosave::load_prefs(r#"{"savetime": 0}"#);
+    draftcraft_ui_egui::autosave::load_prefs(r#"{"savetime": 0}"#);
     assert_eq!(autosave::savetime(), 0);
-    rustdraft_ui_egui::autosave::load_prefs(&saved);
+    draftcraft_ui_egui::autosave::load_prefs(&saved);
     assert_eq!((autosave::savetime(), autosave::savefilepath().as_str()), (25, "/tmp/cc-autosave-prefs"));
 }

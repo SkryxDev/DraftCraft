@@ -1,7 +1,7 @@
 //! Small value changes must not export an imported justified attribute's old baseline.
-use rustdraft_doc::{Attrib, Drawing, EntityKind, HAlign, Handle, Text, VAlign};
-use rustdraft_engine::{Input, Session};
-use rustdraft_geom::Vec3;
+use draftcraft_doc::{Attrib, Drawing, EntityKind, HAlign, Handle, Text, VAlign};
+use draftcraft_engine::{Input, Session};
+use draftcraft_geom::Vec3;
 use serde_json::json;
 
 const BEFORE: &str = "POWER ADAPTER";
@@ -31,7 +31,7 @@ fn fixture() -> (Session, Handle, Handle) {
             t.valign = VAlign::Top;
         })
         .unwrap();
-    let imported = rustdraft_io::read_dxf(rustdraft_io::write_dxf(s.doc().unwrap()).as_bytes()).unwrap();
+    let imported = draftcraft_io::read_dxf(draftcraft_io::write_dxf(s.doc().unwrap()).as_bytes()).unwrap();
     let mut s = Session::empty();
     s.open_drawing(imported, "Imported", None);
     (s, a, b)
@@ -42,13 +42,13 @@ fn attributes(d: &Drawing, h: Handle) -> Vec<Attrib> {
     i.attribs.clone()
 }
 
-fn baseline(d: &Drawing, t: &Text) -> rustdraft_geom::Vec2 {
+fn baseline(d: &Drawing, t: &Text) -> draftcraft_geom::Vec2 {
     let style = d.text_style(&t.style).unwrap();
-    let (h, v) = rustdraft_render::text_align(t.halign, t.valign);
-    rustdraft_fonts::baseline_start(
-        &rustdraft_fonts::TextFont::resolve(&style.font),
+    let (h, v) = draftcraft_render::text_align(t.halign, t.valign);
+    draftcraft_fonts::baseline_start(
+        &draftcraft_fonts::TextFont::resolve(&style.font),
         &t.value,
-        &rustdraft_fonts::TextParams {
+        &draftcraft_fonts::TextParams {
             insert: t.insert.xy(),
             align_pt: t.align_pt.map(|p| p.xy()),
             height: t.height,
@@ -100,7 +100,7 @@ fn all_attribute_value_paths_refresh_small_justified_export_changes() {
         let expected = baseline(s.doc().unwrap(), &edited[0].text);
         assert!(expected.dist(before[0].text.insert.xy()) > 0.01, "fixture must change width");
         for name in ["edited.dxf", "edited.dwg"] {
-            let reopened = rustdraft_io::read(&rustdraft_io::write(s.doc().unwrap(), name).unwrap(), name).unwrap();
+            let reopened = draftcraft_io::read(&draftcraft_io::write(s.doc().unwrap(), name).unwrap(), name).unwrap();
             let restored = attributes(&reopened, a);
             assert!(
                 restored[0].text.insert.xy().dist(expected) < 1e-8,
@@ -158,7 +158,7 @@ fn value_edits_preserve_distinct_insertion_and_alignment_elevations_on_export() 
     let anchor = attributes(s.doc().unwrap(), a)[0].text.align_pt;
     s.execute("attedit", &json!({"handle":a.hex(),"values":{"T":AFTER}})).unwrap();
     for name in ["elevations.dxf", "elevations.dwg"] {
-        let reopened = rustdraft_io::read(&rustdraft_io::write(s.doc().unwrap(), name).unwrap(), name).unwrap();
+        let reopened = draftcraft_io::read(&draftcraft_io::write(s.doc().unwrap(), name).unwrap(), name).unwrap();
         let restored = attributes(&reopened, a);
         assert_eq!(restored[0].text.insert.z, 9.0, "{name}: insertion elevation");
         assert_eq!(restored[0].text.align_pt.map(|p| p.xy()), anchor.map(|p| p.xy()), "{name}: alignment XY");
@@ -192,7 +192,7 @@ fn value_edits_preserve_left_baseline_and_two_point_placements() {
         expected[0].text.value = AFTER.into();
         assert_eq!(attributes(s.doc().unwrap(), a), expected);
         if horizontal != HAlign::Left {
-            let reopened = rustdraft_io::read_dxf(rustdraft_io::write_dxf(s.doc().unwrap()).as_bytes()).unwrap();
+            let reopened = draftcraft_io::read_dxf(draftcraft_io::write_dxf(s.doc().unwrap()).as_bytes()).unwrap();
             let restored = attributes(&reopened, a);
             assert_eq!(restored[0].text.insert, expected[0].text.insert);
             assert_eq!(restored[0].text.align_pt, expected[0].text.align_pt);

@@ -1,8 +1,8 @@
 //! PSLTSCALE: model-space linetypes seen through a layout viewport (issue #257).
 
-use rustdraft_doc::{Common, Drawing, EntityKind, Line, Space, Viewport, library};
-use rustdraft_geom::{Vec2, Vec3};
-use rustdraft_render::{Kind, Options, VIEWPORT_CONTENT, build};
+use draftcraft_doc::{Common, Drawing, EntityKind, Line, Space, Viewport, library};
+use draftcraft_geom::{Vec2, Vec3};
+use draftcraft_render::{Kind, Options, VIEWPORT_CONTENT, build};
 
 /// A metric drawing with a 1000-unit DASHED line (pattern 0.5 on, 0.25 off) in model space,
 /// seen through a 1:100 viewport on Layout1.

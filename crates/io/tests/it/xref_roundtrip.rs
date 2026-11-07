@@ -5,11 +5,11 @@
 
 use std::sync::Arc;
 
-use rustdraft_color::Color;
-use rustdraft_doc::*;
-use rustdraft_dxf::{Tag, parse_ascii, records, sections, write_ascii};
-use rustdraft_geom::Vec3;
-use rustdraft_io::{read_dxf, write_dxf};
+use draftcraft_color::Color;
+use draftcraft_doc::*;
+use draftcraft_dxf::{Tag, parse_ascii, records, sections, write_ascii};
+use draftcraft_geom::Vec3;
+use draftcraft_io::{read_dxf, write_dxf};
 
 fn roundtrip(d: &Drawing) -> Drawing {
     read_dxf(write_dxf(d).as_bytes()).expect("reopen")

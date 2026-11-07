@@ -3,11 +3,11 @@
 //! Entity semantics: https://ezdxf.readthedocs.io/en/stable/dxfentities/text.html
 //! and https://ezdxf.readthedocs.io/en/stable/dxfentities/line.html
 
-use rustdraft_color::Color;
-use rustdraft_doc::{Circle, Common, Drawing, Entity, EntityKind, HAlign, Handle, Line, Space, Text, VAlign};
-use rustdraft_dxf::{Tag, records, sections};
-use rustdraft_geom::Vec3;
-use rustdraft_io::{SaveOptions, Version, read, write_with};
+use draftcraft_color::Color;
+use draftcraft_doc::{Circle, Common, Drawing, Entity, EntityKind, HAlign, Handle, Line, Space, Text, VAlign};
+use draftcraft_dxf::{Tag, records, sections};
+use draftcraft_geom::Vec3;
+use draftcraft_io::{SaveOptions, Version, read, write_with};
 
 use super::compare;
 
@@ -88,7 +88,7 @@ fn writes_standard_entity_groups_not_just_self_readable_data() {
     for version in Version::ALL {
         for binary in [false, true] {
             let bytes = write_with(&model(), "memory.dxf", &SaveOptions { version: Some(version), binary }).unwrap();
-            let tags = rustdraft_dxf::parse(&bytes).unwrap();
+            let tags = draftcraft_dxf::parse(&bytes).unwrap();
             let sections = sections(&tags);
             let entities = records(&sections.iter().find(|s| s.name == "ENTITIES").unwrap().tags);
             assert_eq!(entities.len(), expected.len());
@@ -161,7 +161,7 @@ fn writes_large_handles_as_exact_hex_groups() {
     for version in Version::ALL {
         for binary in [false, true] {
             let bytes = write_with(&drawing, "memory.dxf", &SaveOptions { version: Some(version), binary }).unwrap();
-            let tags = rustdraft_dxf::parse(&bytes).unwrap();
+            let tags = draftcraft_dxf::parse(&bytes).unwrap();
             let sections = sections(&tags);
             let entities = records(&sections.iter().find(|s| s.name == "ENTITIES").unwrap().tags);
             assert_eq!(entities.len(), LARGE_HANDLES.len());

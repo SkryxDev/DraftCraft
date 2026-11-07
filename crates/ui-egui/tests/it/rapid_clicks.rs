@@ -1,11 +1,11 @@
 //! Fast drafting: every click on the canvas places a point, however fast it comes (#815).
 
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::{Drawing, EntityKind, Space};
+use draftcraft_engine::geom::Vec2;
+use draftcraft_ui_egui::{CadApp, Services};
 use egui::{Event, Modifiers, PointerButton, Pos2, vec2};
 use egui_kittest::Harness;
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::{Drawing, EntityKind, Space};
-use rustdraft_engine::geom::Vec2;
-use rustdraft_ui_egui::{CadApp, Services};
 use serde_json::json;
 
 fn harness() -> Harness<'static, CadApp> {

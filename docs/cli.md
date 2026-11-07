@@ -1,10 +1,10 @@
-# rustdraft-cli
+# draftcraft-cli
 
-`rustdraft-cli` is headless RustDraft: it reads, converts and exports drawings, runs scripts and
+`draftcraft-cli` is headless DraftCraft: it reads, converts and exports drawings, runs scripts and
 commands, prints the command catalog and serves MCP. It follows
 [RFC-0012: Command-line conventions](https://github.com/storytold/craft-contrib/pull/18).
 
-`rustdraft-cli --help` and `rustdraft-cli help <subcommand>` (or `<subcommand> --help`) are the
+`draftcraft-cli --help` and `draftcraft-cli help <subcommand>` (or `<subcommand> --help`) are the
 reference for every subcommand, flag and value; this page doesn't repeat them. Examples are in the
 [README](../README.md#drive-it-from-agents-mcp-and-the-cli), MCP setup in [mcp.md](mcp.md),
 scripts and the JSON command forms in [customization.md](customization.md).
@@ -19,35 +19,35 @@ scripts and the JSON command forms in [customization.md](customization.md).
 | Outputs that replace an input | `convert IN OUT` and `run FILE… --save OUT` / `--export OUT` refuse an OUT that is the same file as an input (any spelling or symlink of it): usage error, exit 2, nothing opened or written. `--in-place` allows it. A save a script or `--cmd` runs is the engine's. |
 | Values starting with `-` | Written with `=`: `--window=-10,-10,10,10`, `--export=-plan.png`. |
 | Paths | Read as given, including names that aren't valid Unicode. The engine opens files by text name, so such a name is reported as an error (exit 1) where a drawing is opened; an output takes any name whose extension is ASCII. |
-| Completions and man pages | The Linux packages install them. To generate them yourself: `cargo run -p rustdraft-cli --example man-and-completions -- <out-dir>`. |
+| Completions and man pages | The Linux packages install them. To generate them yourself: `cargo run -p draftcraft-cli --example man-and-completions -- <out-dir>`. |
 
 ## Environment variables
 
 Variables are fallbacks for flags; `--help` shows each next to its flag. An empty value counts as
-unset and the flag wins over the variable, except for `RUSTDRAFT_CONFIG_DIR` (see below).
+unset and the flag wins over the variable, except for `DRAFTCRAFT_CONFIG_DIR` (see below).
 
 | Variable | Flag | Subcommands |
 |---|---|---|
-| `RUSTDRAFT_CONFIG_DIR` | `--config-dir` (the settings folder; plotter configurations are in its `plotters` folder; empty means no settings folder) | `convert`, `run`, `mcp`, `sample` |
-| `RUSTDRAFT_FONTALT` | `--fontalt` (FONTALT) | `convert`, `run`, `mcp`, `sample` |
-| `RUSTDRAFT_FONTFALLBACK` | `--fontfallback` (FONTFALLBACK) | `convert`, `run`, `mcp`, `sample` |
+| `DRAFTCRAFT_CONFIG_DIR` | `--config-dir` (the settings folder; plotter configurations are in its `plotters` folder; empty means no settings folder) | `convert`, `run`, `mcp`, `sample` |
+| `DRAFTCRAFT_FONTALT` | `--fontalt` (FONTALT) | `convert`, `run`, `mcp`, `sample` |
+| `DRAFTCRAFT_FONTFALLBACK` | `--fontfallback` (FONTFALLBACK) | `convert`, `run`, `mcp`, `sample` |
 
-The desktop app's are listed by `rustdraft --help`; its one flag fallback is
-`RUSTDRAFT_CONTROL_PORT` for `--control`, where a bad value is a usage error that names the
+The desktop app's are listed by `draftcraft --help`; its one flag fallback is
+`DRAFTCRAFT_CONTROL_PORT` for `--control`, where a bad value is a usage error that names the
 variable.
 
 ## Not followed yet
 
-- **`RUSTDRAFT_CONFIG_DIR` is the one flag fallback where an empty variable doesn't count as
+- **`DRAFTCRAFT_CONFIG_DIR` is the one flag fallback where an empty variable doesn't count as
   unset** (RFC-0012 rule 1.7): empty (or `--config-dir ""`) means no settings folder, as it did
   before the port.
 - **No variable for `mcp --connect`.** Photocraft's `mcp --bridge` falls back to its
-  `*_CONTROL_PORT` variable. Here an exported `RUSTDRAFT_CONTROL_PORT` would silently switch `mcp`
+  `*_CONTROL_PORT` variable. Here an exported `DRAFTCRAFT_CONTROL_PORT` would silently switch `mcp`
   from a headless session to the running app, so `--connect` stays a flag only.
 - **The desktop app on Windows** is built without a console, so a usage error in its launch flags
   isn't visible there; the app exits with code 2.
 - **The `string-error` ast-grep rule** covers the CLI code only. The engine's file hooks
-  (`rustdraft_engine::cmd::file::IoHooks`) still return `Result<_, String>`, so `install_io` maps
+  (`draftcraft_engine::cmd::file::IoHooks`) still return `Result<_, String>`, so `install_io` maps
   errors to strings at that boundary.
 - **No AGENTS.md line for the ast-grep scan.** RFC-0012 asks an app's AGENTS.md to have coding
   agents run the scan before pushing (`ast-grep scan -c lint/ast-grep/sgconfig.yml`); CI runs it

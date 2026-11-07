@@ -1,11 +1,11 @@
 //! Double-clicking text with no command running edits it, as in AutoCAD (#842).
 
+use draftcraft_engine::doc::EntityKind;
+use draftcraft_engine::geom::Vec2;
+use draftcraft_engine::{Input, Session};
+use draftcraft_ui_egui::{CadApp, Services};
 use egui::{Event, ImeEvent, Key, Modifiers, PointerButton, Pos2, vec2};
 use egui_kittest::Harness;
-use rustdraft_engine::doc::EntityKind;
-use rustdraft_engine::geom::Vec2;
-use rustdraft_engine::{Input, Session};
-use rustdraft_ui_egui::{CadApp, Services};
 use serde_json::json;
 
 fn harness() -> Harness<'static, CadApp> {

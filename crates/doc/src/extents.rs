@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use rustdraft_geom::{Arc, Bounds2, EPS, Polyline, Vec2, bulge_to_arc};
+use draftcraft_geom::{Arc, Bounds2, EPS, Polyline, Vec2, bulge_to_arc};
 
 use crate::{Drawing, Entity, EntityKind, LwPolyline, Prim};
 
@@ -360,7 +360,7 @@ fn lwpolyline_bounds(p: &LwPolyline) -> Bounds2 {
 mod tests {
     use super::*;
     use crate::{HAlign, Text, VAlign};
-    use rustdraft_geom::Vec3;
+    use draftcraft_geom::Vec3;
 
     fn text(halign: HAlign, valign: VAlign) -> Text {
         Text {

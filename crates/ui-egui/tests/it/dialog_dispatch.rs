@@ -3,8 +3,8 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use rustdraft_engine::Session;
-use rustdraft_ui_egui::{CadApp, Services, menus};
+use draftcraft_engine::Session;
+use draftcraft_ui_egui::{CadApp, Services, menus};
 use serde_json::json;
 
 /// An app whose file pickers count their calls and cancel.

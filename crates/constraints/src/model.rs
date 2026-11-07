@@ -18,8 +18,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use rustdraft_doc::{Block, Drawing, EntityKind, GeomRef, Handle, Insert, Sub};
-use rustdraft_geom::{Spline as GSpline, Vec2, ccw_sweep};
+use draftcraft_doc::{Block, Drawing, EntityKind, GeomRef, Handle, Insert, Sub};
+use draftcraft_geom::{Spline as GSpline, Vec2, ccw_sweep};
 
 use crate::curves::{Ell, Frame, clamped, spline_end};
 
@@ -193,7 +193,7 @@ fn sample_block(block: &Block, members_left: &mut usize) -> Rc<[Vec2]> {
         let pts: Vec<Vec2> = match &e.kind {
             EntityKind::Line(l) => vec![l.a.xy(), l.b.xy()],
             EntityKind::Arc(a) => {
-                let g = rustdraft_geom::Arc::new(a.center.xy(), a.radius, a.start, a.end);
+                let g = draftcraft_geom::Arc::new(a.center.xy(), a.radius, a.start, a.end);
                 vec![g.start_point(), g.end_point(), g.center]
             }
             EntityKind::Circle(c) => vec![c.center.xy()],
@@ -275,7 +275,7 @@ impl Model {
                 Shape::Point
             }
             EntityKind::Ellipse(el) => {
-                let ell = rustdraft_geom::Ellipse { center: el.center.xy(), major: el.major.xy(), ratio: el.ratio, start: el.start, end: el.end };
+                let ell = draftcraft_geom::Ellipse { center: el.center.xy(), major: el.major.xy(), ratio: el.ratio, start: el.start, end: el.end };
                 let arc = !ell.is_full();
                 m.x0.extend([el.center.x, el.center.y, el.major.x, el.major.y, el.ratio]);
                 if arc {
@@ -685,8 +685,8 @@ impl Model {
                         a.center.x = *cx;
                         a.center.y = *cy;
                         a.radius = r.abs().max(1e-12);
-                        a.start = rustdraft_geom::norm_angle(*s0 + turn);
-                        a.end = rustdraft_geom::norm_angle(*s1 + turn);
+                        a.start = draftcraft_geom::norm_angle(*s0 + turn);
+                        a.end = draftcraft_geom::norm_angle(*s1 + turn);
                     }
                 }
                 (EntityKind::LwPolyline(p), Shape::Poly { n, .. }) if p.vertices.len() == n => {
@@ -726,8 +726,8 @@ impl Model {
                             el.major.y = major.y;
                             el.ratio = ratio.clamp(1e-9, 1.0);
                             if arc {
-                                el.start = rustdraft_geom::norm_angle(t0);
-                                el.end = rustdraft_geom::norm_angle(t1);
+                                el.start = draftcraft_geom::norm_angle(t0);
+                                el.end = draftcraft_geom::norm_angle(t1);
                             }
                         }
                     }
@@ -741,7 +741,7 @@ impl Model {
                     if let [ix, iy, rot] = new {
                         ins.insert.x = *ix;
                         ins.insert.y = *iy;
-                        ins.rotation = rustdraft_geom::norm_angle(*rot);
+                        ins.rotation = draftcraft_geom::norm_angle(*rot);
                     }
                 }
                 _ => {}
@@ -757,8 +757,8 @@ impl Model {
 #[cfg(test)]
 mod budget_tests {
     use super::*;
-    use rustdraft_doc::{Block, Common, Entity, Line, Space};
-    use rustdraft_geom::Vec3;
+    use draftcraft_doc::{Block, Common, Entity, Line, Space};
+    use draftcraft_geom::Vec3;
     use std::sync::Arc;
 
     /// Writing an unchanged model back leaves partial rational weights and the original spline geometry intact.

@@ -1,9 +1,9 @@
 //! OFFSET keeps a closed (periodic) spline closed (issue #303): the offset copy was built with
 //! the open-spline interpolation, so it came out open with a seam where the curve started.
 
-use rustdraft_engine::Session;
-use rustdraft_engine::doc::EntityKind;
-use rustdraft_engine::geom::Spline;
+use draftcraft_engine::Session;
+use draftcraft_engine::doc::EntityKind;
+use draftcraft_engine::geom::Spline;
 use serde_json::json;
 
 fn last_spline(s: &Session) -> (String, Spline) {

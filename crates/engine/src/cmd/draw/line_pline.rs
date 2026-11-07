@@ -62,7 +62,7 @@ pub(super) fn run_pline(s: &mut Session, p: &Value) -> Result<Value> {
 #[derive(Default)]
 pub(super) struct LineM {
     pts: Vec<Vec2>,
-    handles: Vec<rustdraft_doc::Handle>,
+    handles: Vec<draftcraft_doc::Handle>,
     /// A first point picked as a deferred tangent/perpendicular, resolved by the next point.
     first: Option<snap::Deferred>,
 }
@@ -178,7 +178,7 @@ pub(super) struct PlineM {
     /// Total width at the start and end of the next segment (Width / Halfwidth answers).
     start_w: f64,
     end_w: f64,
-    handle: Option<rustdraft_doc::Handle>,
+    handle: Option<draftcraft_doc::Handle>,
     /// 1 = asking the starting width, 2 = the ending width.
     asking_width: u8,
     /// The widths are being asked as half-widths (centre line to edge).

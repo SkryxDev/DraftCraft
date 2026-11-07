@@ -1,11 +1,11 @@
 //! Object snap tracking (OTRACK, F11) and the Extension, Parallel and Apparent Intersection
 //! snaps, driven through `Session::snap_cursor` as the UI does, without the UI.
 
-use rustdraft_doc::{Common, EntityKind, Insert, Line, Space};
-use rustdraft_engine::Session;
-use rustdraft_engine::geom::{Vec2, Vec3};
-use rustdraft_engine::snap::tracking::{Acquired, CursorQuery, CursorSnap, DWELL, MAX_ACQUIRED, PathKind, polar_angles};
-use rustdraft_engine::snap::{self, mode};
+use draftcraft_doc::{Common, EntityKind, Insert, Line, Space};
+use draftcraft_engine::Session;
+use draftcraft_engine::geom::{Vec2, Vec3};
+use draftcraft_engine::snap::tracking::{Acquired, CursorQuery, CursorSnap, DWELL, MAX_ACQUIRED, PathKind, polar_angles};
+use draftcraft_engine::snap::{self, mode};
 use serde_json::json;
 
 const APERTURE: f64 = 0.5;
@@ -246,7 +246,7 @@ fn apparent_intersection_where_extensions_meet() {
     assert_eq!((h.mode, h.name), (mode::APP, "Apparent Intersection"));
     assert!(h.point.near(v(12.0, 0.0), 1e-9));
     // Intersection alone needs them to really cross.
-    assert!(snap::osnap(s.doc().unwrap(), &rustdraft_engine::doc::Space::Model, v(11.9, 0.05), APERTURE, mode::INT, None, false).is_none());
+    assert!(snap::osnap(s.doc().unwrap(), &draftcraft_engine::doc::Space::Model, v(11.9, 0.05), APERTURE, mode::INT, None, false).is_none());
 
     // A far object rested on first: its extension meets the one under the cursor.
     let mut s = session(mode::APP);
@@ -339,7 +339,7 @@ fn shift_ortho_override_wins_over_polar() {
 #[test]
 fn sysvars_polarmode_polaraddang_autosnap() {
     let mut s = Session::new();
-    let get = |s: &Session, n: &str| rustdraft_engine::sysvars::get(s, n).unwrap();
+    let get = |s: &Session, n: &str| draftcraft_engine::sysvars::get(s, n).unwrap();
     setvar(&mut s, "POLARMODE", json!(6));
     assert_eq!(get(&s, "POLARMODE"), json!(6));
     setvar(&mut s, "POLARADDANG", json!("15;22.5"));

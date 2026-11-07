@@ -59,14 +59,14 @@ pub(super) fn dynamic_input(app: &mut CadApp, p: &egui::Painter, hover: Pos2, fi
 }
 
 /// The drawing's length units: (LUNITS, LUPREC).
-pub(crate) fn length_units(session: &rustdraft_engine::Session) -> (i64, i64) {
+pub(crate) fn length_units(session: &draftcraft_engine::Session) -> (i64, i64) {
     session.doc().map(|d| (d.header.i64("LUNITS", 2), d.header.i64("LUPREC", 4))).unwrap_or((2, 4))
 }
 
 /// A distance in the drawing's length units.
-fn distance_text(session: &rustdraft_engine::Session, v: f64) -> String {
+fn distance_text(session: &draftcraft_engine::Session, v: f64) -> String {
     let (lu, lp) = length_units(session);
-    rustdraft_engine::units::format_distance(v, lu, lp)
+    draftcraft_engine::units::format_distance(v, lu, lp)
 }
 
 /// Room for the down-arrow sign that a prompt has options.
@@ -138,7 +138,7 @@ fn dynamic_input_boxes(
     use crate::dyninput::Format;
     let t = Tokens::get();
     let font = crate::theme::small();
-    let dist = |v: f64| rustdraft_engine::units::format_distance(v, lu, lp);
+    let dist = |v: f64| draftcraft_engine::units::format_distance(v, lu, lp);
     let (live_first, live_second) = f.live(e.format, cursor);
     let live_second = match e.format {
         Format::Cartesian => dist(live_second),

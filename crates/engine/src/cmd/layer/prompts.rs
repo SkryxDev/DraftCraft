@@ -2,8 +2,8 @@
 //! the `layer.*` commands, so validation matches the JSON form and the whole session is one undo
 //! step.
 
-use rustdraft_color::Color;
-use rustdraft_doc::Lineweight;
+use draftcraft_color::Color;
+use draftcraft_doc::Lineweight;
 use serde_json::{Value, json};
 
 use super::super::find_command;

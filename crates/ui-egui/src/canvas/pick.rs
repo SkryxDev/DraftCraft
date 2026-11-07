@@ -29,8 +29,8 @@ pub(super) fn wheel_zoom_points(events: &[egui::Event], opts: &egui::InputOption
 /// Start TEXTEDIT on the text, mtext or attribute definition at `p` (the objects its shortcut menu
 /// offers Edit Text for); false when there is none.
 pub(super) fn edit_text_at(app: &mut CadApp, p: Vec2) -> bool {
-    use rustdraft_engine::doc::EntityKind;
-    let is_text = rustdraft_engine::cmd::curves::pick_at(&app.session, p).and_then(|h| {
+    use draftcraft_engine::doc::EntityKind;
+    let is_text = draftcraft_engine::cmd::curves::pick_at(&app.session, p).and_then(|h| {
         app.session.doc().ok()?.entity(h).map(|e| matches!(e.kind, EntityKind::Text(_) | EntityKind::MText(_) | EntityKind::AttDef(_)))
     });
     if is_text != Some(true) {
@@ -48,14 +48,14 @@ pub(super) fn edit_text_at(app: &mut CadApp, p: Vec2) -> bool {
 pub(super) fn hatch_at(app: &CadApp, w: Vec2, scale: f64) -> Option<Handle> {
     let st = app.session.state().ok()?;
     let aperture = app.session.settings.pickbox.max(1.0) * 1.5 / scale.max(1e-12);
-    let h = rustdraft_engine::select::pick(&st.doc, &st.edit_space(), w, aperture)?;
-    matches!(st.doc.entity(h)?.kind, rustdraft_doc::EntityKind::Hatch(_)).then_some(h)
+    let h = draftcraft_engine::select::pick(&st.doc, &st.edit_space(), w, aperture)?;
+    matches!(st.doc.entity(h)?.kind, draftcraft_doc::EntityKind::Hatch(_)).then_some(h)
 }
 
 #[cfg(test)]
 mod hatch_pick_tests {
-    use rustdraft_engine::Session;
-    use rustdraft_geom::Vec2;
+    use draftcraft_engine::Session;
+    use draftcraft_geom::Vec2;
     use serde_json::json;
 
     use crate::{CadApp, Services};

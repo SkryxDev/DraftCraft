@@ -9,10 +9,10 @@
 //! picks pass `min_dash = 0` and `view = None` and get every line.
 
 use super::{Builder, Ctx, Ink, fill, ink, max_scale};
-use rustdraft_color::{Color, Rgb};
-use rustdraft_doc::library::{PatternLine, pattern_for};
-use rustdraft_doc::{Drawing, Entity, Gradient, Hatch};
-use rustdraft_geom::{Bounds2, Polyline, Vec2, point_in_polygon};
+use draftcraft_color::{Color, Rgb};
+use draftcraft_doc::library::{PatternLine, pattern_for};
+use draftcraft_doc::{Drawing, Entity, Gradient, Hatch};
+use draftcraft_geom::{Bounds2, Polyline, Vec2, point_in_polygon};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Draw a hatch entity: `rgb` is its resolved colour, `tol` the chord tolerance.
@@ -580,8 +580,8 @@ fn crossings(local: &[Vec<Vec2>], y: f64) -> Vec<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rustdraft_doc::{Hatch, HatchLoop};
-    use rustdraft_geom::PolyVertex;
+    use draftcraft_doc::{Hatch, HatchLoop};
+    use draftcraft_geom::PolyVertex;
 
     #[test]
     fn fill_loops_deduplicates_coincident_loops() {

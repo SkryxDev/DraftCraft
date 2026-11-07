@@ -2,9 +2,9 @@
 //! dialog (HATCHEDIT, double-click): one window in two modes. It never edits the drawing itself:
 //! picks go through HATCHPICK, and OK runs one HATCH, GRADIENT or HATCHEDIT call.
 
-use rustdraft_color::Color;
-use rustdraft_doc::{Drawing, EntityKind, Handle, Space};
-use rustdraft_engine::{HatchPicks, PickMode};
+use draftcraft_color::Color;
+use draftcraft_doc::{Drawing, EntityKind, Handle, Space};
+use draftcraft_engine::{HatchPicks, PickMode};
 use serde_json::{Value, json};
 
 use egui::vec2;
@@ -329,7 +329,7 @@ pub fn start_pick(app: &mut CadApp, mode: PickMode) {
         PickMode::Hatch => "Hatch",
     };
     if app.session.running.is_some()
-        && let Err(e) = app.session.input(rustdraft_engine::Input::Keyword(kw.into()))
+        && let Err(e) = app.session.input(draftcraft_engine::Input::Keyword(kw.into()))
     {
         app.session.echo(e.to_string());
     }

@@ -14,8 +14,8 @@
 //!   object selected last turns about the centre (a polyline's first vertex, an arc's centre), or
 //!   as the Base point does.
 
-use rustdraft_doc::Handle;
-use rustdraft_geom::{Mat3, Vec2};
+use draftcraft_doc::Handle;
+use draftcraft_geom::{Mat3, Vec2};
 use serde_json::{Value, json};
 
 use super::super::machines::{SelOutcome, SelectPhase, number};

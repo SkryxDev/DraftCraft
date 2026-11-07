@@ -3,11 +3,11 @@
 
 use std::sync::Arc;
 
-use rustdraft_color::Rgb;
-use rustdraft_doc::{Block, Common, Drawing, Entity, EntityKind, Handle, Image, Insert, Line, Raster, Space, Transparency, Viewport};
-use rustdraft_geom::{Vec2, Vec3};
-use rustdraft_render::raster::{RasterOptions, View, render};
-use rustdraft_render::{Kind, Options, build};
+use draftcraft_color::Rgb;
+use draftcraft_doc::{Block, Common, Drawing, Entity, EntityKind, Handle, Image, Insert, Line, Raster, Space, Transparency, Viewport};
+use draftcraft_geom::{Vec2, Vec3};
+use draftcraft_render::raster::{RasterOptions, View, render};
+use draftcraft_render::{Kind, Options, build};
 
 const RED: [u8; 4] = [255, 0, 0, 255];
 const GREEN: [u8; 4] = [0, 255, 0, 255];

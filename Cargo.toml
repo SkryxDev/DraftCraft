@@ -4,26 +4,26 @@ members = ["crates/*", "apps/*", "xtask"]
 # default-members
 
 [workspace.package]
-version = "1.1.0"
+version = "2.0.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 rust-version = "1.95"
-repository = "https://github.com/SkryxDev/RustDraft"
+repository = "https://github.com/SkryxDev/DraftCraft"
 
 [workspace.dependencies]
 # internal
-rustdraft-geom = { path = "crates/geom" }
-rustdraft-dxf = { path = "crates/dxf" }
-rustdraft-dwg = { path = "crates/dwg" }
-rustdraft-color = { path = "crates/color" }
-rustdraft-doc = { path = "crates/doc" }
-rustdraft-constraints = { path = "crates/constraints" }
-rustdraft-fonts = { path = "crates/fonts" }
-rustdraft-render = { path = "crates/render" }
-rustdraft-io = { path = "crates/io" }
-rustdraft-engine = { path = "crates/engine" }
-rustdraft-ui-egui = { path = "crates/ui-egui" }
-rustdraft-mcp = { path = "crates/mcp" }
+draftcraft-geom = { path = "crates/geom" }
+draftcraft-dxf = { path = "crates/dxf" }
+draftcraft-dwg = { path = "crates/dwg" }
+draftcraft-color = { path = "crates/color" }
+draftcraft-doc = { path = "crates/doc" }
+draftcraft-constraints = { path = "crates/constraints" }
+draftcraft-fonts = { path = "crates/fonts" }
+draftcraft-render = { path = "crates/render" }
+draftcraft-io = { path = "crates/io" }
+draftcraft-engine = { path = "crates/engine" }
+draftcraft-ui-egui = { path = "crates/ui-egui" }
+draftcraft-mcp = { path = "crates/mcp" }
 # Which paths stored in a drawing (xrefs, data links) may be opened.
 craft-docpath = { version = "0.1.0", git = "https://github.com/storytold/craft-libs", rev = "92d392cff132eaf53e13afff77f38b5c11b73aa0" }
 # PDF writing (krilla) for plots, and reading them back in tests. The root patches below pin

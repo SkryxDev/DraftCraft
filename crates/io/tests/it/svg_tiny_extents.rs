@@ -1,9 +1,9 @@
 //! SVG export of drawings with tiny extents: the viewBox, stroke width and point radius must
 //! stay non-zero, and coordinates must keep their significant digits.
 
-use rustdraft_doc::{Common, Drawing, EntityKind, Line, Point, Space};
-use rustdraft_geom::Vec3;
-use rustdraft_io::svg;
+use draftcraft_doc::{Common, Drawing, EntityKind, Line, Point, Space};
+use draftcraft_geom::Vec3;
+use draftcraft_io::svg;
 
 /// The numbers of attribute `name="…"` (whitespace separated) in the first element carrying it.
 fn attr(s: &str, name: &str) -> Vec<f64> {

@@ -2,8 +2,8 @@
 //! winding, the first self-intersection and coincident vertices — for agents that read a drawing.
 //! Read-only.
 
-use rustdraft_doc::{Entity, EntityKind};
-use rustdraft_geom::{Bounds2, Polyline, Vec2, intersect_segments};
+use draftcraft_doc::{Entity, EntityKind};
+use draftcraft_geom::{Bounds2, Polyline, Vec2, intersect_segments};
 use serde_json::{Value, json};
 
 use super::super::bad;
@@ -173,7 +173,7 @@ fn facts(s: &Session, e: &Entity, tol: f64) -> Result<Facts> {
             }
         }
         EntityKind::Ellipse(el) => {
-            let geom = rustdraft_geom::Ellipse { center: el.center.xy(), major: el.major.xy(), ratio: el.ratio, start: el.start, end: el.end };
+            let geom = draftcraft_geom::Ellipse { center: el.center.xy(), major: el.major.xy(), ratio: el.ratio, start: el.start, end: el.end };
             if !geom.is_full() {
                 return Ok(Facts::Skip("open"));
             }

@@ -1,10 +1,10 @@
 //! EXTEND, LENGTHEN, JOIN, FILLET and closed-spline TRIM for elliptical arcs and splines (#466).
 //!
 //! The curve mathematics (knot insertion, joining, tangent extensions, arc length) lives in
-//! `rustdraft_geom::Spline` / `rustdraft_geom::Ellipse`; this module applies it to entities.
+//! `draftcraft_geom::Spline` / `draftcraft_geom::Ellipse`; this module applies it to entities.
 
-use rustdraft_doc::{Entity, EntityKind, Handle};
-use rustdraft_geom::{
+use draftcraft_doc::{Entity, EntityKind, Handle};
+use draftcraft_geom::{
     Arc, Circle, CornerFit, Ellipse, Line, Polyline, Segment, Spline, TAU, TanCurve, Vec2, angle_in_sweep, ccw_sweep, intersect_ext, norm_angle,
     tangent_circles,
 };
@@ -65,7 +65,7 @@ fn too_short() -> crate::EngineError {
 }
 
 /// LENGTHEN an elliptical arc along its ellipse at the end nearest `pick`.
-pub(super) fn lengthen_ellipse(e: &rustdraft_doc::Ellipse, pick: Option<Vec2>, mode: LenMode) -> Result<EntityKind> {
+pub(super) fn lengthen_ellipse(e: &draftcraft_doc::Ellipse, pick: Option<Vec2>, mode: LenMode) -> Result<EntityKind> {
     let g = ellipse_of(e);
     if g.is_full() {
         return Err(other("Cannot lengthen a closed ellipse."));
@@ -78,7 +78,7 @@ pub(super) fn lengthen_ellipse(e: &rustdraft_doc::Ellipse, pick: Option<Vec2>, m
         LenMode::Total(t) => t,
         LenMode::To(q) => {
             let t = g.param_of(q);
-            let sweep = if at_end { rustdraft_geom::ccw_sweep(g.start, t) } else { rustdraft_geom::ccw_sweep(t, g.end) };
+            let sweep = if at_end { draftcraft_geom::ccw_sweep(g.start, t) } else { draftcraft_geom::ccw_sweep(t, g.end) };
             if !(sweep > 1e-9 && sweep < TAU - 1e-9) {
                 return Err(too_short());
             }
@@ -196,7 +196,7 @@ fn spline_pieces(k: &EntityKind) -> Vec<Spline> {
     match k {
         EntityKind::Line(l) if !l.a.xy().near(l.b.xy(), 1e-12) => vec![Spline::from_line(l.a.xy(), l.b.xy(), 1)],
         EntityKind::Arc(a) => {
-            let g = rustdraft_geom::Arc::new(a.center.xy(), a.radius, a.start, a.end);
+            let g = draftcraft_geom::Arc::new(a.center.xy(), a.radius, a.start, a.end);
             arc(g.center, g.radius, g.start, g.sweep()).into_iter().collect()
         }
         EntityKind::LwPolyline(p) if !p.closed => Polyline { vertices: p.vertices.clone(), closed: false }
@@ -320,7 +320,7 @@ pub(crate) fn join_curves(s: &mut Session, hs: &[Handle]) -> Result<Option<Handl
 /// ellipse); `None` for anything else.
 pub(crate) fn closed_kind(k: &EntityKind) -> Option<EntityKind> {
     match k {
-        EntityKind::Arc(a) => Some(EntityKind::Circle(rustdraft_doc::Circle { center: a.center, radius: a.radius })),
+        EntityKind::Arc(a) => Some(EntityKind::Circle(draftcraft_doc::Circle { center: a.center, radius: a.radius })),
         EntityKind::Ellipse(e) if !ellipse_of(e).is_full() => Some(ellipse_kind(&Ellipse { start: 0.0, end: TAU, ..ellipse_of(e) })),
         _ => None,
     }
@@ -401,7 +401,7 @@ fn fillet_trim(k: &EntityKind, pick: Vec2, t: f64, at: Vec2) -> Option<(Option<E
 }
 
 /// FILLET where one or both objects are an elliptical arc or a spline: the tangent circle comes
-/// from `rustdraft_geom::tangent_circles` (the solution touching nearest the picks); each object
+/// from `draftcraft_geom::tangent_circles` (the solution touching nearest the picks); each object
 /// is trimmed or extended to its touch point. Radius 0 meets them at their crossing.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn fillet_curvy(s: &mut Session, h1: Handle, p1: Vec2, h2: Handle, p2: Vec2, r: f64, e1: &Entity, e2: &Entity) -> Result<Option<Handle>> {

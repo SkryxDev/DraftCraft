@@ -2,10 +2,10 @@
 
 use std::fmt::Write as _;
 
-use rustdraft_color::Rgb;
-use rustdraft_doc::{Drawing, Space};
-use rustdraft_geom::Bounds2;
-use rustdraft_render::Kind;
+use draftcraft_color::Rgb;
+use draftcraft_doc::{Drawing, Space};
+use draftcraft_geom::Bounds2;
+use draftcraft_render::Kind;
 
 /// Export with a white background (colour 7 prints black), fitted to the extents.
 pub fn export(d: &Drawing, space: &Space) -> String {
@@ -21,12 +21,12 @@ pub fn export_window(d: &Drawing, space: &Space, window: Option<Bounds2>) -> Str
 
 /// [`export_window`], drawing transparency only when `transparency` is on (plots).
 pub fn export_window_with(d: &Drawing, space: &Space, window: Option<Bounds2>, transparency: bool) -> String {
-    let list = rustdraft_render::build(d, space, &rustdraft_render::Options { transparency, ..rustdraft_render::Options::default() });
+    let list = draftcraft_render::build(d, space, &draftcraft_render::Options { transparency, ..draftcraft_render::Options::default() });
     export_list(&list, window)
 }
 
 /// ` opacity="…"` for a transparent primitive (none for an opaque one or a wipeout's mask).
-fn opacity(p: &rustdraft_render::DPrim) -> String {
+fn opacity(p: &draftcraft_render::DPrim) -> String {
     if p.kind == Kind::Mask || p.transparency == 0 {
         return String::new();
     }
@@ -34,7 +34,7 @@ fn opacity(p: &rustdraft_render::DPrim) -> String {
 }
 
 /// Write a display list (as [`export_window`] does for a space's own).
-pub fn export_list(list: &rustdraft_render::DisplayList, window: Option<Bounds2>) -> String {
+pub fn export_list(list: &draftcraft_render::DisplayList, window: Option<Bounds2>) -> String {
     let window = window.filter(|w| !w.is_empty());
     let b = window.unwrap_or(list.bounds);
     // A single point (or a zero-size window) has no extent: show a unit box centred on it.

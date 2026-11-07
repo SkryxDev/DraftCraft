@@ -1,9 +1,9 @@
 //! MTEXT's options before the text: Height, Justify, Line spacing, Rotation, Style, Width and
 //! Columns, from the command line and scripts (#408).
 
-use rustdraft_doc::{EntityKind, MText, TextStyle};
-use rustdraft_engine::Session;
-use rustdraft_geom::Vec2;
+use draftcraft_doc::{EntityKind, MText, TextStyle};
+use draftcraft_engine::Session;
+use draftcraft_geom::Vec2;
 use serde_json::json;
 
 fn last_mtext(s: &Session) -> MText {

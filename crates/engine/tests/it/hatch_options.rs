@@ -1,9 +1,9 @@
 //! HATCH and HATCHEDIT options (#451): HPGAPTOL gap tolerance, pattern origin, separate
 //! hatches, island style, linking and unlinking boundaries, recreated boundaries, -HATCHEDIT.
 
-use rustdraft_engine::doc::{EntityKind, Handle, Hatch};
-use rustdraft_engine::geom::Vec2;
-use rustdraft_engine::{Input, Session};
+use draftcraft_engine::doc::{EntityKind, Handle, Hatch};
+use draftcraft_engine::geom::Vec2;
+use draftcraft_engine::{Input, Session};
 use serde_json::{Value, json};
 
 fn hatch(s: &Session, h: &str) -> Hatch {

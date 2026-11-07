@@ -1,9 +1,9 @@
 //! Angular extension lines stay with their legs when the arc is on the other side, and the
 //! DIMCEN centre mark is drawn only when the dimension line is outside the circle (issue #374).
 
-use rustdraft_doc::{DimKind, DimStyle, Dimension};
-use rustdraft_geom::{Vec2, Vec3};
-use rustdraft_render::{LineRole, dimension_geometry};
+use draftcraft_doc::{DimKind, DimStyle, Dimension};
+use draftcraft_geom::{Vec2, Vec3};
+use draftcraft_render::{LineRole, dimension_geometry};
 
 fn dim(kind: DimKind) -> Dimension {
     Dimension {

@@ -9,7 +9,7 @@
 
 use std::borrow::Cow;
 
-use rustdraft_geom::Mat3;
+use draftcraft_geom::Mat3;
 
 use crate::{Drawing, Entity, Handle, Space};
 

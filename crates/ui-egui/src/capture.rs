@@ -17,9 +17,9 @@ use crate::CadApp;
 
 /// At most this many queued, in-flight or completed-but-not-yet-drained requests.
 pub(crate) const MAX_REQUESTS: usize = 4;
-/// RustDraft keeps its stricter 64 MiB per-image bound (the suite default is 128 MiB).
+/// DraftCraft keeps its stricter 64 MiB per-image bound (the suite default is 128 MiB).
 pub(crate) const MAX_IMAGE_BYTES: usize = 64 * 1024 * 1024;
-/// RustDraft keeps the aggregate reservation at the same 64 MiB bound. Completed but undrained
+/// DraftCraft keeps the aggregate reservation at the same 64 MiB bound. Completed but undrained
 /// images still own their reservation, so they count against this limit.
 pub(crate) const MAX_TOTAL_BYTES: usize = 64 * 1024 * 1024;
 

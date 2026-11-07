@@ -4,9 +4,9 @@
 
 use std::io::Cursor;
 
-use rustdraft_doc::{Circle, Common, Drawing, EntityKind, Layout, Line, Space};
-use rustdraft_geom::Vec3;
-use rustdraft_io::{SaveOptions, Version, read, write_with};
+use draftcraft_doc::{Circle, Common, Drawing, EntityKind, Layout, Line, Space};
+use draftcraft_geom::Vec3;
+use draftcraft_io::{SaveOptions, Version, read, write_with};
 
 #[test]
 fn entities_of_a_second_layout_are_owned_by_its_block() {
