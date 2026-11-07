@@ -694,8 +694,23 @@ pub(crate) fn entry_ui(ui: &mut egui::Ui, e: &Entry, clicked: &mut Option<String
 pub fn menu_bar(app: &mut CadApp, ui: &mut egui::Ui) {
     let t = crate::theme::Tokens::get();
     let mut clicked = None;
-    // The same row as DraftCraft's own title bar on Windows: the logo, the name, then the menus.
-    egui::Panel::top("cc_menubar").exact_size(MENU_BAR_H).frame(egui::Frame::NONE.fill(t.chrome_dark)).show(ui, |ui| {
+    egui::Panel::top("cc_menubar")
+        .exact_size(22.0)
+        .frame(egui::Frame::NONE.fill(t.chrome_dark).inner_margin(egui::Margin::symmetric(6, 0)))
+        .show(ui, |ui| clicked = menu_titles(app, ui));
+    if let Some(id) = clicked {
+        activate(app, &id);
+    }
+}
+
+/// The web build's top row, matching DraftCraft's own title bar on Windows: the logo, the name, then
+/// the menus (File … Help), above the application bar and the ribbon. A browser tab has no title
+/// bar of DraftCraft's own, so without this the menu bar sat under the ribbon.
+#[cfg(target_arch = "wasm32")]
+pub fn web_top_row(app: &mut CadApp, ui: &mut egui::Ui) {
+    let t = crate::theme::Tokens::get();
+    let mut clicked = None;
+    egui::Panel::top("cc_menubar").exact_size(WEB_TOP_ROW_H).frame(egui::Frame::NONE.fill(t.chrome_dark)).show(ui, |ui| {
         let r = ui.max_rect();
         let p = ui.painter().clone();
         let logo = egui::Rect::from_center_size(egui::pos2(r.left() + 17.0, r.center().y), egui::vec2(18.0, 18.0));
@@ -715,8 +730,9 @@ pub fn menu_bar(app: &mut CadApp, ui: &mut egui::Ui) {
     }
 }
 
-/// Height of the in-window menu bar: the same as DraftCraft's own title bar on Windows.
-const MENU_BAR_H: f32 = 30.0;
+/// Height of the web build's top row: the same as DraftCraft's own title bar on Windows.
+#[cfg(target_arch = "wasm32")]
+const WEB_TOP_ROW_H: f32 = 30.0;
 
 /// The menu titles (File, Edit … Help) and their menus, in `ui`. Returns the command chosen.
 pub fn menu_titles(app: &CadApp, ui: &mut egui::Ui) -> Option<String> {
