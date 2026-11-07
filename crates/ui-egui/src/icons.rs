@@ -40,6 +40,7 @@ pub enum Icon {
     Polygon,
     Ellipse,
     Spline,
+    Conic,
     Point,
     XLine,
     Ray,
@@ -478,6 +479,24 @@ fn paint_draw_tools(pen: &Pen<'_>, icon: Icon, b: Color32, a: Color32, dim: bool
             pen.dot(7.5, 6.0);
             pen.dot(16.5, 18.0);
             pen.dot(21.0, 12.0);
+        }
+        Conic => {
+            // A conic corner: its end tangents meet at the apex; the curve is a rational
+            // quadratic with weight 1.2 (rho 0.55).
+            let (p0, p1, p2, w) = ((4.0f32, 20.0f32), (4.0f32, 4.0f32), (20.0f32, 4.0f32), 1.2f32);
+            pen.l(p0.0, p0.1, p1.0, p1.1);
+            pen.l(p1.0, p1.1, p2.0, p2.1);
+            let pts: Vec<(f32, f32)> = (0..=24)
+                .map(|i| {
+                    let t = i as f32 / 24.0;
+                    let (b0, b1, b2) = ((1.0 - t) * (1.0 - t), 2.0 * w * t * (1.0 - t), t * t);
+                    let d = b0 + b1 + b2;
+                    ((b0 * p0.0 + b1 * p1.0 + b2 * p2.0) / d, (b0 * p0.1 + b1 * p1.1 + b2 * p2.1) / d)
+                })
+                .collect();
+            pen.poly(&pts, false, a);
+            pen.dot(p0.0, p0.1);
+            pen.dot(p2.0, p2.1);
         }
         Point => {
             pen.dot(12.0, 12.0);

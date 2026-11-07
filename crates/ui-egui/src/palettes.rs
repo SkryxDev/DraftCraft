@@ -31,6 +31,7 @@ pub const DRAFTING: &[(&str, &[Tool], &[Tool])] = &[
         &[
             (Icon::Arc, "arc", "Arc"),
             (Icon::Spline, "spline", "Spline"),
+            (Icon::Conic, "conic", "Conic"),
             (Icon::XLine, "xline", "Construction Line"),
             (Icon::Ray, "ray", "Ray"),
             (Icon::Ellipse, "ellipse", "Ellipse"),

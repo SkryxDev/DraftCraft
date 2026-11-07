@@ -1253,6 +1253,7 @@ fn new_draw_commands_survive_garbage_input() {
         "mline",
         "helix",
         "spline.cv",
+        "conic",
         "centermark",
         "centerline",
         "xline",
@@ -1318,4 +1319,85 @@ fn arc_command_options() {
     s.cmdline("2,1").unwrap();
     assert!(near(as_arc(&last(&s)).center, 1.0, 1.0));
     assert!(s.prompt_text() == "Command:");
+}
+
+// ---------------- CONIC ----------------
+
+fn conic_of(s: &Session) -> rustdraft_geom::Spline {
+    match last(s) {
+        EntityKind::Spline(sp) => sp,
+        other => panic!("not a spline: {other:?}"),
+    }
+}
+
+/// The curve's point halfway along: on a conic it is the shoulder, `rho` of the way from the
+/// chord's midpoint to the apex.
+fn shoulder(sp: &rustdraft_geom::Spline) -> Vec2 {
+    let (lo, hi) = sp.domain();
+    sp.eval((lo + hi) / 2.0)
+}
+
+#[test]
+fn conic_json() {
+    let mut s = Session::new();
+    let r = s.execute("conic", &json!({"start": [0, 0], "apex": [5, 5], "end": [10, 0]})).unwrap();
+    assert_eq!((r["rho"].as_f64(), r["type"].as_str()), (Some(0.5), Some("parabola")));
+    let sp = conic_of(&s);
+    assert_eq!((sp.degree, sp.control.len(), sp.weights.clone()), (2, 3, vec![1.0, 1.0, 1.0]));
+    assert!(near(shoulder(&sp), 5.0, 2.5));
+
+    let r = s.execute("conic", &json!({"start": [0, 0], "apex": [5, 5], "end": [10, 0], "rho": 0.8})).unwrap();
+    assert_eq!(r["type"], "hyperbola");
+    assert!(near(shoulder(&conic_of(&s)), 5.0, 4.0));
+    assert!((conic_of(&s).weights[1] - 4.0).abs() < 1e-12);
+
+    // Through a point: the shoulder itself, then any point inside the triangle.
+    let r = s.execute("conic", &json!({"start": [0, 0], "apex": [5, 5], "end": [10, 0], "through": [5, 1]})).unwrap();
+    assert!((r["rho"].as_f64().unwrap() - 0.2).abs() < 1e-12 && r["type"] == "ellipse");
+    s.execute("conic", &json!({"start": [0, 0], "apex": [5, 5], "end": [10, 0], "through": [3, 2]})).unwrap();
+    let sp = conic_of(&s);
+    let (lo, hi) = sp.domain();
+    let closest = (0..=4000).map(|i| sp.eval(lo + (hi - lo) * i as f64 / 4000.0).dist(Vec2::new(3.0, 2.0))).fold(f64::MAX, f64::min);
+    assert!(closest < 1e-2, "{closest}");
+
+    let n = s.doc().unwrap().model.len();
+    for p in [
+        json!({"start": [0, 0], "apex": [5, 0], "end": [10, 0]}),
+        json!({"start": [0, 0], "apex": [5, 5], "end": [10, 0], "rho": 1}),
+        json!({"start": [0, 0], "apex": [5, 5], "end": [10, 0], "rho": 0}),
+        json!({"start": [0, 0], "apex": [5, 5], "end": [10, 0], "rho": "x"}),
+        json!({"start": [0, 0], "apex": [5, 5], "end": [10, 0], "through": [5, 9]}),
+        json!({"start": [0, 0], "apex": [5, 5], "end": [10, 0], "rho": 0.3, "through": [5, 1]}),
+        json!({"start": [0, 0], "end": [10, 0]}),
+    ] {
+        assert!(s.execute("conic", &p).is_err(), "{p}");
+    }
+    assert_eq!(s.doc().unwrap().model.len(), n, "a refused conic adds nothing");
+}
+
+#[test]
+fn conic_prompts() {
+    let mut s = Session::new();
+    s.start("conic").unwrap();
+    for p in [[0.0, 0.0], [5.0, 5.0]] {
+        s.input(Input::Point(Vec2::new(p[0], p[1]))).unwrap();
+    }
+    // The end point can't be on the line through the start point and apex, and rho must be
+    // between 0 and 1: the prompt stays.
+    let _ = s.input(Input::Point(Vec2::new(10.0, 10.0)));
+    s.input(Input::Point(Vec2::new(10.0, 0.0))).unwrap();
+    assert!(!s.preview(Vec2::new(5.0, 1.0)).is_empty());
+    let _ = s.cmdline("1.5");
+    assert!(s.running.is_some() && s.doc().unwrap().model.is_empty());
+    s.cmdline("0.2").unwrap();
+    assert!(s.running.is_none());
+    assert!(near(shoulder(&conic_of(&s)), 5.0, 1.0));
+
+    // Enter takes the default parabola; a point gives the conic through it.
+    s.cmdline("conic 0,0 5,5 10,0").unwrap();
+    s.input(Input::Enter).unwrap();
+    assert!(near(shoulder(&conic_of(&s)), 5.0, 2.5));
+    s.cmdline("conic 0,0 5,5 10,0 5,4").unwrap();
+    assert!(near(shoulder(&conic_of(&s)), 5.0, 4.0));
+    assert_eq!(kinds(&s), ["Spline", "Spline", "Spline"]);
 }

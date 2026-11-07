@@ -1,6 +1,6 @@
 //! Draw menu depth (M1/M2): every ARC and CIRCLE variant, ELLIPSE axis/arc entries, RECTANG
 //! options, DIVIDE/MEASURE, REVCLOUD, WIPEOUT, XLINE options, 3DPOLY, MLINE, HELIX, spline by
-//! control vertices, CENTERMARK and CENTERLINE. Each has a JSON form and a prompt sequence.
+//! control vertices, CONIC, CENTERMARK and CENTERLINE. Each has a JSON form and a prompt sequence.
 
 use rustdraft_doc::{EntityKind, Handle, Helix, HelixConstrain, Point, Polyline3d, RayLine, Wipeout};
 use rustdraft_geom::{Arc, Circle, Ellipse, Line, PolyVertex, Polyline, Spline, TAU, Vec2, Vec3, norm_angle, shoelace};
@@ -16,6 +16,7 @@ use crate::{Accept, EngineError, Input, Interactive, Prompt, Result, Session, St
 
 mod arc;
 mod centermark;
+mod conic;
 mod curves3d;
 mod divide;
 mod ellipse;
@@ -28,6 +29,7 @@ mod xline;
 pub(crate) use arc::arc_machine;
 use arc::{ArcContinueM, ArcV, run_arc_continue, run_arc_variant, seq};
 use centermark::{CenterM, run_centerline, run_centermark};
+use conic::{ConicM, run_conic};
 use curves3d::{HelixM, Poly3dM, SplineCvM, run_3dpoly, run_helix, run_spline_cv};
 use divide::{DivideM, run_divide, run_measure};
 use ellipse::{run_ellipse_arc, run_ellipse_axis};
@@ -142,6 +144,10 @@ pub fn specs() -> Vec<CommandSpec> {
             .alias(&["3p"])
             .params("{points: [[x,y,z?],...], closed?}")
             .interactive(|_| Ok(Box::new(Poly3dM::default()))),
+        CommandSpec::new("conic", "Conic", run_conic)
+            .menu(&["Draw", "Spline", "Conic"])
+            .params("{start, apex (where the end tangents meet), end, rho?: 0..1 (default 0.5: a parabola; less an ellipse, more a hyperbola) | through?: [x,y] (a point on the curve, inside the triangle)} → {handle, rho, type} (a rational SPLINE)")
+            .interactive(|_| Ok(Box::new(ConicM::default()))),
         CommandSpec::new("helix", "Helix", run_helix)
             .menu(&["Draw", "Helix"])
             .params("{center, baseRadius, topRadius?, height?, turns?, ccw?, startAngle? (degrees)} → {handle}")

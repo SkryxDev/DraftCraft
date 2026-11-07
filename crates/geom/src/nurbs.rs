@@ -442,6 +442,57 @@ impl Spline {
         s.is_valid().then_some(s)
     }
 
+    /// The conic arc from `start` to `end` whose end tangents meet at `apex`, with shape `rho`
+    /// in (0, 1): the curve crosses the line from the chord's midpoint to the apex `rho` of the
+    /// way along it (0.5 makes a parabola, less an ellipse, more a hyperbola). An exact rational
+    /// quadratic spline with weights 1, rho / (1 − rho), 1, the form DXF and DWG splines keep.
+    /// `None` when the three points lie on one line or rho is out of range.
+    pub fn conic(start: Vec2, apex: Vec2, end: Vec2, rho: f64) -> Option<Spline> {
+        if !(start.is_finite() && apex.is_finite() && end.is_finite() && rho.is_finite() && rho > 0.0 && rho < 1.0) {
+            return None;
+        }
+        let (a, b) = (apex - start, end - apex);
+        let scale = a.len() * b.len();
+        if !(scale.is_finite() && scale > 1e-300) || a.cross(b).abs() <= 1e-9 * scale {
+            return None;
+        }
+        let w = rho / (1.0 - rho);
+        if !(w.is_finite() && w > 0.0) {
+            return None;
+        }
+        let len = (a.len() + b.len()).max(1e-9);
+        let s = Spline {
+            degree: 2,
+            knots: bezier_knots(&[0.0, len], 2),
+            control: vec![start, apex, end],
+            weights: vec![1.0, w, 1.0],
+            ..Spline::default()
+        };
+        s.is_valid().then_some(s)
+    }
+
+    /// The rho of the [`Spline::conic`] from `start` to `end` with apex `apex` that passes
+    /// through `p`. `p` must lie strictly inside the triangle of the three points.
+    pub fn conic_rho_through(start: Vec2, apex: Vec2, end: Vec2, p: Vec2) -> Option<f64> {
+        // p = a·start + b·apex + c·end with a + b + c = 1. A point of the rational quadratic
+        // Bézier has (a, b, c) ∝ ((1−t)², 2wt(1−t), t²), so b² = 4w²·a·c.
+        let (e, q) = (end - start, p - start);
+        let area = (apex - start).cross(e);
+        if !(p.is_finite() && area.is_finite() && area.abs() > 1e-300) {
+            return None;
+        }
+        let b = q.cross(e) / area;
+        let c = (apex - start).cross(q) / area;
+        let a = 1.0 - b - c;
+        let tiny = 1e-12;
+        if !(a > tiny && b > tiny && c > tiny) {
+            return None;
+        }
+        let w = b / (2.0 * (a * c).sqrt());
+        let rho = w / (1.0 + w);
+        (rho.is_finite() && rho > 0.0 && rho < 1.0).then_some(rho)
+    }
+
     /// An ellipse or elliptical arc as an exact rational spline (counter-clockwise).
     pub fn from_ellipse(e: &Ellipse) -> Option<Spline> {
         let s = Spline::from_conic_arc(e.center, e.major, e.minor(), e.start, e.sweep())?;
@@ -704,6 +755,44 @@ mod tests {
         assert!(cw.eval(cw.domain().1).near(Vec2::new(1f64.cos(), -(1f64.sin())), 1e-12));
         assert!(Spline::from_conic_arc(Vec2::ZERO, Vec2::X, Vec2::X, 0.0, 1.0).is_none());
         assert!(Spline::from_conic_arc(Vec2::ZERO, Vec2::X, Vec2::Y, 0.0, f64::NAN).is_none());
+    }
+
+    /// CONIC's curve: rho 0.5 is the parabola, a quarter circle comes back exactly, the
+    /// shoulder point sits `rho` of the way to the apex, and a point on the curve gives its rho.
+    #[test]
+    fn conics_from_apex_and_rho() {
+        let (s0, apex, e) = (Vec2::ZERO, Vec2::new(1.0, 1.0), Vec2::new(2.0, 0.0));
+        let par = Spline::conic(s0, apex, e, 0.5).unwrap();
+        let (lo, hi) = par.domain();
+        assert!(par.eval(lo).near(s0, 1e-12) && par.eval(hi).near(e, 1e-12));
+        for i in 0..=20 {
+            let p = par.eval(lo + (hi - lo) * i as f64 / 20.0);
+            assert!((p.y - p.x * (1.0 - p.x / 2.0)).abs() < 1e-12, "{p:?}");
+        }
+        // A quarter circle: weight cos 45°.
+        let w = std::f64::consts::FRAC_1_SQRT_2;
+        let q = Spline::conic(Vec2::X, Vec2::new(1.0, 1.0), Vec2::Y, w / (1.0 + w)).unwrap();
+        let (lo, hi) = q.domain();
+        for i in 0..=20 {
+            assert!((q.eval(lo + (hi - lo) * i as f64 / 20.0).len() - 1.0).abs() < 1e-12);
+        }
+        for rho in [0.1, 0.3, 0.5, 0.7, 0.95] {
+            let c = Spline::conic(s0, apex, e, rho).unwrap();
+            let (lo, hi) = c.domain();
+            let mid = (s0 + e) * 0.5;
+            assert!(c.eval((lo + hi) / 2.0).near(mid + (apex - mid) * rho, 1e-12), "{rho}");
+            for t in [0.2, 0.5, 0.9] {
+                let back = Spline::conic_rho_through(s0, apex, e, c.eval(lo + (hi - lo) * t)).unwrap();
+                assert!((back - rho).abs() < 1e-9, "{rho} {t} {back}");
+            }
+        }
+        assert!(Spline::conic(s0, Vec2::new(1.0, 0.0), e, 0.5).is_none(), "on one line");
+        for rho in [0.0, 1.0, -0.2, 1.5, f64::NAN] {
+            assert!(Spline::conic(s0, apex, e, rho).is_none(), "{rho}");
+        }
+        for p in [Vec2::new(1.0, 2.0), Vec2::new(1.0, -0.1), s0, apex, Vec2::new(f64::NAN, 0.5)] {
+            assert!(Spline::conic_rho_through(s0, apex, e, p).is_none(), "{p:?}");
+        }
     }
 
     #[test]

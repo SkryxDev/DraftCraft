@@ -13,7 +13,7 @@ Something not listed here is broken, or missing something you need?
 |---|---|
 | Interface | Windows-style ribbon (10 tabs, split buttons, layer and property lists), application menu, Quick Access Toolbar, file tabs, floating command line, ViewCube and navigation bar, status bar toggles, Properties and Layers palettes, 18 languages |
 | Command line | AutoCAD command names and aliases, prompts with keywords, AutoComplete, `@dx,dy`, `@d<a`, `#x,y`, direct distance entry, transparent commands, scripts |
-| Draw | LINE, PLINE (arcs, widths), CIRCLE, ARC, RECTANG, POLYGON, ELLIPSE, SPLINE, POINT, XLINE, RAY, DONUT, REVCLOUD, WIPEOUT, TEXT, MTEXT |
+| Draw | LINE, PLINE (arcs, widths), CIRCLE, ARC, RECTANG, POLYGON, ELLIPSE, SPLINE, CONIC (exact conic arcs, saved as rational splines), POINT, XLINE, RAY, DONUT, REVCLOUD, WIPEOUT, TEXT, MTEXT |
 | Modify | ERASE, MOVE, COPY, ROTATE, SCALE, MIRROR, STRETCH, OFFSET, TRIM, EXTEND, FILLET, CHAMFER, BREAK, JOIN, EXPLODE, arrays, draw order, OVERKILL, grips |
 | Precision | Object snaps, polar tracking, ortho, grid snap, dynamic input |
 | Annotation | DIM commands with dimension styles and associative dimensions, multileaders, tables, TrueType and SHX fonts, right-to-left text |

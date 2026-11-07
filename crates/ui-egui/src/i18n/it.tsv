@@ -1035,6 +1035,13 @@ menu	Modify	Edita
 	Specify width for rectangles	Specificare la larghezza dei rettangoli
 	Sphere	Sfera
 	Spline	Spline
+	Conic	Conica
+	Spline Fit	Spline per adattamento
+	Spline CV	Spline CV
+	Specify start point of conic	Specificare il punto iniziale della conica
+	Specify apex (where the end tangents meet)	Specificare il vertice (dove si incontrano le tangenti agli estremi)
+	Specify end point of conic	Specificare il punto finale della conica
+	Specify rho or a point on the conic	Specificare il valore rho o un punto sulla conica
 	Spline Edit	Edita spline
 	Stack (type 1/2 then select)	Sovrapponi (digitare 1/2, poi selezionare)
 	Standard	Standard

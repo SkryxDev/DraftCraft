@@ -90,6 +90,8 @@ const ARC_MORE: &[Tool] = &[
 const RECT_MORE: &[Tool] = &[(Icon::Rectangle, "rectang", "Rectangle"), (Icon::Polygon, "polygon", "Polygon")];
 const ELLIPSE_MORE: &[Tool] =
     &[(Icon::Ellipse, "ellipse", "Center"), (Icon::Ellipse, "ellipse.axis", "Axis, End"), (Icon::Ellipse, "ellipse.arc", "Elliptical Arc")];
+const SPLINE_MORE: &[Tool] =
+    &[(Icon::Spline, "spline", "Spline Fit"), (Icon::Spline, "spline.cv", "Spline CV"), SEP, (Icon::Conic, "conic", "Conic")];
 const HATCH_MORE: &[Tool] = &[(Icon::Hatch, "hatch", "Hatch"), (Icon::Gradient, "gradient", "Gradient"), (Icon::Boundary, "boundary", "Boundary")];
 const TRIM_MORE: &[Tool] = &[(Icon::Trim, "trim", "Trim"), (Icon::Extend, "extend", "Extend")];
 const FILLET_MORE: &[Tool] = &[(Icon::Fillet, "fillet", "Fillet"), (Icon::Chamfer, "chamfer", "Chamfer"), (Icon::Spline, "blend", "Blend Curves")];
@@ -150,6 +152,7 @@ pub(crate) const TABS: &[RibbonTab] = &[
                         d(Icon::Ellipse, "ellipse", "Ellipse", ELLIPSE_MORE),
                         d(Icon::Hatch, "hatch", "Hatch", HATCH_MORE),
                     ]),
+                    Icons(&[d(Icon::Spline, "spline", "Spline Fit", SPLINE_MORE), b(Icon::Conic, "conic", "Conic")]),
                 ],
             },
             RibbonPanel {

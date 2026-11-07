@@ -44,6 +44,10 @@ ribbon.
   AutoComplete, `@dx,dy`, `@d<a`, `#x,y`, direct distance entry, transparent commands and scripts.
 - **Draw and modify** — LINE, PLINE, CIRCLE, ARC, RECTANG, POLYGON, ELLIPSE, SPLINE, TEXT, MTEXT and more;
   MOVE, COPY, ROTATE, SCALE, MIRROR, STRETCH, OFFSET, TRIM, EXTEND, FILLET, CHAMFER, ARRAY, grips.
+- **Conic arcs** — CONIC draws an exact ellipse, parabola or hyperbola arc from its end points, the apex
+  where its tangents meet and a rho value (or a point it passes through): the soft corners of a phone in
+  plan view, for example. It is saved as a rational SPLINE, so it opens as a normal spline in AutoCAD and
+  any other DXF or DWG program.
 - **Precision** — object snaps (endpoint, midpoint, center, intersection, tangent, perpendicular…), polar
   tracking, ortho, grid snap.
 - **Layers and properties** — the layer list and colour / linetype / lineweight lists right on the ribbon,

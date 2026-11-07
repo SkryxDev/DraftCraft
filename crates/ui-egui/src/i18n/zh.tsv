@@ -872,6 +872,13 @@
 	Specify width for rectangles	指定矩形宽度
 	Sphere	球体
 	Spline	样条曲线
+	Conic	圆锥曲线
+	Spline Fit	样条曲线拟合
+	Spline CV	样条曲线控制点
+	Specify start point of conic	指定圆锥曲线的起点
+	Specify apex (where the end tangents meet)	指定顶点（两端切线的交点）
+	Specify end point of conic	指定圆锥曲线的端点
+	Specify rho or a point on the conic	指定 rho 值或圆锥曲线上的点
 	Stack (type 1/2 then select)	堆叠（输入 1/2 然后选择）
 	Standard	标准
 	Start	起点
