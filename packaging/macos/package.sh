@@ -117,6 +117,9 @@ echo "==> assembling $APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 # Executable and icon carry the display name (CFBundleExecutable / CFBundleIconFile).
 cp "$WORK/bin/rustdraft" "$APP/Contents/MacOS/RustDraft"
+# The CLI and MCP server ride along (/Applications/RustDraft.app/Contents/MacOS/rustdraft-cli is the
+# path the README gives MCP clients).
+cp "$WORK/bin/rustdraft-cli" "$APP/Contents/MacOS/rustdraft-cli"
 cp "$ROOT/assets/app-icon/rustdraft.icns" "$APP/Contents/Resources/RustDraft.icns"
 # macOS 26+ shows the Icon Composer icon (Assets.car) with the system's own mask; without it the
 # .icns sits on a plate. actool comes with Xcode; without Xcode the .icns alone is used.
@@ -136,7 +139,8 @@ plutil -lint "$APP/Contents/Info.plist"
 printf 'APPL????' >"$APP/Contents/PkgInfo"
 
 # Sign inside-out: nested code first, then the bundle itself (no --deep on the final signature).
-# Today the only nested code is the main executable; frameworks/helpers would be signed here too.
+# The nested code is the main executable and the CLI; frameworks/helpers would be signed here too.
+sign --options runtime "$APP/Contents/MacOS/rustdraft-cli"
 sign --options runtime --entitlements "$HERE/entitlements.plist" "$APP/Contents/MacOS/RustDraft"
 sign --options runtime --entitlements "$HERE/entitlements.plist" "$APP"
 codesign --verify --strict --deep --verbose=2 "$APP"
