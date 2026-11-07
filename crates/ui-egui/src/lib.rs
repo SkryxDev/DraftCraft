@@ -22,6 +22,7 @@ pub mod aliasdlg;
 pub mod animation;
 pub mod autosave;
 pub mod bedit;
+pub mod brand;
 pub mod canvas;
 pub mod capture;
 pub mod chrome;
