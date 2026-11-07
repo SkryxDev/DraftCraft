@@ -949,7 +949,7 @@ pub fn title_and_ribbon(app: &mut CadApp, ui: &mut egui::Ui) {
 
 fn app_bar(app: &mut CadApp, ui: &mut egui::Ui, bar: Rect, out: &mut Out) {
     let t = Tokens::get();
-    if app.integrated_titlebar {
+    if app.integrated_titlebar || app.own_window_frame {
         // The empty bar moves the window; it goes first so later widgets take their own clicks.
         craft_window::title_bar::empty_area(ui, bar);
     }
@@ -1117,12 +1117,17 @@ fn ribbon_tabs(app: &mut CadApp, ui: &mut egui::Ui, area: Rect, active: usize) {
         p.text(tr.center(), Align2::CENTER_CENTER, name, FontId::proportional(12.5), if selected || resp.hovered() { t.text } else { t.text_dim });
         icons::describe_control(ui, &resp, tab.name, Some(selected), true);
         if resp.clicked() {
-            if selected {
-                app.ui.ribbon_minimized = !app.ui.ribbon_minimized;
+            if app.ui.ribbon_minimized {
+                // A minimized ribbon opens again from any of its tabs, on that tab.
+                app.ui.ribbon_tab = tab.name.to_string();
+                app.ui.ribbon_minimized = false;
+            } else if selected {
+                app.ui.ribbon_minimized = true;
             } else {
                 app.ui.ribbon_tab = tab.name.to_string();
             }
         }
+        // A double-click's two clicks toggle twice; the double-click itself makes it one toggle.
         if resp.double_clicked() {
             app.ui.ribbon_minimized = !app.ui.ribbon_minimized;
         }

@@ -144,6 +144,8 @@ xattr -dr com.apple.quarantine /Applications/RustDraft.app
 
 **Windows** — unzip the folder anywhere and run `RustDraft.exe`. The build is not signed, so SmartScreen
 may stop it the first time: click **More info › Run anyway**.
+RustDraft draws its own title bar there, with the menu bar in it; set `RUSTDRAFT_TITLEBAR=system` to keep
+Windows' own title bar instead.
 
 **Linux** — unpack the archive and run `./rustdraft`. The `share/` folder holds a desktop entry and the
 icons for your menu.

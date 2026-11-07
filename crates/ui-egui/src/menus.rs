@@ -688,30 +688,38 @@ pub(crate) fn entry_ui(ui: &mut egui::Ui, e: &Entry, clicked: &mut Option<String
     }
 }
 
+/// The in-window menu bar, as its own row (under the ribbon) when RustDraft leaves the window's
+/// title bar to the desktop; with its own frame the titles sit in the title bar
+/// ([`crate::window_frame`]).
 pub fn menu_bar(app: &mut CadApp, ui: &mut egui::Ui) {
     let t = crate::theme::Tokens::get();
-    let tree = tree(app);
     let mut clicked = None;
-    egui::Panel::top("cc_menubar").exact_size(22.0).frame(egui::Frame::NONE.fill(t.chrome_dark).inner_margin(egui::Margin::symmetric(6, 0))).show(
-        ui,
-        |ui| {
-            egui::MenuBar::new().ui(ui, |ui| {
-                // Titles first, so a hovered title can take over before any menu is drawn.
-                let titles: Vec<egui::Response> = tree.iter().map(|(name, _)| ui.add(egui::Button::new(crate::i18n::menu(name)))).collect();
-                switch_on_hover(ui.ctx(), &titles);
-                for ((_, entries), title) in tree.iter().zip(&titles) {
-                    egui::Popup::menu(title).show(|ui| {
-                        for e in entries {
-                            entry_ui(ui, e, &mut clicked);
-                        }
-                    });
-                }
-            });
-        },
-    );
+    egui::Panel::top("cc_menubar")
+        .exact_size(22.0)
+        .frame(egui::Frame::NONE.fill(t.chrome_dark).inner_margin(egui::Margin::symmetric(6, 0)))
+        .show(ui, |ui| clicked = menu_titles(app, ui));
     if let Some(id) = clicked {
         activate(app, &id);
     }
+}
+
+/// The menu titles (File, Edit … Help) and their menus, in `ui`. Returns the command chosen.
+pub fn menu_titles(app: &CadApp, ui: &mut egui::Ui) -> Option<String> {
+    let tree = tree(app);
+    let mut clicked = None;
+    egui::MenuBar::new().ui(ui, |ui| {
+        // Titles first, so a hovered title can take over before any menu is drawn.
+        let titles: Vec<egui::Response> = tree.iter().map(|(name, _)| ui.add(egui::Button::new(crate::i18n::menu(name)))).collect();
+        switch_on_hover(ui.ctx(), &titles);
+        for ((_, entries), title) in tree.iter().zip(&titles) {
+            egui::Popup::menu(title).show(|ui| {
+                for e in entries {
+                    entry_ui(ui, e, &mut clicked);
+                }
+            });
+        }
+    });
+    clicked
 }
 
 /// While one menu of the bar is open, pointing at another title opens that menu instead.

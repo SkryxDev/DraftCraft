@@ -106,6 +106,9 @@
 	Clear	清除
 	Clipboard	剪贴板
 	Close	关闭
+	Minimize	最小化
+	Maximize	最大化
+	Restore Down	向下还原
 	Close All	全部关闭
 	Closed	已关闭
 	Coincident	重合

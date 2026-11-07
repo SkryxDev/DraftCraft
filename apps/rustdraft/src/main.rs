@@ -213,6 +213,8 @@ fn window_options(restoring: bool) -> eframe::NativeOptions {
     eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("DraftCraft")
+            // DraftCraft draws the title bar itself on Windows (`window_frame`).
+            .with_decorations(!rustdraft_ui_egui::window_frame::draws_own_frame_here())
             .with_inner_size([1600.0, 1000.0])
             .with_min_inner_size([900.0, 560.0])
             .with_drag_and_drop(true)
@@ -404,7 +406,8 @@ fn main() -> eframe::Result {
             if std::env::var_os("RUSTDRAFT_NO_UPDATE_CHECK").is_none_or(|v| v.is_empty() || v == "0") {
                 app.enable_update_check();
             }
-            app.integrated_titlebar = cfg!(target_os = "macos");
+            app.own_window_frame = rustdraft_ui_egui::window_frame::draws_own_frame_here();
+            app.integrated_titlebar = cfg!(target_os = "macos") && !app.own_window_frame;
             if surface.present_mode == eframe::wgpu::PresentMode::AutoNoVsync {
                 app.frame_cap = Some(rustdraft_ui_egui::gpu::FrameCap::new(240));
             }
