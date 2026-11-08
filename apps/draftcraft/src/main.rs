@@ -314,6 +314,9 @@ fn main() -> eframe::Result {
     let launch = launch_args::parse(launch_args::command(), std::env::args_os().skip(1)).unwrap_or_else(|e| e.exit());
     let vars = env::Env::read();
     adopt_old_folders(vars.config_dir.as_deref());
+    // What an in-app update left beside this copy (the old app, `*.old` files).
+    #[cfg(not(target_arch = "wasm32"))]
+    draftcraft_ui_egui::self_update::clean_leftovers();
     let (control_port, sample, files) = (launch.control, launch.sample, launch.files);
     // The log file lives under the settings directory; opened after the arguments, so `--version`
     // leaves no file behind. Records logged until now are written to it first.
@@ -387,7 +390,7 @@ fn main() -> eframe::Result {
             b.with_close_requested_on_terminate(true);
         }));
     }
-    eframe::run_native(
+    let result = eframe::run_native(
         "DraftCraft",
         options,
         Box::new(move |cc| {
@@ -470,7 +473,11 @@ fn main() -> eframe::Result {
                 movable: None,
             }))
         }),
-    )
+    );
+    // Restart Now after an in-app update: the new copy starts once this window has closed.
+    #[cfg(not(target_arch = "wasm32"))]
+    draftcraft_ui_egui::self_update::relaunch_if_scheduled();
+    result
 }
 
 #[cfg(test)]

@@ -1369,6 +1369,22 @@
 	Skip This Version	跳过此版本
 	DraftCraft is up to date (version {version}).	DraftCraft 已是最新版本（{version}）。
 	Could not check for updates.	无法检查更新。
+	Do you want to install the update now?	要立即安装更新吗？
+	Update Now	立即更新
+	Open the release page	打开发布页面
+	This copy of DraftCraft can't update itself.	此 DraftCraft 副本无法自行更新。
+	Updating DraftCraft	正在更新 DraftCraft
+	Update Failed	更新失败
+	Installing DraftCraft {version}	正在安装 DraftCraft {version}
+	Downloading: {done} of {total} MB	正在下载：{done} / {total} MB
+	Installing…	正在安装…
+	Starting the download…	正在开始下载…
+	The connection dropped; trying again…	连接中断，正在重试…
+	DraftCraft {version} is installed.	DraftCraft {version} 已安装。
+	Restart DraftCraft to use it. If you restart later, it opens the next time you start DraftCraft.	重新启动 DraftCraft 即可使用。如果稍后重启，下次启动 DraftCraft 时将打开新版本。
+	Restart Now	立即重启
+	The update could not be installed.	无法安装更新。
+	You can download it from the release page instead.	您也可以从发布页面下载。
 # Menu and command labels the October 2026 update missed (#1129).
 	Align Multileaders	对齐多重引线
 	Analyze Usage	分析使用情况
