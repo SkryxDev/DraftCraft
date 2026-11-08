@@ -339,6 +339,10 @@ fn write_classes(w: &mut W, cx: &Ctx, every: &[&Entity]) {
     if every.iter().any(|e| matches!(e.kind, EntityKind::Wipeout(_))) {
         classes.push(("WIPEOUT", "AcDbWipeout", 127, true));
     }
+    if !cx.underlays.is_empty() {
+        classes.push(("PDFUNDERLAY", "AcDbPdfReference", 4095, true));
+        classes.push(("PDFDEFINITION", "AcDbPdfDefinition", 1153, false));
+    }
     if !cx.images.is_empty() {
         classes.push(("IMAGE", "AcDbRasterImage", 127, true));
         classes.push(("IMAGEDEF", "AcDbRasterImageDef", 0, false));
@@ -583,6 +587,10 @@ fn write_root_group_objects(
         w.s(3, "ACAD_IMAGE_VARS");
         w.s(350, cx.images.vars.clone());
     }
+    if !cx.underlays.is_empty() {
+        w.s(3, crate::dxf_underlay::DICT_KEY);
+        w.s(350, cx.underlays.dict.clone());
+    }
     w.s(3, "ACAD_LAYOUT");
     w.s(350, layout_dict.clone());
     w.s(3, "ACAD_MLEADERSTYLE");
@@ -752,6 +760,7 @@ fn write_objects(w: &mut W, plan: ObjectWritePlan<'_>) {
     write_layout_objects(w, &plan);
     // Raster image definitions.
     w.t.extend(crate::dxf_image::objects(&plan.cx.images, plan.root_dict));
+    w.t.extend(crate::dxf_underlay::objects(&plan.cx.underlays, plan.root_dict));
     w.s(0, "ENDSEC");
 }
 
@@ -955,6 +964,7 @@ pub(super) fn tags_for(d: &Drawing, version: Version, target: Version, frozen_34
     let mut table_defs = table_block_definitions(d, &every, &mut w, &mut cx);
     // Image definitions (IMAGEDEF objects) of raster images anywhere in the drawing.
     cx.images = crate::dxf_image::plan(every.iter().copied(), || w.h());
+    cx.underlays = crate::dxf_underlay::plan(every.iter().copied(), || w.h());
     cx.mlines = crate::dxf_mline::plan(d, every.iter().copied(), || w.h());
     plan_dimension_associations(d, &all_spaces, &mut w, &mut cx);
     let default_table_style = [TableStyle::default()];

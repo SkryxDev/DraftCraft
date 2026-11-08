@@ -233,7 +233,8 @@ pub(crate) fn plan<'a>(entities: impl Iterator<Item = &'a draftcraft_doc::Entity
     let mut next_suffix: HashMap<String, usize> = HashMap::new();
     for e in entities {
         let EntityKind::Image(i) = &e.kind else { continue };
-        if p.by_entity.contains_key(&e.handle) {
+        // Underlays have definitions of their own (`dxf_underlay`).
+        if i.underlay.is_some() || p.by_entity.contains_key(&e.handle) {
             continue;
         }
         let k = (i.path.clone(), i.name.clone());

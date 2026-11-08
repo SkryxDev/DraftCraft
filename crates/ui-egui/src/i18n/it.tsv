@@ -1519,3 +1519,75 @@ menu	Modify	Edita
 	Ribbon	Barra multifunzione
 	{panel} panel	Pannello {panel}
 	Exit DraftCraft	Esci da DraftCraft
+# PDF underlays and PDFIMPORT
+	PDF Underlay...	Sottoposto PDF...
+	PDF Import	Importa PDF
+	PDF Underlay	Sottoposto PDF
+	Underlay Layers	Layer dei sottoposti
+	PDF files	File PDF
+	Images (PNG, JPEG, BMP, TIFF)	Immagini (PNG, JPEG, BMP, TIFF)
+	Images and PDF files	Immagini e file PDF
+	Raster Image Reference...	Riferimento immagine raster...
+# Contextual ribbon tabs and slide-out panels
+	Hatch Editor	Editor tratteggio
+	Formatting	Formattazione
+	Paragraph	Paragrafo
+	Open/Save	Apri/Salva
+	Adjust	Regola
+	Clipping	Ritaglio
+	Close Text Editor	Chiudi editor di testo
+	Edit Block	Modifica blocco
+	Create Clipping Boundary	Crea contorno di ritaglio
+	Image Clip	Ritaglio immagine
+	PDF Clip	Ritaglio PDF
+	Image Adjust	Regola immagine
+	PDF Adjust	Regola PDF
+	Adjust...	Regola...
+	Multiple Points	Punti multipli
+	Break at Point	Spezza in un punto
+	Edit Polyline	Modifica polilinea
+	Edit Spline	Modifica spline
+	Multileader Style	Stile multidirettrice
+	Authoring	Creazione
+	Parameter	Parametro
+	Action	Azione
+	DesignCenter	DesignCenter
+	Tool Palettes	Tavolozze strumenti
+	Sheet Set Manager	Gestione gruppo di fogli
+	Type the drawing's path, then press Enter.	Digita il percorso del disegno, poi premi Invio.
+	Drawing file	File di disegno
+	Folder	Cartella
+	Linetypes	Tipi di linea
+	Text Styles	Stili di testo
+	Dimension Styles	Stili di quota
+	Table Styles	Stili di tabella
+	Multileader Styles	Stili di multidirettrice
+	Multiline Styles	Stili di multilinea
+	Add to Drawing	Aggiungi al disegno
+	Create Tool Palette	Crea tavolozza strumenti
+	Nothing of this kind in the file.	Nessun elemento di questo tipo nel file.
+	Open a drawing to see its blocks, layers and styles.	Apri un disegno per vederne blocchi, layer e stili.
+	Delete Palette	Elimina tavolozza
+	New Palette	Nuova tavolozza
+	No tool palettes.	Nessuna tavolozza strumenti.
+	This palette is empty: add a command below, or make a palette from DesignCenter.	Questa tavolozza è vuota: aggiungi un comando qui sotto, oppure crea una tavolozza da DesignCenter.
+	Delete Tool	Elimina strumento
+	Add Command	Aggiungi comando
+	New Sheet Set...	Nuovo gruppo di fogli...
+	Open Sheet Set...	Apri gruppo di fogli...
+	Sheet sets (DCSS)	Gruppi di fogli (DCSS)
+	Sheet set file	File del gruppo di fogli
+	Make or open a sheet set to list its sheets.	Crea o apri un gruppo di fogli per elencarne i fogli.
+	Add Drawing...	Aggiungi disegno...
+	Publish to PDF...	Pubblica in PDF...
+	No sheets yet: add a drawing's layouts.	Ancora nessun foglio: aggiungi i layout di un disegno.
+	Number	Numero
+	Title	Titolo
+	Move Up	Sposta su
+	Move Down	Sposta giù
+	Sheet Set (DCSS)	Gruppo di fogli (DCSS)
+	Close Tool Palettes	Chiudi tavolozze strumenti
+	Close DesignCenter	Chiudi DesignCenter
+	Close Sheet Set Manager	Chiudi gestione gruppo di fogli
+	Manage Tool Palettes	Gestisci tavolozze strumenti
+menu	Palettes	Tavolozze

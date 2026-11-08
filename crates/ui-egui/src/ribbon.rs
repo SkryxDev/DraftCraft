@@ -9,6 +9,8 @@ use serde_json::json;
 
 use crate::CadApp;
 use crate::icons::{self, Icon};
+
+pub(crate) mod context;
 use crate::theme::Tokens;
 
 /// A menu entry: icon, command id, label.
@@ -136,6 +138,87 @@ const PASTE_MORE: &[Tool] = &[
 const COPYCLIP_MORE: &[Tool] = &[(Icon::Copy, "copyclip", "Copy Clip"), (Icon::Copy, "copybase", "Copy with Base Point")];
 
 /// The ribbon tabs and panels, in the order the Windows "2D Drafting" workspace shows them.
+/// Slide-out panels: the tools a panel keeps below its title (tab, panel, tools). Its title
+/// opens them; a collapsed panel lists them after its own.
+const SLIDE_OUTS: &[(&str, &str, &[Tool])] = &[
+    (
+        "Home",
+        "Draw",
+        &[
+            (Icon::XLine, "xline", "Construction Line"),
+            (Icon::Ray, "ray", "Ray"),
+            (Icon::Point, "point", "Multiple Points"),
+            (Icon::Point, "divide", "Divide"),
+            (Icon::Point, "measure", "Measure"),
+            SEP,
+            (Icon::Donut, "donut", "Donut"),
+            (Icon::RevCloud, "revcloud", "Revision Cloud"),
+            (Icon::Region, "region", "Region"),
+            (Icon::Wipeout, "wipeout", "Wipeout"),
+            (Icon::Boundary, "boundary", "Boundary"),
+        ],
+    ),
+    (
+        "Home",
+        "Modify",
+        &[
+            (Icon::Break, "break", "Break"),
+            (Icon::Break, "breakatpoint", "Break at Point"),
+            (Icon::Join, "join", "Join"),
+            (Icon::Lengthen, "lengthen", "Lengthen"),
+            (Icon::Chamfer, "chamfer", "Chamfer"),
+            (Icon::Spline, "blend", "Blend Curves"),
+            SEP,
+            (Icon::Polyline, "pedit", "Edit Polyline"),
+            (Icon::Spline, "splinedit", "Edit Spline"),
+            (Icon::Move, "align", "Align"),
+            (Icon::Redo, "reverse", "Reverse"),
+            (Icon::Erase, "overkill", "Delete Duplicate Objects"),
+            (Icon::MoveTop, "draworder", "Draw Order"),
+        ],
+    ),
+    (
+        "Home",
+        "Annotation",
+        &[
+            (Icon::TextStyle, "style", "Text Style"),
+            (Icon::DimStyle, "dimstyle", "Dimension Style"),
+            (Icon::MLeader, "mleaderstyle", "Multileader Style"),
+            (Icon::TextStyle, "tablestyle", "Table Style"),
+        ],
+    ),
+    (
+        "Home",
+        "Layers",
+        &[
+            (Icon::MakeCurrent, "laycur", "Change to Current Layer"),
+            (Icon::LayerMatch, "laymrg", "Merge"),
+            (Icon::Erase, "laydel", "Delete"),
+            (Icon::LayerPrev, "layerp", "Previous"),
+        ],
+    ),
+    (
+        "Home",
+        "Block",
+        &[
+            (Icon::List, "battman", "Block Attribute Manager"),
+            (Icon::Redo, "attsync", "Synchronize"),
+            (Icon::BlockCreate, "wblock", "Write Block"),
+            (Icon::Insert, "blockreplace", "Replace Block"),
+        ],
+    ),
+    (
+        "Home",
+        "Utilities",
+        &[(Icon::Distance, "dist", "Distance"), (Icon::Point, "id", "ID Point"), (Icon::Area, "area", "Area"), (Icon::List, "list", "List")],
+    ),
+];
+
+/// The slide-out tools of `tab`'s panel `title`, if it has any.
+fn slide_out(tab: &str, title: &str) -> &'static [Tool] {
+    SLIDE_OUTS.iter().find(|(t, p, _)| *t == tab && *p == title).map_or(&[], |s| s.2)
+}
+
 pub(crate) const TABS: &[RibbonTab] = &[
     RibbonTab {
         name: "Home",
@@ -284,7 +367,18 @@ pub(crate) const TABS: &[RibbonTab] = &[
                     ]),
                 ],
             },
-            RibbonPanel { title: "Import", cols: &[Large(b(Icon::Import, "import", "Import")), Large(b(Icon::Hatch, "imageattach", "Image"))] },
+            RibbonPanel {
+                title: "Import",
+                cols: &[
+                    Large(b(Icon::Import, "import", "Import")),
+                    Large(b(Icon::Pdf, "pdfimport", "PDF Import")),
+                    Small(&[
+                        b(Icon::Hatch, "imageattach", "Image"),
+                        b(Icon::Pdf, "pdfattach", "PDF Underlay"),
+                        b(Icon::List, "ulayers", "Underlay Layers"),
+                    ]),
+                ],
+            },
             RibbonPanel {
                 title: "Data",
                 cols: &[
@@ -441,13 +535,15 @@ pub(crate) const TABS: &[RibbonTab] = &[
             RibbonPanel {
                 title: "Palettes",
                 cols: &[
+                    Large(b(Icon::ToolPalette, "toolpalettes", "Tool Palettes")),
                     Large(b(Icon::Properties, "ui.panel.properties", "Properties")),
                     Large(b(Icon::Layers, "ui.panel.layers", "Layers")),
                     Small(&[
+                        b(Icon::SheetSet, "sheetset", "Sheet Set Manager"),
+                        b(Icon::DesignCenter, "adcenter", "DesignCenter"),
                         b(Icon::Table, "ui.toggle.quickcalc", "QuickCalc"),
-                        b(Icon::Attach, "xref", "External References"),
-                        b(Icon::Blocks, "ui.dialog.blocks", "Blocks"),
                     ]),
+                    Small(&[b(Icon::Attach, "xref", "External References"), b(Icon::Blocks, "ui.dialog.blocks", "Blocks")]),
                 ],
             },
             RibbonPanel {
@@ -701,6 +797,11 @@ fn first_icon(panel: &RibbonPanel) -> Icon {
 }
 
 /// Every command a panel reaches, for its collapsed button and its title menu.
+/// The icon the ribbon shows for `cmd`, if it has a button there.
+pub(crate) fn icon_for(cmd: &str) -> Option<Icon> {
+    TABS.iter().flat_map(|t| t.panels.iter()).flat_map(all_tools).find(|(_, c, _)| c.eq_ignore_ascii_case(cmd)).map(|(icon, _, _)| icon)
+}
+
 fn all_tools(panel: &RibbonPanel) -> Vec<Tool> {
     let mut out: Vec<Tool> = Vec::new();
     let mut push = |b: &Btn| {
@@ -926,6 +1027,7 @@ pub fn title_and_ribbon(app: &mut CadApp, ui: &mut egui::Ui) {
     let t = Tokens::get();
     let ribbon_h = if app.ui.show_toolbar { TAB_ROW + if app.ui.ribbon_minimized { 0.0 } else { BODY + PANEL_TITLE + 4.0 } } else { 0.0 };
     let mut out = Out::default();
+    context::update(app);
     egui::Panel::top("cc_title_ribbon").exact_size(APP_BAR + ribbon_h).frame(egui::Frame::NONE.fill(bar_color(&t))).show(ui, |ui| {
         let r = ui.max_rect();
         app_bar(app, ui, Rect::from_min_size(r.min, vec2(r.width(), APP_BAR)), &mut out);
@@ -1098,25 +1200,47 @@ fn fit_panels(p: &egui::Painter, tab: &RibbonTab, available: f32) -> (Vec<bool>,
     (compacts, widths, small, collapsed)
 }
 
+/// The tabs the ribbon shows now: the standard ones, then the contextual tab the app's state
+/// calls for ([`context`]).
+fn shown_tabs(app: &CadApp) -> Vec<&'static RibbonTab> {
+    TABS.iter().chain(context::current(app)).collect()
+}
+
 /// The ribbon tab names and the minimize switch after them.
-fn ribbon_tabs(app: &mut CadApp, ui: &mut egui::Ui, area: Rect, active: usize) {
+fn ribbon_tabs(app: &mut CadApp, ui: &mut egui::Ui, area: Rect, tabs: &[&'static RibbonTab], active: usize) {
     let t = Tokens::get();
     let p = ui.painter().clone();
     let tabs_top = area.top();
     // Tabs.
     let mut tx = area.left() + 6.0;
-    for (i, tab) in TABS.iter().enumerate() {
+    for (i, tab) in tabs.iter().enumerate() {
         let name = crate::i18n::t(tab.name);
         let w = text_w(&p, name) + 22.0;
         let tr = Rect::from_min_size(pos2(tx, tabs_top + 2.0), vec2(w, TAB_ROW - 2.0));
         let resp = ui.interact(tr, ui.scope_id().with(("ribbon_tab", i)), Sense::click());
         let selected = i == active;
+        let contextual = context::is_contextual(tab.name);
+        if contextual {
+            // A contextual tab stands out in the accent colour, as on Windows.
+            p.rect_filled(tr, egui::CornerRadius { nw: 2, ne: 2, sw: 0, se: 0 }, t.accent.gamma_multiply(0.22));
+            p.hline(tr.x_range(), tr.top() + 1.0, Stroke::new(2.0, t.accent));
+        }
         if selected && !app.ui.ribbon_minimized {
             p.rect_filled(tr, egui::CornerRadius { nw: 2, ne: 2, sw: 0, se: 0 }, t.chrome);
+            if contextual {
+                p.hline(tr.x_range(), tr.top() + 1.0, Stroke::new(2.0, t.accent));
+            }
         } else if selected || resp.hovered() {
             p.rect_filled(tr, 2.0, t.control_hover.gamma_multiply(0.45));
         }
-        p.text(tr.center(), Align2::CENTER_CENTER, name, FontId::proportional(12.5), if selected || resp.hovered() { t.text } else { t.text_dim });
+        let color = if contextual {
+            t.accent
+        } else if selected || resp.hovered() {
+            t.text
+        } else {
+            t.text_dim
+        };
+        p.text(tr.center(), Align2::CENTER_CENTER, name, FontId::proportional(12.5), color);
         icons::describe_control(ui, &resp, tab.name, Some(selected), true);
         if resp.clicked() {
             if app.ui.ribbon_minimized {
@@ -1162,16 +1286,17 @@ fn ribbon(app: &mut CadApp, ui: &mut egui::Ui, area: Rect, out: &mut Out) {
     let p = ui.painter().clone();
     let tabs_top = area.top();
     let body_top = tabs_top + TAB_ROW;
-    let active = TABS.iter().position(|tab| tab.name == app.ui.ribbon_tab).unwrap_or(0);
+    let tabs = shown_tabs(app);
+    let active = tabs.iter().position(|tab| tab.name == app.ui.ribbon_tab).unwrap_or(0);
     if !app.ui.ribbon_minimized {
         p.rect_filled(Rect::from_min_max(pos2(area.left(), body_top), area.max), 0.0, t.chrome);
         p.hline(area.x_range(), area.bottom() - 0.5, Stroke::new(1.0, t.border));
     }
-    ribbon_tabs(app, ui, area, active);
+    ribbon_tabs(app, ui, area, &tabs, active);
     if app.ui.ribbon_minimized {
         return;
     }
-    let Some(tab) = TABS.get(active) else { return };
+    let Some(tab) = tabs.get(active).copied() else { return };
 
     let (compacts, widths, small, collapsed) = fit_panels(&p, tab, area.width() - 8.0);
     let body = Rect::from_min_max(pos2(area.left(), body_top + 2.0), pos2(area.right(), area.bottom() - 2.0));
@@ -1199,8 +1324,14 @@ fn ribbon(app: &mut CadApp, ui: &mut egui::Ui, area: Rect, out: &mut Out) {
             clip.text(pos2(br.center().x, br.top() + 50.0), Align2::CENTER_TOP, crate::i18n::t(panel.title), label_font(), t.text);
             arrow(&clip, pos2(br.center().x, br.top() + 72.0), t.text);
             icons::describe_control(ui, &resp, &panel_name(panel.title), None, false);
+            let mut tools = all_tools(panel);
+            let more = slide_out(tab.name, panel.title);
+            if !more.is_empty() {
+                tools.push(SEP);
+                tools.extend_from_slice(more);
+            }
             egui::Popup::menu(&resp).show(|ui| {
-                if let Some(c) = tool_menu(ui, &all_tools(panel)) {
+                if let Some(c) = tool_menu(ui, &tools) {
                     out.command = Some(c);
                 }
             });
@@ -1217,8 +1348,11 @@ fn ribbon(app: &mut CadApp, ui: &mut egui::Ui, area: Rect, out: &mut Out) {
         clip.text(pos2(title_r.center().x - 6.0, title_r.center().y), Align2::CENTER_CENTER, title, label_font(), t.text_dim);
         arrow(&clip, pos2(title_r.center().x - 6.0 + tw / 2.0 + 9.0, title_r.center().y), t.text_dim);
         icons::describe_control(ui, &tresp, &panel_name(panel.title), None, false);
+        // The title opens the panel's slide-out, or for a panel without one, its commands.
+        let more = slide_out(tab.name, panel.title);
         egui::Popup::menu(&tresp).show(|ui| {
-            if let Some(c) = tool_menu(ui, &all_tools(panel)) {
+            let tools = if more.is_empty() { all_tools(panel) } else { more.to_vec() };
+            if let Some(c) = tool_menu(ui, &tools) {
                 out.command = Some(c);
             }
         });
@@ -1567,12 +1701,20 @@ mod tests {
     #[test]
     fn every_ribbon_command_exists() {
         let mut missing = Vec::new();
-        for tab in TABS {
+        for tab in TABS.iter().chain(context::CONTEXT_TABS) {
             for panel in tab.panels {
                 for (_, cmd, _) in all_tools(panel) {
                     if !known(cmd) {
                         missing.push(format!("{}/{}: {cmd}", tab.name, panel.title));
                     }
+                }
+            }
+        }
+        for (tab, panel, tools) in SLIDE_OUTS {
+            assert!(TABS.iter().any(|t| t.name == *tab && t.panels.iter().any(|p| p.title == *panel)), "no panel {tab}/{panel}");
+            for (_, cmd, _) in tools.iter().filter(|t| t.1 != SEP.1) {
+                if !known(cmd) {
+                    missing.push(format!("{tab}/{panel} slide-out: {cmd}"));
                 }
             }
         }

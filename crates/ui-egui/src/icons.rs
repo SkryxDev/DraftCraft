@@ -23,6 +23,7 @@ pub enum Icon {
     Import,
     Export,
     Attach,
+    Pdf,
     Share,
     ZoomWindow,
     Pan,
@@ -159,6 +160,29 @@ pub enum Icon {
     ZoomFit,
     TextStyle,
     DimStyle,
+    Bold,
+    Italic,
+    Underline,
+    Overline,
+    AlignLeft,
+    AlignCenter,
+    AlignRight,
+    AlignJustify,
+    Bullets,
+    Numbering,
+    Symbol,
+    Adjust,
+    ClipFrame,
+    CloseTab,
+    DesignCenter,
+    ToolPalette,
+    SheetSet,
+    Transmit,
+    LayerWalk,
+    LayerTranslate,
+    GeoLocation,
+    PointCloud,
+    Customize,
 }
 
 struct Pen<'a> {
@@ -258,6 +282,7 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, dim: bool) {
     paint_display_toggles(&pen, icon, b, a, dim);
     paint_navigation_controls(&pen, icon, b, a, dim);
     paint_constraints(&pen, icon, b, a, dim);
+    paint_context_tools(&pen, icon, b, a);
 }
 
 fn paint_file_view(pen: &Pen<'_>, icon: Icon, b: Color32, a: Color32, dim: bool) {
@@ -340,6 +365,13 @@ fn paint_file_view(pen: &Pen<'_>, icon: Icon, b: Color32, a: Color32, dim: bool)
                 pen.p.line_segment([pen.at(9.0, 13.0), pen.at(17.0, 13.0)], thick);
                 pen.big_arrow(24.0, 13.0, 1.0, 0.0, 7.0, 5.0, a);
             }
+        }
+        Pdf => {
+            // A page with a folded corner and a band across it lettered PDF (our own drawing).
+            pen.poly(&[(5.0, 2.0), (14.0, 2.0), (19.0, 7.0), (19.0, 22.0), (5.0, 22.0)], true, b);
+            pen.poly(&[(14.0, 2.0), (14.0, 7.0), (19.0, 7.0)], false, b);
+            pen.rect(2.0, 11.0, 17.0, 7.0, a);
+            pen.text(10.5, 14.5, "PDF", 6.5, a);
         }
         Attach => {
             pen.rect(4.0, 5.0, 16.0, 14.0, b);
@@ -1210,4 +1242,137 @@ pub fn describe_control(ui: &egui::Ui, response: &egui::Response, label: &str, s
         ui.painter().rect_stroke(response.rect.shrink(2.0), 2.0, Stroke::new(1.0, Tokens::get().accent), egui::StrokeKind::Inside);
     }
     crate::control::record_widget(ui, response, label, if tab { "tab" } else { "button" }, selected);
+}
+
+/// The contextual ribbon tabs' tools: text formatting, image adjustment and clipping, and the
+/// green tick that closes a contextual tab (our own drawings).
+fn paint_context_tools(pen: &Pen<'_>, icon: Icon, b: Color32, a: Color32) {
+    use Icon::*;
+    let lines = |xs: [(f32, f32); 4]| {
+        for (i, (x0, x1)) in xs.iter().enumerate() {
+            let y = 5.0 + i as f32 * 4.6;
+            pen.l(*x0, y, *x1, y);
+        }
+    };
+    match icon {
+        Bold => pen.text(12.0, 12.0, "B", 19.0, b),
+        Italic => {
+            pen.p.line_segment([pen.at(14.0, 4.0), pen.at(10.0, 20.0)], Stroke::new(pen.w * 2.2, b));
+            pen.l(11.0, 4.0, 18.0, 4.0);
+            pen.l(7.0, 20.0, 14.0, 20.0);
+        }
+        Underline | Overline => {
+            pen.text(12.0, 11.5, "U", 16.0, b);
+            let y = if icon == Underline { 21.0 } else { 3.0 };
+            pen.p.line_segment([pen.at(6.0, y), pen.at(18.0, y)], Stroke::new(pen.w * 1.6, a));
+        }
+        AlignLeft => lines([(4.0, 20.0), (4.0, 14.0), (4.0, 20.0), (4.0, 12.0)]),
+        AlignCenter => lines([(4.0, 20.0), (7.0, 17.0), (4.0, 20.0), (8.0, 16.0)]),
+        AlignRight => lines([(4.0, 20.0), (10.0, 20.0), (4.0, 20.0), (12.0, 20.0)]),
+        AlignJustify => lines([(4.0, 20.0), (4.0, 20.0), (4.0, 20.0), (4.0, 20.0)]),
+        Bullets | Numbering => {
+            for i in 0..3 {
+                let y = 6.0 + i as f32 * 6.0;
+                if icon == Bullets {
+                    pen.fill_c(5.5, y, 1.6, a);
+                } else {
+                    pen.text(5.5, y, &(i + 1).to_string(), 7.0, a);
+                }
+                pen.l(10.0, y, 20.0, y);
+            }
+        }
+        Symbol => pen.text(12.0, 12.5, "@", 18.0, b),
+        Adjust => {
+            // Three sliders.
+            for (i, k) in [7.0, 15.0, 10.0].iter().enumerate() {
+                let y = 6.0 + i as f32 * 6.0;
+                pen.l(3.0, y, 21.0, y);
+                pen.fill_rect(k - 1.5, y - 2.5, 3.0, 5.0, a);
+            }
+        }
+        ClipFrame => {
+            pen.rect(3.0, 6.0, 14.0, 12.0, b);
+            pen.poly(&[(9.0, 3.0), (21.0, 3.0), (21.0, 13.0), (9.0, 13.0)], true, a);
+        }
+        CloseTab => {
+            let green = Color32::from_rgb(0x3c, 0xa0, 0x50);
+            pen.p.line_segment([pen.at(4.0, 13.0), pen.at(9.5, 18.5)], Stroke::new(pen.w * 2.6, green));
+            pen.p.line_segment([pen.at(9.5, 18.5), pen.at(20.0, 5.5)], Stroke::new(pen.w * 2.6, green));
+        }
+        _ => paint_manager_tools(pen, icon, b, a),
+    }
+}
+
+/// The palettes and managers: DesignCenter, Tool Palettes, Sheet Set Manager, eTransmit, layer
+/// walk and translate, geographic location, point clouds and customisation (our own
+/// drawings).
+fn paint_manager_tools(pen: &Pen<'_>, icon: Icon, b: Color32, a: Color32) {
+    use Icon::*;
+    match icon {
+        DesignCenter => {
+            // A folder tree beside a block.
+            pen.rect(3.0, 4.0, 7.0, 16.0, b);
+            pen.l(5.0, 8.0, 8.0, 8.0);
+            pen.l(5.0, 12.0, 8.0, 12.0);
+            pen.l(5.0, 16.0, 8.0, 16.0);
+            pen.rect(12.0, 7.0, 9.0, 9.0, a);
+            pen.l(12.0, 7.0, 21.0, 16.0);
+        }
+        ToolPalette => {
+            // A tall palette with three tools.
+            pen.rect(5.0, 3.0, 14.0, 18.0, b);
+            for i in 0..3 {
+                let y = 7.0 + i as f32 * 5.0;
+                pen.fill_rect(8.0, y - 1.5, 3.0, 3.0, a);
+                pen.l(13.0, y, 17.0, y);
+            }
+        }
+        SheetSet => {
+            // Three stacked sheets.
+            pen.rect(9.0, 3.0, 11.0, 14.0, b);
+            pen.rect(6.5, 5.5, 11.0, 14.0, b);
+            pen.rect(4.0, 8.0, 11.0, 13.0, a);
+        }
+        Transmit => {
+            // A package with an arrow out of it.
+            pen.rect(3.0, 10.0, 12.0, 10.0, b);
+            pen.l(3.0, 14.0, 15.0, 14.0);
+            pen.l(12.0, 8.0, 20.0, 3.0);
+            pen.poly(&[(15.0, 3.0), (20.0, 3.0), (20.0, 8.0)], false, a);
+        }
+        LayerWalk | LayerTranslate => {
+            // Two layer sheets, and an eye or an arrow between them.
+            pen.poly(&[(3.0, 8.0), (12.0, 4.0), (21.0, 8.0), (12.0, 12.0)], true, b);
+            pen.poly(&[(3.0, 15.0), (12.0, 11.0), (21.0, 15.0), (12.0, 19.0)], true, b);
+            if icon == LayerWalk {
+                pen.c(12.0, 20.0, 2.5, a);
+                pen.fill_c(12.0, 20.0, 1.0, a);
+            } else {
+                pen.l(17.0, 18.0, 22.0, 22.0);
+                pen.poly(&[(19.0, 22.0), (22.0, 22.0), (22.0, 19.0)], false, a);
+            }
+        }
+        GeoLocation => {
+            // A map pin over a globe line.
+            pen.c(12.0, 9.0, 5.0, a);
+            pen.fill_c(12.0, 9.0, 1.6, a);
+            pen.poly(&[(8.0, 12.0), (12.0, 20.0), (16.0, 12.0)], false, a);
+            pen.l(3.0, 20.0, 21.0, 20.0);
+        }
+        PointCloud => {
+            for (x, y) in
+                [(5.0, 8.0), (9.0, 5.0), (13.0, 9.0), (18.0, 6.0), (7.0, 14.0), (12.0, 15.0), (17.0, 13.0), (10.0, 19.0), (15.0, 19.0), (20.0, 17.0)]
+            {
+                pen.fill_c(x, y, 1.3, if (x as i32 + y as i32) % 3 == 0 { a } else { b });
+            }
+        }
+        Customize => {
+            // A wrench over a small window.
+            pen.rect(3.0, 4.0, 12.0, 10.0, b);
+            pen.l(3.0, 7.0, 15.0, 7.0);
+            pen.p.line_segment([pen.at(11.0, 20.0), pen.at(18.0, 13.0)], Stroke::new(pen.w * 2.4, a));
+            pen.c(19.0, 12.0, 2.6, a);
+        }
+        _ => {}
+    }
 }

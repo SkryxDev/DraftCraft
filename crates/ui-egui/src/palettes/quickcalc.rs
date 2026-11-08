@@ -251,27 +251,13 @@ impl State {
 /// Close only QuickCalc when present; otherwise restore it through the normal open path.
 /// Hiding the panel leaves its expression, history and variables intact.
 pub(crate) fn toggle(app: &mut CadApp) -> Result<Value, String> {
-    let panel = crate::docking::Panel::QuickCalc;
-    if app.ui.docking.layout.contains(&panel) {
-        crate::docking::command(app, false, &json!({ "operation": "close", "panel": panel.id() }))
-    } else {
-        open(app)
-    }
+    crate::docking::toggle_on_demand(app, crate::docking::Panel::QuickCalc, 300.0)
 }
 
 /// Open the palette. The first time it floats by the right edge of the drawing; afterwards it
 /// returns where it was closed.
 pub fn open(app: &mut CadApp) -> Result<Value, String> {
-    let panel = crate::docking::Panel::QuickCalc;
-    let first = !app.ui.docking.layout.contains(&panel) && !app.ui.docking.hidden.iter().any(|(p, _)| *p == panel);
-    let r = crate::docking::command(app, false, &json!({ "operation": "open", "panel": panel.id() }))?;
-    if !first {
-        return Ok(r);
-    }
-    let area = app.canvas.rect.unwrap_or(egui::Rect::from_min_size(egui::pos2(220.0, 80.0), vec2(1000.0, 800.0)));
-    let (w, h) = (300.0, (area.height() - 40.0).clamp(200.0, 560.0));
-    let rect = [area.right() - w - 16.0, area.top() + 24.0, w, h];
-    crate::docking::command(app, false, &json!({ "operation": "float", "panel": panel.id(), "rect": rect }))
+    crate::docking::open_on_demand(app, crate::docking::Panel::QuickCalc, 300.0)
 }
 
 /// The unit-conversion value row. The visible "Value" label names the numeric field (its

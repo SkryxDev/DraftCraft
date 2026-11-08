@@ -139,7 +139,7 @@ fn bad_input_is_refused_and_changes_nothing() {
         assert!(s.execute("imageattach", &p).is_err(), "{p}");
     }
     assert!(images(&s).is_empty());
-    assert!(s.execute("attach", &json!({ "path": "plan.pdf" })).unwrap_err().to_string().contains("not available yet"));
+    assert!(s.execute("attach", &json!({ "path": "plan.dwf" })).unwrap_err().to_string().contains("not available yet"));
     assert_eq!(listed(&mut s), json!([]));
 }
 

@@ -20,7 +20,9 @@ thiserror = { workspace = true }
 serde_json = { workspace = true }
 serde = { workspace = true }
 miniz_oxide = "0.9"
-craft-pdf = { workspace = true, features = ["write"] }
+craft-pdf = { workspace = true, features = ["write", "raster"] }
+# PDF paths as the PDF reader hands them over (PDFIMPORT); the version craft-pdf's reader uses.
+kurbo = "0.13"
 quick-xml = { workspace = true }
 image = { workspace = true }
 

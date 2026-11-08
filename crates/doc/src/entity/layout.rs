@@ -119,6 +119,83 @@ pub struct Image {
     pub pixel_size: Vec2,
     #[serde(default)]
     pub resolution_units: u8,
+    /// Set when this is an underlay (a page of a PDF file, PDFUNDERLAY) instead of a raster image.
+    /// An underlay's "pixels" are the page's PDF points (1/72 inch): `size` is the page in points
+    /// and `u`/`v` one point in drawing units, so the page draws at any resolution it is rendered at.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub underlay: Option<Underlay>,
+}
+
+/// The file type of an underlay.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum UnderlayKind {
+    #[default]
+    Pdf,
+}
+
+impl UnderlayKind {
+    /// The DXF type of the reference entity and of its definition object.
+    pub fn dxf_names(self) -> (&'static str, &'static str) {
+        match self {
+            UnderlayKind::Pdf => ("PDFUNDERLAY", "PDFDEFINITION"),
+        }
+    }
+}
+
+/// What makes an [`Image`] an underlay: the file type and the page shown.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Underlay {
+    pub kind: UnderlayKind,
+    /// The page: its number, counted from 1, as text (the definition's group 2).
+    pub page: String,
+    /// Shown in one colour (the reference's flag 4).
+    #[serde(default)]
+    pub monochrome: bool,
+    /// Colours adjusted for the background (the reference's flag 8).
+    #[serde(default)]
+    pub adjust_for_background: bool,
+    /// The clip boundary as the file has it (inches from the insertion point, y up, before scale
+    /// and rotation), written back as read. [`Image::clip`] shows it once the page size is known.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub clip: Vec<Vec2>,
+}
+
+impl Underlay {
+    /// The contrast and fade (percent) a new underlay starts with.
+    pub const DEFAULT_CONTRAST: u8 = 20;
+    pub const DEFAULT_FADE: u8 = 25;
+
+    /// The page index counted from 0, when the page names a number.
+    pub fn page_index(&self) -> Option<usize> {
+        self.page.trim().parse::<usize>().ok().and_then(|n| n.checked_sub(1))
+    }
+}
+
+/// PDF points per inch: an underlay's page is measured in points, its reference scale in drawing
+/// units per inch.
+pub const POINTS_PER_INCH: f64 = 72.0;
+
+impl Image {
+    /// An underlay's clip boundary ([`Underlay::clip`]) as image pixel coordinates (points from
+    /// the top-left pixel centre, y down), once the page size is known; empty otherwise.
+    pub fn underlay_display_clip(&self) -> Vec<Vec2> {
+        let Some(u) = &self.underlay else { return Vec::new() };
+        if u.clip.len() < 2 || self.size.y <= 0.0 {
+            return Vec::new();
+        }
+        u.clip.iter().map(|q| Vec2::new(q.x * POINTS_PER_INCH - 0.5, self.size.y - q.y * POINTS_PER_INCH - 0.5)).collect()
+    }
+
+    /// The key of this image's pixels in [`crate::Drawing::rasters`]: the file, and for an
+    /// underlay the page too.
+    pub fn raster_key(&self) -> String {
+        match &self.underlay {
+            Some(u) => format!("{}#page={}", self.path, u.page.trim()),
+            None => self.path.clone(),
+        }
+    }
 }
 
 fn image_display() -> u16 {
@@ -150,6 +227,7 @@ impl Default for Image {
             fade: 0,
             pixel_size: image_pixel(),
             resolution_units: 0,
+            underlay: None,
         }
     }
 }

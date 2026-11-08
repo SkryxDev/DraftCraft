@@ -91,12 +91,67 @@ fn color32(c: MTextColor) -> Color32 {
     Color32::from_rgb(rgb.0, rgb.1, rgb.2)
 }
 
+/// The Text Editor ribbon tab's buttons (`ui.mtext.<action>`), applied on the editor's next frame.
+pub(crate) const ACTIONS: &[&str] = &[
+    "bold",
+    "italic",
+    "underline",
+    "overline",
+    "left",
+    "center",
+    "right",
+    "justify",
+    "bullets",
+    "numbers",
+    "degree",
+    "plusminus",
+    "diameter",
+    "tab",
+    "ok",
+    "cancel",
+];
+
+/// Whether the editor is open: MTEXT is collecting its text.
+pub(crate) fn is_open(app: &CadApp) -> bool {
+    app.session.editing_mtext().is_some() && app.session.current_prompt().is_some_and(|p| p.accept.text && !p.accept.point)
+}
+
+/// Apply a Text Editor ribbon button to the editor's selection (or the next typed text).
+/// `Some` when it ends the editor.
+fn ribbon_action(st: &mut State, action: &str, base_h: f64) -> Option<Done> {
+    let range = st.sel.0.min(st.sel.1)..st.sel.0.max(st.sel.1);
+    let align = |st: &mut State, al: ParaAlign| {
+        let on = st.fmt.para(st.fmt.paragraph_of(range.start)).align == al;
+        st.fmt.edit_paras(range.clone(), |p| p.align = if on { ParaAlign::Default } else { al });
+    };
+    match action {
+        "bold" => toggle(st, Flag::Bold),
+        "italic" => toggle(st, Flag::Italic),
+        "underline" => toggle(st, Flag::Underline),
+        "overline" => toggle(st, Flag::Overline),
+        "left" => align(st, ParaAlign::Left),
+        "center" => align(st, ParaAlign::Center),
+        "right" => align(st, ParaAlign::Right),
+        "justify" => align(st, ParaAlign::Justify),
+        "bullets" => st.fmt.make_list(range.clone(), ListStyle::Bullet, 3.0 * base_h),
+        "numbers" => st.fmt.make_list(range.clone(), ListStyle::Number, 3.0 * base_h),
+        "degree" => insert(st, "°"),
+        "plusminus" => insert(st, "±"),
+        "diameter" => insert(st, "⌀"),
+        "tab" => insert(st, "\t"),
+        "ok" => return Some(Done::Ok),
+        "cancel" => return Some(Done::Cancel),
+        _ => {}
+    }
+    None
+}
+
 /// Show the editor while MTEXT collects its text; clears its state when it isn't running.
 pub fn show(app: &mut CadApp, ctx: &egui::Context) {
     let mtext = app.session.editing_mtext();
-    let asking = app.session.current_prompt().is_some_and(|p| p.accept.text && !p.accept.point);
-    let (Some(mt), true) = (mtext, asking) else {
+    let (Some(mt), true) = (mtext, is_open(app)) else {
         ctx.data_mut(|d| d.remove::<State>(state_id()));
+        app.ribbon_context.text_action = None;
         return;
     };
     let t = Tokens::get();
@@ -124,6 +179,12 @@ pub fn show(app: &mut CadApp, ctx: &egui::Context) {
     let pos = pos2(at.x.clamp(rect.left(), max_x), at.y.clamp(rect.top() + st.top, (rect.bottom() - 120.0).max(rect.top() + st.top)));
 
     let mut done = Done::No;
+    if let Some(action) = app.ribbon_context.text_action.take() {
+        if let Some(d) = ribbon_action(&mut st, action, base_h) {
+            done = d;
+        }
+        ctx.memory_mut(|m| m.request_focus(edit_id()));
+    }
     let top_start = pos.y - st.top;
     egui::Area::new(egui::Id::unique("mtext_editor_area")).order(egui::Order::Foreground).fixed_pos(pos2(pos.x, top_start)).show(ctx, |ui| {
         egui::Frame::NONE.fill(t.panel).stroke(Stroke::new(1.0, t.accent)).inner_margin(egui::Margin::same(0)).show(ui, |ui| {
@@ -146,7 +207,9 @@ pub fn show(app: &mut CadApp, ctx: &egui::Context) {
             });
         });
     });
-    if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+    if done != Done::No {
+        // A ribbon button ended the editor.
+    } else if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
         done = Done::Cancel;
     } else if ctx.input(|i| i.modifiers.command && i.key_pressed(egui::Key::Enter)) {
         done = Done::Ok;

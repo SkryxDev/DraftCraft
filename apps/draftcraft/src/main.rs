@@ -147,6 +147,11 @@ pub fn install_io() {
         plot: Some(|d, space, opts| draftcraft_io::plotter::plot(d, space, opts).map_err(|e| e.to_string())),
     });
     draftcraft_engine::cmd::file::set_image_decoder(|b| draftcraft_io::raster::decode(b).map_err(|e| e.to_string()));
+    draftcraft_engine::cmd::file::set_pdf_hooks(draftcraft_engine::cmd::file::PdfHooks {
+        pages: |b| draftcraft_io::pdf_read::pages(b).map_err(|e| e.to_string()),
+        rasterize: |b, page, dpi| draftcraft_io::pdf_read::rasterize(b, page, dpi).map_err(|e| e.to_string()),
+        import: draftcraft_io::pdf_read::import_flat,
+    });
     draftcraft_engine::cmd::file::set_write_as(|d, name, o| {
         draftcraft_io::write_with(d, name, &draftcraft_io::SaveOptions { version: o.version, binary: o.binary }).map_err(|e| e.to_string())
     });
@@ -180,6 +185,13 @@ fn services() -> Services {
             let dialog = if dir.is_empty() { dialog } else { dialog.set_directory(dir) };
             dialog.pick_file().map(|p| p.to_string_lossy().to_string())
         })),
+        pick_file: Some(Box::new(|label: &str, exts: &[&str]| {
+            rfd::FileDialog::new()
+                .add_filter(i18n::t(label), exts)
+                .add_filter(i18n::t("All files"), &["*"])
+                .pick_file()
+                .map(|p| p.to_string_lossy().to_string())
+        })),
         no_file_system: false,
     }
 }
@@ -188,9 +200,16 @@ fn services() -> Services {
 /// filter's extension, and macOS accepts only listed extensions, replacing any other with the
 /// first one. DWG must be listed for a `.dwg` name to survive, and a drawing opened from DWG
 /// then defaults to DWG; other names keep DXF first.
-fn filters_for_save(name: &str) -> [(&'static str, &'static str); 6] {
-    let mut filters =
-        [("Drawing (DXF)", "dxf"), ("Drawing (DWG)", "dwg"), ("Drawing Template (DWT)", "dwt"), ("SVG", "svg"), ("PNG", "png"), ("PDF", "pdf")];
+fn filters_for_save(name: &str) -> [(&'static str, &'static str); 7] {
+    let mut filters = [
+        ("Drawing (DXF)", "dxf"),
+        ("Drawing (DWG)", "dwg"),
+        ("Drawing Template (DWT)", "dwt"),
+        ("SVG", "svg"),
+        ("PNG", "png"),
+        ("PDF", "pdf"),
+        ("Sheet Set (DCSS)", "dcss"),
+    ];
     let lower = name.to_ascii_lowercase();
     filters.sort_by_key(|(_, ext)| !lower.ends_with(&format!(".{ext}")));
     filters
@@ -503,6 +522,7 @@ mod tests {
         assert_eq!(first("Drawing1"), "dxf");
         assert_eq!(first("plan.pdf"), "pdf");
         assert_eq!(first("office.dwt"), "dwt");
+        assert_eq!(first("Project.dcss"), "dcss");
         for name in ["a.dwg", "b.dxf", "c"] {
             let exts: Vec<_> = filters_for_save(name).iter().map(|(_, e)| *e).collect();
             assert!(exts.contains(&"dwg") && exts.contains(&"dxf"), "{name}");

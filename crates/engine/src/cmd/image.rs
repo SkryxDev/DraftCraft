@@ -29,12 +29,15 @@ const MAX_PATH: usize = 4096;
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![
-        CommandSpec::new("imageattach", "Raster Image Reference...", run_imageattach).alias(&["iat"]).params(
-            "{path: PNG/JPEG/BMP/TIFF file (saved as given; a relative path is relative to this drawing's folder), data?: base64 file contents \
+        CommandSpec::new("imageattach", "Raster Image Reference...", run_imageattach)
+            .alias(&["iat"])
+            .menu(&["Insert", "Raster Image Reference..."])
+            .params(
+                "{path: PNG/JPEG/BMP/TIFF file (saved as given; a relative path is relative to this drawing's folder), data?: base64 file contents \
              (instead of reading `path`), at?: [x,y] lower-left corner (default 0,0), scale?: number (default 1: the image is one drawing unit \
              wide), width?: width in drawing units (instead of `scale`), rotation? (degrees), name? (default: the file name)} → {name, handle, \
              path, pixels: [w, h], size: [w, h]}",
-        ),
+            ),
         CommandSpec::new("image", "Raster Images", run_image)
             .alias(&["im"])
             .params("{} → {images: [{name, path, foundAt, status: Loaded|Not Found|Not loaded, references, pixels?: [w, h]}]}")
@@ -53,7 +56,8 @@ fn images(d: &Drawing) -> impl Iterator<Item = &Image> {
     let layouts = d.layouts.iter().map(|l| &l.entities);
     let blocks = d.blocks.values().map(|b| &b.entities);
     model.chain(layouts).chain(blocks).flat_map(|store| store.iter()).filter_map(|e| match &e.kind {
-        EntityKind::Image(i) => Some(i),
+        // Underlays are PDF pages (`super::underlay`).
+        EntityKind::Image(i) if i.underlay.is_none() => Some(i),
         _ => None,
     })
 }
@@ -71,7 +75,7 @@ fn paths(d: &Drawing) -> Vec<String> {
 }
 
 /// The contents of the image file saved as `path` in a drawing at `host`.
-fn read_file(path: &str, host: Option<&str>) -> std::result::Result<Vec<u8>, String> {
+pub(crate) fn read_file(path: &str, host: Option<&str>) -> std::result::Result<Vec<u8>, String> {
     #[cfg(not(target_arch = "wasm32"))]
     {
         let file = super::blocks::xref::find_file(path, host).ok_or("file not found")?;
