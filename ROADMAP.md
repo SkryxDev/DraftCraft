@@ -1,6 +1,6 @@
 # DraftCraft roadmap
 
-DraftCraft **2.0.1** is out for macOS (Apple silicon), Windows (x64 and ARM64) and Linux (x64 AppImage). It is a
+DraftCraft **2.0.2** is out for macOS (Apple silicon), Windows (x64 and ARM64) and Linux (x64 AppImage). It is a
 young project: good for 2D drafting, dimensioning and plotting, and still missing parts of what a full
 CAD suite does. This page says what works today, what is known to be missing and what comes next.
 
