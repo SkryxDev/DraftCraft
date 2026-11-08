@@ -34,6 +34,16 @@ newest. The workflow creates the GitHub Release `DraftCraft v<version>` with the
 made on a macOS 26 runner, whose Xcode compiles the app icon. The workflow can also be started by hand
 (**Actions › Release › Run workflow**) for an existing tag.
 
+### In-app updates depend on these names
+
+From 2.0.2, **Update Now** in the app's update window downloads the new release and installs it
+([`crates/ui-egui/src/self_update.rs`](../crates/ui-egui/src/self_update.rs)): `DraftCraft.app` from
+`draftcraft-macos-arm64.dmg`, a Windows folder from `draftcraft-windows-{x64,arm64}.zip` (whose top
+folder is `DraftCraft/`), the AppImage from `draftcraft-linux-x86_64.AppImage`. Each file is checked
+against `SHA256SUMS.txt`, and the DMG's app must have the bundle id `dev.skryx.draftcraft` and the
+release's version. Keep those names, that folder and `SHA256SUMS.txt`, or installed copies can no
+longer update themselves (they then offer the release page instead).
+
 ## 3. A macOS build on your own Mac
 
 The release doesn't need it, but the same script makes the DMG locally (Apple-silicon Mac with Xcode):

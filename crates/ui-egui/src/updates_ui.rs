@@ -1,17 +1,22 @@
 //! The update check (desktop only; the web build is always the latest). Once at startup, and again
 //! from Help ▸ Check for Updates…, a background thread asks GitHub for the newest release of
 //! DraftCraft (`SkryxDev/DraftCraft`). When it is newer than this build, a window offers it:
-//! Download opens the release page, Later closes the window until the next start, and Skip This
-//! Version stops the startup check offering that version. Nothing is downloaded or installed here.
+//! Update Now downloads and installs it and offers to restart ([`crate::self_update`], when this
+//! copy can replace itself), Download opens the release page, Later closes the window until the
+//! next start, and Skip This Version stops the startup check offering that version.
 //! The asking and comparing are `craft_update::check_for_update`; `DRAFTCRAFT_PRETEND_VERSION`
 //! makes this build count as another version (to try the prompt).
 
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
+
+use craft_update::http::Stop;
 
 use egui::{RichText, vec2};
 
 use crate::CadApp;
+use crate::self_update::{self, Install, Progress};
 use crate::theme::Tokens;
 
 /// The version this build reports to the update check.
@@ -32,6 +37,38 @@ pub struct Offer {
     pub url: String,
     /// Its release notes (Markdown, capped).
     pub notes: String,
+    /// The release as GitHub described it (its files), for Update Now; `None` in tests.
+    pub release: Option<craft_update::Release>,
+}
+
+/// What Update Now is doing.
+#[derive(Default)]
+enum Job {
+    #[default]
+    Idle,
+    /// Downloading or installing `version` on its own thread.
+    Working { version: String, progress: Option<Progress>, stop: Arc<Stop>, rx: Receiver<Msg> },
+    /// `version` is in place; `program` starts it.
+    Installed { version: String, program: PathBuf },
+    /// The update failed; the release page is offered instead.
+    Failed { message: String, url: String },
+}
+
+/// What the update thread reports.
+enum Msg {
+    Progress(Progress),
+    Done(Result<PathBuf, String>),
+}
+
+/// After Restart Now: whether the quit is waiting on the unsaved-changes prompt.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum Restart {
+    #[default]
+    No,
+    /// The window was asked to close.
+    Asked,
+    /// The unsaved-changes prompt is open.
+    Prompted,
 }
 
 /// Where a check gets the newest release (tests stand in for GitHub with one).
@@ -56,6 +93,10 @@ pub struct Runtime {
     /// The version Skip This Version skipped.
     skipped: Option<String>,
     source: Option<Source>,
+    /// How this copy can replace itself, looked up when a release is offered.
+    install: Option<Option<Install>>,
+    job: Job,
+    restart: Restart,
 }
 
 impl CadApp {
@@ -80,7 +121,12 @@ pub fn check_now(app: &mut CadApp) {
 fn from_github() -> Result<Option<Offer>, String> {
     let http = craft_update::Http::new(&format!("DraftCraft/{VERSION}"))?;
     let release = craft_update::check_for_update(&crate::UPDATE_APP, &http, VERSION)?;
-    Ok(release.map(|r| Offer { version: r.version_label(), url: r.html_url, notes: r.notes.chars().take(NOTES_MAX).collect() }))
+    Ok(release.map(|r| Offer {
+        version: r.version_label(),
+        url: r.html_url.clone(),
+        notes: r.notes.chars().take(NOTES_MAX).collect(),
+        release: Some(r),
+    }))
 }
 
 /// The version this build counts as: [`VERSION`], or `DRAFTCRAFT_PRETEND_VERSION` when it is set
@@ -170,6 +216,7 @@ fn tick(app: &mut CadApp, ctx: &egui::Context) {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Choice {
     None,
+    UpdateNow,
     Download,
     Later,
     Skip,
@@ -178,8 +225,14 @@ enum Choice {
 /// Run the checks, and draw the update window while there is something to say.
 pub fn show(app: &mut CadApp, ctx: &egui::Context) {
     tick(app, ctx);
+    job_tick(app, ctx);
     if let Some(offer) = app.updates_rt.offer.clone() {
-        match offer_window(ctx, &offer) {
+        let can_update = offer.release.is_some() && app.updates_rt.install.get_or_insert_with(self_update::detect).is_some();
+        match offer_window(ctx, &offer, can_update) {
+            Choice::UpdateNow => {
+                app.updates_rt.offer = None;
+                start_update(app, ctx, &offer);
+            }
             Choice::Download => {
                 ctx.open_url(egui::OpenUrl::new_tab(&offer.url));
                 app.updates_rt.offer = None;
@@ -213,7 +266,168 @@ pub fn show(app: &mut CadApp, ctx: &egui::Context) {
     }
 }
 
-fn offer_window(ctx: &egui::Context, offer: &Offer) -> Choice {
+/// Update Now: download and install `offer` on its own thread.
+fn start_update(app: &mut CadApp, ctx: &egui::Context, offer: &Offer) {
+    let fail = |message: String| Job::Failed { message, url: offer.url.clone() };
+    let (Some(release), Some(Some(install))) = (offer.release.clone(), app.updates_rt.install.clone()) else {
+        app.updates_rt.job = fail(crate::tl!("This copy of DraftCraft can't update itself.").to_string());
+        return;
+    };
+    let stop = Arc::new(Stop::default());
+    let (tx, rx) = channel();
+    let (thread_stop, ctx2) = (Arc::clone(&stop), ctx.clone());
+    let spawned = std::thread::Builder::new().name("self-update".into()).spawn(move || {
+        let progress_tx = tx.clone();
+        let progress_ctx = ctx2.clone();
+        let result = self_update::install(&release, &install, &thread_stop, &mut |p| {
+            let _ = progress_tx.send(Msg::Progress(p));
+            progress_ctx.request_repaint();
+        });
+        let _ = tx.send(Msg::Done(result));
+        ctx2.request_repaint();
+    });
+    app.updates_rt.job = match spawned {
+        Ok(_) => Job::Working { version: offer.version.clone(), progress: None, stop, rx },
+        Err(e) => fail(format!("the update could not start: {e}")),
+    };
+}
+
+/// Collect the update thread's reports, follow a restart through the unsaved-changes prompt, and
+/// draw the update's window.
+fn job_tick(app: &mut CadApp, ctx: &egui::Context) {
+    if let Job::Working { version, progress, rx, .. } = &mut app.updates_rt.job {
+        let mut done = None;
+        loop {
+            match rx.try_recv() {
+                Ok(Msg::Progress(p)) => *progress = Some(p),
+                Ok(Msg::Done(result)) => {
+                    done = Some(result);
+                    break;
+                }
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => {
+                    done = Some(Err("the update stopped".to_string()));
+                    break;
+                }
+            }
+        }
+        if let Some(result) = done {
+            let version = version.clone();
+            app.updates_rt.job = match result {
+                Ok(program) => Job::Installed { version, program },
+                Err(e) => {
+                    log::warn!("update to DraftCraft {version} failed: {e}");
+                    let url = format!("https://github.com/{}/releases/tag/v{version}", crate::UPDATE_APP.repo);
+                    Job::Failed { message: e, url }
+                }
+            };
+        }
+    }
+    // A restart that waits on the unsaved-changes prompt: cancelling it keeps this copy open, and
+    // the new version then starts next time instead.
+    match app.updates_rt.restart {
+        Restart::Asked if app.closing.is_some() => app.updates_rt.restart = Restart::Prompted,
+        Restart::Prompted if app.closing.is_none() && !app.quit_confirmed => {
+            self_update::relaunch_after_exit(None);
+            app.updates_rt.restart = Restart::No;
+        }
+        _ => {}
+    }
+    job_window(app, ctx);
+}
+
+fn job_window(app: &mut CadApp, ctx: &egui::Context) {
+    let t = Tokens::get();
+    let (mut close, mut cancel, mut restart, mut download) = (false, false, None, None);
+    let title = match &app.updates_rt.job {
+        Job::Idle => return,
+        Job::Working { .. } | Job::Installed { .. } => crate::tl!("Updating DraftCraft"),
+        Job::Failed { .. } => crate::tl!("Update Failed"),
+    };
+    egui::Window::new(title)
+        .id(egui::Id::unique("rd_update_job"))
+        .collapsible(false)
+        .resizable(false)
+        .anchor(egui::Align2::CENTER_TOP, vec2(0.0, 120.0))
+        .show(ctx, |ui| {
+            ui.set_width(380.0);
+            match &app.updates_rt.job {
+                Job::Idle => {}
+                Job::Working { version, progress, .. } => {
+                    ui.label(RichText::new(crate::tf!("Installing DraftCraft {version}", version = version)).strong());
+                    ui.add_space(4.0);
+                    let (fraction, text) = match progress {
+                        Some(Progress::Downloading { done, total }) | Some(Progress::Reconnecting { done, total }) => {
+                            let fraction = if *total == 0 { 0.0 } else { (*done as f64 / *total as f64).clamp(0.0, 1.0) as f32 };
+                            let text = crate::tf!("Downloading: {done} of {total} MB", done = mb(*done), total = mb(*total));
+                            (fraction, text)
+                        }
+                        Some(Progress::Installing) => (1.0, crate::tl!("Installing…").to_string()),
+                        None => (0.0, crate::tl!("Starting the download…").to_string()),
+                    };
+                    ui.add(egui::ProgressBar::new(fraction).text(text));
+                    if matches!(progress, Some(Progress::Reconnecting { .. })) {
+                        ui.label(RichText::new(crate::tl!("The connection dropped; trying again…")).color(t.text_dim));
+                    }
+                    ui.add_space(6.0);
+                    ui.allocate_ui_with_layout(vec2(ui.available_width(), 0.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let installing = matches!(progress, Some(Progress::Installing));
+                        cancel = ui.add_enabled(!installing, egui::Button::new(crate::tl!("Cancel"))).clicked();
+                    });
+                }
+                Job::Installed { version, program } => {
+                    ui.label(RichText::new(crate::tf!("DraftCraft {version} is installed.", version = version)).strong());
+                    ui.label(
+                        RichText::new(crate::tl!("Restart DraftCraft to use it. If you restart later, it opens the next time you start DraftCraft."))
+                            .color(t.text_dim),
+                    );
+                    ui.add_space(6.0);
+                    ui.allocate_ui_with_layout(vec2(ui.available_width(), 0.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.add(egui::Button::new(RichText::new(crate::tl!("Restart Now")).strong())).clicked() {
+                            restart = Some(program.clone());
+                        }
+                        close = ui.button(crate::tl!("Later")).clicked();
+                    });
+                }
+                Job::Failed { message, url } => {
+                    ui.label(crate::tl!("The update could not be installed."));
+                    ui.label(RichText::new(message).color(t.text_dim));
+                    ui.add_space(4.0);
+                    ui.label(crate::tl!("You can download it from the release page instead."));
+                    ui.add_space(6.0);
+                    ui.allocate_ui_with_layout(vec2(ui.available_width(), 0.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.button(crate::tl!("Download")).clicked() {
+                            download = Some(url.clone());
+                        }
+                        close = ui.button(crate::tl!("Close")).clicked();
+                    });
+                }
+            }
+        });
+    if cancel && let Job::Working { stop, .. } = &app.updates_rt.job {
+        stop.cancel();
+    }
+    if let Some(url) = download {
+        ctx.open_url(egui::OpenUrl::new_tab(&url));
+        close = true;
+    }
+    if let Some(program) = restart {
+        self_update::relaunch_after_exit(Some(program));
+        app.updates_rt.restart = Restart::Asked;
+        app.updates_rt.job = Job::Idle;
+        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+    }
+    if close {
+        app.updates_rt.job = Job::Idle;
+    }
+}
+
+/// Bytes as megabytes, one decimal.
+fn mb(bytes: u64) -> String {
+    format!("{:.1}", bytes as f64 / (1024.0 * 1024.0))
+}
+
+fn offer_window(ctx: &egui::Context, offer: &Offer, can_update: bool) -> Choice {
     let t = Tokens::get();
     let mut choice = Choice::None;
     egui::Window::new(crate::tl!("Update Available"))
@@ -226,7 +440,11 @@ fn offer_window(ctx: &egui::Context, offer: &Offer) -> Choice {
             ui.label(RichText::new(crate::tf!("DraftCraft {version} is available.", version = offer.version)).strong().size(15.0));
             ui.label(RichText::new(crate::tf!("You have version {version}.", version = running_version())).color(t.text_dim));
             ui.add_space(4.0);
-            ui.label(crate::tl!("Do you want to download the update?"));
+            ui.label(if can_update {
+                crate::tl!("Do you want to install the update now?")
+            } else {
+                crate::tl!("Do you want to download the update?")
+            });
             if !offer.notes.trim().is_empty() {
                 ui.add_space(4.0);
                 ui.collapsing(crate::tl!("What's new"), |ui| {
@@ -237,7 +455,14 @@ fn offer_window(ctx: &egui::Context, offer: &Offer) -> Choice {
             }
             ui.add_space(6.0);
             ui.allocate_ui_with_layout(vec2(ui.available_width(), 0.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button(crate::tl!("Download")).clicked() {
+                if can_update {
+                    if ui.add(egui::Button::new(RichText::new(crate::tl!("Update Now")).strong())).clicked() {
+                        choice = Choice::UpdateNow;
+                    }
+                    if ui.button(crate::tl!("Download")).on_hover_text(crate::tl!("Open the release page")).clicked() {
+                        choice = Choice::Download;
+                    }
+                } else if ui.button(crate::tl!("Download")).clicked() {
                     choice = Choice::Download;
                 }
                 if ui.button(crate::tl!("Later")).clicked() {
@@ -256,7 +481,12 @@ mod tests {
     use super::*;
 
     fn offer(v: &str) -> Offer {
-        Offer { version: v.into(), url: format!("https://github.com/SkryxDev/DraftCraft/releases/tag/v{v}"), notes: "Conic arcs".into() }
+        Offer {
+            version: v.into(),
+            url: format!("https://github.com/SkryxDev/DraftCraft/releases/tag/v{v}"),
+            notes: "Conic arcs".into(),
+            release: None,
+        }
     }
 
     fn app_with(answer: Result<Option<Offer>, String>) -> CadApp {
