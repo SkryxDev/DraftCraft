@@ -20,6 +20,7 @@ mod drafting_spacing;
 #[cfg(not(target_arch = "wasm32"))]
 mod dwg_header_vars;
 mod dwg_layout_owner;
+mod dwg_native_read;
 #[cfg(not(target_arch = "wasm32"))]
 mod dwg_roundtrip_losses;
 mod dwt_template;

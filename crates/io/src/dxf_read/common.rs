@@ -38,7 +38,7 @@ impl T<'_> {
 
 /// An entity's group 440: `0x01` in the top byte is ByBlock, `0x02` a fixed alpha (mapped to a
 /// percentage as for layers), anything else ByLayer.
-fn transparency_440(v: i64) -> Transparency {
+pub(crate) fn transparency_440(v: i64) -> Transparency {
     match (v >> 24) & 0xff {
         1 => Transparency::ByBlock,
         2 => {
@@ -109,6 +109,6 @@ pub(super) fn ocs(c: &Common, p: Vec3) -> Vec3 {
     ocs_n(c.extrusion, p)
 }
 
-pub(super) fn ocs_n(n: Vec3, p: Vec3) -> Vec3 {
+pub(crate) fn ocs_n(n: Vec3, p: Vec3) -> Vec3 {
     if (n.z - 1.0).abs() < 1e-12 && n.x.abs() < 1e-12 && n.y.abs() < 1e-12 { p } else { draftcraft_geom::Mat4::ocs(n).apply(p) }
 }
