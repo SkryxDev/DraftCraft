@@ -71,17 +71,23 @@ fn annotative(tags: &[Tag]) -> bool {
 /// family of the style's `ACAD` xdata (`1000` typeface) when it has no font file (how AutoCAD
 /// stores TrueType styles); otherwise the file.
 fn style_font(tags: &[Tag], file: String) -> String {
-    if file.trim().is_empty()
-        && let Some(face) =
-            crate::dxf_ext::xdata(tags, "ACAD").iter().find(|t| t.code == 1000).map(|t| t.str().trim().to_string()).filter(|f| !f.is_empty())
-    {
-        return face;
-    }
+    let face = crate::dxf_ext::xdata(tags, "ACAD").iter().find(|t| t.code == 1000).map(|t| t.str().trim().to_string());
     let x = crate::dxf_ext::xdata(tags, crate::dxf_ext::APP);
     let own = x.windows(2).find_map(|w| match w {
         [m, n] if m.code == 1000 && m.str() == "FONT" && n.code == 1000 => Some(n.str()),
         _ => None,
     });
+    style_font_of(file, face, own)
+}
+
+/// [`style_font`] from its parts: the font file, the first string of the style's `ACAD` xdata
+/// (the TrueType typeface) and the font name of its `DRAFTCRAFT` xdata. The DWG reader uses it too.
+pub(crate) fn style_font_of(file: String, acad_face: Option<String>, own: Option<String>) -> String {
+    if file.trim().is_empty()
+        && let Some(face) = acad_face.filter(|f| !f.is_empty())
+    {
+        return face;
+    }
     let stem = file.trim().to_ascii_lowercase();
     let base = stem.rsplit(['/', '\\']).next().unwrap_or_default();
     match own {
