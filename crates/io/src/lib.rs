@@ -62,11 +62,11 @@ pub enum IoError {
 
 pub type Result<T> = std::result::Result<T, IoError>;
 
-/// How a program runs the DWG reader and writer in a child process (`draftcraft_dwg::worker`).
+/// How a program runs the DWG reader and writer in a child process (`draftcraft_dwg::acadrust::worker`).
 pub mod dwg_worker {
-    pub use draftcraft_dwg::{WORKER_ARG, serve_if_asked, use_own_worker};
+    pub use draftcraft_dwg::acadrust::{WORKER_ARG, serve_if_asked, use_own_worker};
     #[cfg(all(not(target_arch = "wasm32"), not(all(target_os = "freebsd", target_arch = "aarch64"))))]
-    pub use draftcraft_dwg::{crash_worker_for_test, use_worker};
+    pub use draftcraft_dwg::acadrust::{crash_worker_for_test, use_worker};
 }
 
 fn ext(name: impl AsRef<Path>) -> String {
@@ -83,7 +83,7 @@ pub fn read(bytes: &[u8], name: impl AsRef<Path>) -> Result<Drawing> {
 /// which the round-trip harness counts.
 pub(crate) fn read_source(bytes: &[u8], name: &Path) -> Result<(Drawing, Option<Vec<u8>>)> {
     if draftcraft_dwg::is_dwg(bytes) {
-        let (dxf, notes) = draftcraft_dwg::decode(bytes, draftcraft_dwg::Limits::DEFAULT).map_err(IoError::Format)?;
+        let (dxf, notes) = draftcraft_dwg::acadrust::decode(bytes, draftcraft_dwg::Limits::DEFAULT).map_err(IoError::Format)?;
         let mut d = dxf_read::read(&dxf).map_err(|e| IoError::Format(format!("{e} (in the DXF converted from this DWG)")))?;
         d.read_notes = notes;
         return Ok((d, Some(dxf)));
@@ -133,18 +133,18 @@ pub fn write_with(d: &Drawing, name: impl AsRef<Path>, opts: &SaveOptions) -> Re
 /// [`write_with`], also returning what the file leaves out of the drawing: for a DWG, how many
 /// records of each DXF type the DWG writer can't write (other programs' custom entities and
 /// objects); for other formats, nothing.
-pub fn write_noted(d: &Drawing, name: impl AsRef<Path>, opts: &SaveOptions) -> Result<(Vec<u8>, draftcraft_dwg::Unwritten)> {
+pub fn write_noted(d: &Drawing, name: impl AsRef<Path>, opts: &SaveOptions) -> Result<(Vec<u8>, draftcraft_dwg::acadrust::Unwritten)> {
     let name = name.as_ref();
     if matches!(Format::from_path(name), Some(Format::Dwg)) && !opts.binary {
         return write_dwg(d, opts.version.unwrap_or_else(|| save_version(d).max(Version::R2004)));
     }
-    write_with(d, name, opts).map(|b| (b, draftcraft_dwg::Unwritten::new()))
+    write_with(d, name, opts).map(|b| (b, draftcraft_dwg::acadrust::Unwritten::new()))
 }
 
 /// The DWG bridge reads our R2000 DXF and writes the DWG at `version`, in the DWG worker when
 /// there is one.
-fn write_dwg(d: &Drawing, version: Version) -> Result<(Vec<u8>, draftcraft_dwg::Unwritten)> {
-    draftcraft_dwg::encode_noted(dxf_write::dwg_bridge(d, version).as_bytes(), version.code()).map_err(IoError::Format)
+fn write_dwg(d: &Drawing, version: Version) -> Result<(Vec<u8>, draftcraft_dwg::acadrust::Unwritten)> {
+    draftcraft_dwg::acadrust::encode_noted(dxf_write::dwg_bridge(d, version).as_bytes(), version.code()).map_err(IoError::Format)
 }
 
 /// Like [`write`], but image formats (PNG, SVG, PDF) show `window` (a model-space rectangle in

@@ -93,7 +93,7 @@ fn dwg_mtext_caret_spaces_round_trip() -> TestResult {
                 });
                 assert_eq!(text, Some(contents), "native DWG {version:?}, pass={pass}, {handle:?}");
             }
-            let dxf = draftcraft_dwg::dwg_to_dxf(&bytes)?;
+            let dxf = draftcraft_dwg::acadrust::dwg_to_dxf(&bytes)?;
             let converted = read(&dxf, "bridge.dxf")?;
             assert_contents(&converted, &expected, &format!("DWG bridge DXF {version:?}, pass={pass}"))?;
             d = read(&bytes, "carets.dwg")?;
@@ -112,7 +112,7 @@ fn bridge_caret_space_is_escaped_once_in_each_direction() -> TestResult {
     let native = acadrust::DxfReader::from_reader(std::io::Cursor::new(dxf.into_bytes()))?.read()?;
     assert!(native.entities().any(|e| matches!(e, acadrust::EntityType::MText(t) if t.value == "^ C")));
     let dwg = write_with(&d, "carets.dwg", &SaveOptions { version: Some(Version::R2018), binary: false })?;
-    let returned = String::from_utf8(draftcraft_dwg::dwg_to_dxf(&dwg)?)?;
+    let returned = String::from_utf8(draftcraft_dwg::acadrust::dwg_to_dxf(&dwg)?)?;
     assert!(returned.contains("  1\r\n^  C\r\n"), "the return bridge must encode the separator independently of authored whitespace");
     Ok(())
 }

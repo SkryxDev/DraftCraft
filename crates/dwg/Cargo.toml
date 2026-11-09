@@ -1,6 +1,6 @@
 [package]
 name = "draftcraft-dwg"
-description = "DraftCraft DWG bridge: converts DWG to and from DXF bytes using the acadrust crate (MPL-2.0, used unmodified)"
+description = "DraftCraft's DWG codec: reads R13–2018 DWG into object records and writes 2018 DWG (from BlackCAD), with the acadrust crate (MPL-2.0, used unmodified) as a fallback"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -11,7 +11,7 @@ workspace = true
 [dependencies]
 log = { workspace = true }
 
-# The same target as build.rs's `no_dwg_bridge` leaves acadrust out: FreeBSD aarch64, where
+# The same target as build.rs's `no_acadrust` leaves acadrust out: FreeBSD aarch64, where
 # acadrust 0.6.6 passed a `*const c_char` (u8 there) to its own `*const i8` sysctlbyname.
 # wasm32 builds it: acadrust uses `web-time` for its clocks and runs its parallel stages
 # sequentially there, and it memory-maps files only on native targets.
