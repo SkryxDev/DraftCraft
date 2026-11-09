@@ -1,6 +1,8 @@
 DraftCraft™
 Copyright (c) 2026 Skryx Dev and WithShalom Studios.
 Portions Copyright (c) 2026 ArtCraft Team and the CADCraft contributors.
+The DWG reader and writer (crates/dwg: read, write, records, bits, crc, lz77) come from BlackCAD
+(https://github.com/withshalom/blackcad), Copyright (c) 2026 WithShalom Studios, MIT OR Apache-2.0.
 
 Licensed under the MIT License or the Apache License, Version 2.0, at your option
 (LICENSE-MIT, LICENSE-APACHE).
@@ -15,7 +17,8 @@ Third-party material
 Software dependencies are listed in Cargo.lock. One is under a weak-copyleft licence: the acadrust
 crate (DWG reading and writing, https://github.com/hakanaktt/acadrust) is licensed under the
 Mozilla Public License 2.0 and is used unmodified as a separate library (crates/dwg). Its source
-is available from crates.io and the repository above.
+is available from crates.io and the repository above. DraftCraft's own DWG reader and writer don't
+use it; it is the fallback for files they don't cover yet (crates/dwg/src/acadrust).
 
 
 DraftCraft's icons, drafting font, hatch patterns and linetypes are drawn or defined in code.
