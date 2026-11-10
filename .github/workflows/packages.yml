@@ -1,9 +1,10 @@
 name: Packages
 
-# Builds every DraftCraft package: macOS (Apple silicon DMG and CLI zip), Windows (x64 and arm64
-# installer and zip) and Linux (x86_64 AppImage and .deb). Windows arm64 is cross-compiled on an
-# x86_64 runner. The files carry no version in their names, so releases/latest/download/<name>
-# always gives the newest.
+# Builds every DraftCraft package: macOS (Apple silicon and Intel DMG and CLI zip), Windows (x64
+# and arm64 installer and zip) and Linux (x86_64 and aarch64 AppImage and .deb). Windows arm64 is
+# cross-compiled on an x86_64 runner and macOS Intel on an Apple-silicon one; Linux aarch64 builds
+# on an ARM runner. The files carry no version in their
+# names, so releases/latest/download/<name> always gives the newest.
 #
 # release.yml calls this for a version tag and publishes what it builds. It also runs on pull
 # requests that change the packaging, so a change is seen working before a release: the packages
@@ -36,11 +37,18 @@ env:
 
 jobs:
   linux:
-    name: linux-x86_64
-    # The oldest supported runner, so the binaries run on any newer glibc (the .deb asks for >= 2.35).
-    runs-on: ubuntu-22.04
+    name: linux-${{ matrix.arch }}
+    # The oldest supported runners, so the binaries run on any newer glibc (the .deb asks for >= 2.35).
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64, os: ubuntu-22.04, target: x86_64-unknown-linux-gnu, deb: amd64 }
+          - { arch: aarch64, os: ubuntu-22.04-arm, target: aarch64-unknown-linux-gnu, deb: arm64 }
     env:
-      TARGET: x86_64-unknown-linux-gnu
+      TARGET: ${{ matrix.target }}
+      ARCH: ${{ matrix.arch }}
       NFPM_VERSION: 2.48.0
     steps:
       - uses: actions/checkout@v4
@@ -58,7 +66,7 @@ jobs:
           rustup default stable
       - uses: Swatinem/rust-cache@v2
         with:
-          key: x86_64-unknown-linux-gnu
+          key: ${{ matrix.target }}
       - name: Install packaging tools
         run: |
           set -euo pipefail
@@ -67,10 +75,11 @@ jobs:
           # nfpm builds the .deb; its release is checked against the published checksums.
           cd "$RUNNER_TEMP"
           base="https://github.com/goreleaser/nfpm/releases/download/v$NFPM_VERSION"
-          curl --proto '=https' -fsSLO "$base/nfpm_${NFPM_VERSION}_amd64.deb"
+          pkg="nfpm_${NFPM_VERSION}_${{ matrix.deb }}.deb"
+          curl --proto '=https' -fsSLO "$base/$pkg"
           curl --proto '=https' -fsSLO "$base/checksums.txt"
-          grep " nfpm_${NFPM_VERSION}_amd64.deb\$" checksums.txt | sha256sum --check -
-          sudo dpkg -i "nfpm_${NFPM_VERSION}_amd64.deb"
+          grep " $pkg\$" checksums.txt | sha256sum --check -
+          sudo dpkg -i "$pkg"
           nfpm --version
       - name: Build
         run: |
@@ -87,15 +96,17 @@ jobs:
           export CRAFT_FONTS_DIR="$GITHUB_WORKSPACE/craft-fonts"
           export DRAFTCRAFT_BUILD_SHA="$(git rev-parse HEAD)"
           mkdir -p dist/upload
-          packaging/linux/appimage.sh "target/$TARGET/release" dist/upload/draftcraft-linux-x86_64.AppImage
+          # ARCH (from the matrix) picks appimagetool and the AppImage runtime for this processor.
+          packaging/linux/appimage.sh "target/$TARGET/release" "dist/upload/draftcraft-linux-$ARCH.AppImage"
           DIST="$PWD/dist/deb" packaging/linux/package.sh --skip-build --target "$TARGET" --formats deb
-          cp dist/deb/draftcraft-*-linux-x86_64.deb dist/upload/draftcraft-linux-x86_64.deb
+          cp dist/deb/draftcraft-*-linux-"$ARCH".deb "dist/upload/draftcraft-linux-$ARCH.deb"
           ls -l dist/upload
       - name: Check the .deb
         run: |
           set -euo pipefail
-          deb=dist/upload/draftcraft-linux-x86_64.deb
+          deb="dist/upload/draftcraft-linux-$ARCH.deb"
           dpkg-deb --info "$deb"
+          test "$(dpkg-deb --field "$deb" Architecture)" = "${{ matrix.deb }}"
           dpkg-deb --contents "$deb"
           sudo apt-get install -y "./$deb"
           # The menu entry, its icon, and the file manager's DXF/DWG handler list.
@@ -112,9 +123,11 @@ jobs:
             echo "removing the package left DraftCraft as a DXF/DWG handler" >&2
             exit 1
           fi
+          # The AppImage starts its CLI (extracted: CI runners have no FUSE).
+          APPIMAGE_EXTRACT_AND_RUN=1 "dist/upload/draftcraft-linux-$ARCH.AppImage" cli --version
       - uses: actions/upload-artifact@v4
         with:
-          name: linux-x86_64
+          name: linux-${{ matrix.arch }}
           path: dist/upload/*
           if-no-files-found: error
 
@@ -221,9 +234,16 @@ jobs:
           if-no-files-found: error
 
   macos:
-    name: macos-arm64
-    # Xcode 26 compiles the macOS 26+ Icon Composer icon (DraftCraft.icon → Assets.car).
+    name: macos-${{ matrix.arch }}
+    # Xcode 26 compiles the macOS 26+ Icon Composer icon (DraftCraft.icon → Assets.car), so the
+    # Intel build is cross-compiled on this Apple-silicon runner too.
     runs-on: macos-26
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: arm64, target: aarch64-apple-darwin, package: aarch64 }
+          - { arch: x86_64, target: x86_64-apple-darwin, package: x86_64 }
     steps:
       - uses: actions/checkout@v4
         with:
@@ -236,11 +256,11 @@ jobs:
           path: craft-fonts
       - name: Install Rust
         run: |
-          rustup toolchain install stable --profile minimal --target aarch64-apple-darwin
+          rustup toolchain install stable --profile minimal --target ${{ matrix.target }}
           rustup default stable
       - uses: Swatinem/rust-cache@v2
         with:
-          key: aarch64-apple-darwin
+          key: ${{ matrix.target }}
       - name: Import the signing certificate
         # Optional: without APPLE_CERTIFICATE the script warns, and package.sh signs ad hoc.
         env:
@@ -258,22 +278,27 @@ jobs:
           xcodebuild -version
           export CRAFT_FONTS_DIR="$GITHUB_WORKSPACE/craft-fonts"
           export DRAFTCRAFT_BUILD_SHA="$(git rev-parse HEAD)"
-          packaging/macos/package.sh --arch aarch64
+          packaging/macos/package.sh --arch ${{ matrix.package }}
           version="$(awk '/^\[/{p=($0=="[workspace.package]");next} p&&$1=="version"{gsub(/[" ]/,"",$3);print $3;exit}' Cargo.toml)"
           mkdir -p dist/upload
-          cp "dist/release/draftcraft-$version-macos-aarch64.dmg" dist/upload/draftcraft-macos-arm64.dmg
-          cp "dist/release/draftcraft-cli-$version-macos-aarch64.zip" dist/upload/draftcraft-cli-macos-arm64.zip
+          cp "dist/release/draftcraft-$version-macos-${{ matrix.package }}.dmg" dist/upload/draftcraft-macos-${{ matrix.arch }}.dmg
+          cp "dist/release/draftcraft-cli-$version-macos-${{ matrix.package }}.zip" dist/upload/draftcraft-cli-macos-${{ matrix.arch }}.zip
           ls -l dist/upload
-      - name: Check the app's file types
+      - name: Check the app
         run: |
           set -euo pipefail
-          plist=target/macos-package/DraftCraft.app/Contents/Info.plist
+          app=target/macos-package/DraftCraft.app
+          # Built for this matrix entry's processor only.
+          test "$(lipo -archs "$app/Contents/MacOS/DraftCraft")" = ${{ matrix.arch }}
+          test "$(lipo -archs "$app/Contents/MacOS/draftcraft-cli")" = ${{ matrix.arch }}
+          # The .dxf and .dwg document types Finder's Open With reads.
+          plist="$app/Contents/Info.plist"
           for i in 0 1; do
             plutil -extract "CFBundleDocumentTypes.$i.LSItemContentTypes.0" raw -o - "$plist"
             plutil -extract "UTImportedTypeDeclarations.$i.UTTypeIdentifier" raw -o - "$plist"
           done
       - uses: actions/upload-artifact@v4
         with:
-          name: macos-arm64
+          name: macos-${{ matrix.arch }}
           path: dist/upload/*
           if-no-files-found: error

@@ -159,6 +159,14 @@ STAGE="$WORK/dmg"
 mkdir -p "$STAGE"
 ditto "$APP" "$STAGE/DraftCraft.app"
 ln -s /Applications "$STAGE/Applications"
+# The window's look (packaging/macos/dmg/make-layout.sh makes these): background, size and icon
+# places. Finder reads them from the volume; the background folder is hidden.
+mkdir -p "$STAGE/.background"
+tiffutil -cathidpicheck "$HERE/dmg/background.png" "$HERE/dmg/background@2x.png" -out "$STAGE/.background/background.tiff"
+cp "$HERE/dmg/DS_Store" "$STAGE/.DS_Store"
+# The volume's own icon, shown by the window title and on the desktop.
+cp "$ROOT/assets/app-icon/draftcraft.icns" "$STAGE/.VolumeIcon.icns"
+SetFile -a C "$STAGE"
 rm -f "$DMG" "$WORK/raw.dmg"
 # makehybrid + convert builds the image without attaching a device, unlike `create -srcfolder`,
 # which is flaky on CI runners ("Resource busy") and hangs in sandboxed sessions.
@@ -187,6 +195,18 @@ ditto -c -k --keepParent "$CLI_DIR" "$CLI_ZIP"
 # A bare Mach-O can't carry a stapled ticket; Gatekeeper looks the notarization up online.
 if [[ "$NOTARIZE" = 1 ]]; then notarize "$CLI_ZIP"; fi
 
-"$WORK/bin/draftcraft-cli" --version
+# Smoke test, when this Mac can run the build: its own processor, or an Intel build through Rosetta.
+runs_here() {
+  local archs host
+  archs=" $(lipo -archs "$1") "
+  host="$(uname -m)"
+  [[ "$archs" == *" $host "* ]] && return 0
+  [[ "$host" == arm64 ]] && [[ "$archs" == *" x86_64 "* ]] && /usr/bin/arch -x86_64 /usr/bin/true 2>/dev/null
+}
+if runs_here "$WORK/bin/draftcraft-cli"; then
+  "$WORK/bin/draftcraft-cli" --version
+else
+  warn "skipping draftcraft-cli --version: this $(uname -m) Mac can't run the $ARCH build (Rosetta missing?)"
+fi
 echo "==> done"
 ls -lh "$DMG" "$CLI_ZIP"

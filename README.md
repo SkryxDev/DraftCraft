@@ -243,10 +243,12 @@ One click downloads the newest version from the [latest release](https://github.
 | System | Download |
 |---|---|
 | Windows 10 and 11 | Installer: [64-bit (x64)](https://github.com/SkryxDev/DraftCraft/releases/latest/download/draftcraft-windows-x64.msi) · [ARM64](https://github.com/SkryxDev/DraftCraft/releases/latest/download/draftcraft-windows-arm64.msi) — zip: [x64](https://github.com/SkryxDev/DraftCraft/releases/latest/download/draftcraft-windows-x64.zip) · [ARM64](https://github.com/SkryxDev/DraftCraft/releases/latest/download/draftcraft-windows-arm64.zip) |
-| macOS 11 or later (Apple silicon) | [Disk image](https://github.com/SkryxDev/DraftCraft/releases/latest/download/draftcraft-macos-arm64.dmg) |
-| Linux x86_64 | [AppImage](https://github.com/SkryxDev/DraftCraft/releases/latest/download/draftcraft-linux-x86_64.AppImage) (any distribution) · [.deb](https://github.com/SkryxDev/DraftCraft/releases/latest/download/draftcraft-linux-x86_64.deb) (Debian, Ubuntu 22.04 or later) |
+| macOS 11 or later | Disk image: [Apple silicon](https://github.com/SkryxDev/DraftCraft/releases/latest/download/draftcraft-macos-arm64.dmg) · [Intel](https://github.com/SkryxDev/DraftCraft/releases/latest/download/draftcraft-macos-x86_64.dmg) |
+| Linux (any distribution) | AppImage: [x86_64](https://github.com/SkryxDev/DraftCraft/releases/latest/download/draftcraft-linux-x86_64.AppImage) · [ARM64 (aarch64)](https://github.com/SkryxDev/DraftCraft/releases/latest/download/draftcraft-linux-aarch64.AppImage) |
+| Debian, Ubuntu 22.04 or later | .deb: [x86_64](https://github.com/SkryxDev/DraftCraft/releases/latest/download/draftcraft-linux-x86_64.deb) · [ARM64 (aarch64)](https://github.com/SkryxDev/DraftCraft/releases/latest/download/draftcraft-linux-aarch64.deb) |
 
-The release page also has the macOS command-line tool on its own (`draftcraft-cli-macos-arm64.zip`) and
+The release page also has the macOS command-line tool on its own (`draftcraft-cli-macos-arm64.zip`,
+`draftcraft-cli-macos-x86_64.zip`) and
 `SHA256SUMS.txt`. Every download includes `draftcraft-cli`, the command-line and MCP tool.
 
 - **Windows** — run the installer: it installs for your account (or, if you choose, for everyone), adds
@@ -259,9 +261,10 @@ The release page also has the macOS command-line tool on its own (`draftcraft-cl
   the first time open it once, then **System Settings › Privacy & Security › Open Anyway** — or run
   `xattr -dr com.apple.quarantine /Applications/DraftCraft.app`. Finder then lists DraftCraft under
   **Open With** for `.dxf` and `.dwg` files.
-- **Linux** — install the `.deb` (`sudo apt install ./draftcraft-linux-x86_64.deb`): DraftCraft appears in
-  the applications menu and in the file manager's **Open With** for `.dxf` and `.dwg`. Or make the AppImage
-  executable (`chmod +x draftcraft-linux-x86_64.AppImage`) and run it.
+- **Linux** — install the `.deb` for your processor (`sudo apt install ./draftcraft-linux-x86_64.deb`, or
+  `…-aarch64.deb` on ARM): DraftCraft appears in the applications menu and in the file manager's **Open With**
+  for `.dxf` and `.dwg`. Or make the AppImage executable (`chmod +x draftcraft-linux-x86_64.AppImage`) and
+  run it.
 
 DraftCraft tells you when a newer version is out: it asks GitHub when it starts, and **Help › Check for
 Updates…** checks at any time. That one request to `api.github.com` is all it sends; set

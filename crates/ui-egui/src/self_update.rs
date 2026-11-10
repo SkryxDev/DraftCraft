@@ -4,9 +4,9 @@
 //!
 //! | Installed as | Download | Put in place |
 //! |---|---|---|
-//! | macOS `DraftCraft.app` (bundle id `dev.skryx.draftcraft`) | `draftcraft-macos-arm64.dmg` | the new app copied out of the disk image beside the old one, then swapped in by renaming (fine while it runs) |
+//! | macOS `DraftCraft.app` (bundle id `dev.skryx.draftcraft`) | `draftcraft-macos-{arm64,x86_64}.dmg` | the new app copied out of the disk image beside the old one, then swapped in by renaming (fine while it runs) |
 //! | Windows folder with `DraftCraft.exe` | `draftcraft-windows-{x64,arm64}.zip` | unzipped beside it; each running file renamed to `*.old` (Windows allows that) and the new one moved in |
-//! | Linux AppImage (`$APPIMAGE`) | `draftcraft-linux-x86_64.AppImage` | renamed over the old one (fine while it runs) |
+//! | Linux AppImage (`$APPIMAGE`) | `draftcraft-linux-{x86_64,aarch64}.AppImage` | renamed over the old one (fine while it runs) |
 //!
 //! Anything else (a build from source, a folder this account can't write, a copy installed by the
 //! Windows installer or a Linux `.deb`, another system) gets the release page instead, as before:
@@ -57,10 +57,20 @@ pub enum Install {
 impl Install {
     /// The release file this install updates from, on this processor.
     pub fn asset_name(&self) -> Option<&'static str> {
-        match self {
-            Self::MacApp(_) => cfg!(target_arch = "aarch64").then_some("draftcraft-macos-arm64.dmg"),
-            Self::WindowsFolder(_) => Some(if cfg!(target_arch = "aarch64") { "draftcraft-windows-arm64.zip" } else { "draftcraft-windows-x64.zip" }),
-            Self::AppImage(_) => cfg!(target_arch = "x86_64").then_some("draftcraft-linux-x86_64.AppImage"),
+        self.asset_name_for(std::env::consts::ARCH)
+    }
+
+    /// The release file for a build on `arch` (`std::env::consts::ARCH`): every processor a
+    /// release has a package for, and `None` for the others.
+    fn asset_name_for(&self, arch: &str) -> Option<&'static str> {
+        match (self, arch) {
+            (Self::MacApp(_), "aarch64") => Some("draftcraft-macos-arm64.dmg"),
+            (Self::MacApp(_), "x86_64") => Some("draftcraft-macos-x86_64.dmg"),
+            (Self::WindowsFolder(_), "aarch64") => Some("draftcraft-windows-arm64.zip"),
+            (Self::WindowsFolder(_), "x86_64") => Some("draftcraft-windows-x64.zip"),
+            (Self::AppImage(_), "x86_64") => Some("draftcraft-linux-x86_64.AppImage"),
+            (Self::AppImage(_), "aarch64") => Some("draftcraft-linux-aarch64.AppImage"),
+            _ => None,
         }
     }
 
@@ -532,13 +542,24 @@ mod tests {
 
     #[test]
     fn each_install_updates_from_its_own_file() {
-        let win = Install::WindowsFolder(PathBuf::from("C:/DraftCraft")).asset_name().unwrap();
-        assert!(win == "draftcraft-windows-x64.zip" || win == "draftcraft-windows-arm64.zip");
+        let win = Install::WindowsFolder(PathBuf::from("C:/DraftCraft"));
         let mac = Install::MacApp(PathBuf::from("/Applications/DraftCraft.app"));
-        assert_eq!(mac.asset_name().is_some(), cfg!(target_arch = "aarch64"));
-        assert_eq!(mac.program(), PathBuf::from("/Applications/DraftCraft.app"));
         let linux = Install::AppImage(PathBuf::from("/home/me/DraftCraft.AppImage"));
-        assert_eq!(linux.asset_name().is_some(), cfg!(target_arch = "x86_64"));
+        assert_eq!(mac.program(), PathBuf::from("/Applications/DraftCraft.app"));
+        // The names the release workflow (.github/workflows/packages.yml) publishes.
+        for (install, arch, name) in [
+            (&mac, "aarch64", Some("draftcraft-macos-arm64.dmg")),
+            (&mac, "x86_64", Some("draftcraft-macos-x86_64.dmg")),
+            (&win, "aarch64", Some("draftcraft-windows-arm64.zip")),
+            (&win, "x86_64", Some("draftcraft-windows-x64.zip")),
+            (&win, "x86", None),
+            (&linux, "x86_64", Some("draftcraft-linux-x86_64.AppImage")),
+            (&linux, "aarch64", Some("draftcraft-linux-aarch64.AppImage")),
+            (&linux, "riscv64", None),
+        ] {
+            assert_eq!(install.asset_name_for(arch), name, "{install:?} on {arch}");
+        }
+        assert_eq!(mac.asset_name(), mac.asset_name_for(std::env::consts::ARCH));
     }
 
     #[test]

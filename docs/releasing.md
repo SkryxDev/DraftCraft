@@ -25,18 +25,20 @@ builds every package with [`packages.yml`](../.github/workflows/packages.yml):
 | Package | Contents |
 | --- | --- |
 | `draftcraft-macos-arm64.dmg` | `DraftCraft.app` (Apple silicon, with `draftcraft-cli` inside) |
-| `draftcraft-cli-macos-arm64.zip` | `draftcraft-cli` for macOS on its own |
+| `draftcraft-macos-x86_64.dmg` | the same for Intel Macs (cross-compiled on the Apple-silicon runner) |
+| `draftcraft-cli-macos-arm64.zip`, `draftcraft-cli-macos-x86_64.zip` | `draftcraft-cli` for macOS on its own |
 | `draftcraft-windows-x64.msi` | the installer (`packaging/windows/package.ps1`, WiX 5): for this account or everyone, Start menu, optional desktop shortcut, `.dxf`/`.dwg` registration |
 | `draftcraft-windows-arm64.msi` | the same for Windows on ARM (cross-compiled) |
 | `draftcraft-windows-x64.zip` | `DraftCraft.exe`, `draftcraft-cli.exe`, licences, to unzip anywhere |
 | `draftcraft-windows-arm64.zip` | the same for Windows on ARM |
 | `draftcraft-linux-x86_64.AppImage` | the app; `… cli <args>` runs `draftcraft-cli` (built by `packaging/linux/appimage.sh`) |
-| `draftcraft-linux-x86_64.deb` | Debian/Ubuntu package (`packaging/linux/package.sh`, nfpm): `/usr/bin`, menu entry, icons, MIME types, man pages |
+| `draftcraft-linux-aarch64.AppImage` | the same for 64-bit ARM (built on an ARM runner) |
+| `draftcraft-linux-x86_64.deb`, `draftcraft-linux-aarch64.deb` | Debian/Ubuntu package (`packaging/linux/package.sh`, nfpm): `/usr/bin`, menu entry, icons, MIME types, man pages |
 
 The names carry no version, so the README's `releases/latest/download/<name>` links always give the
 newest. The same workflow runs on every pull request that changes `packaging/` or the workflows; its
 packages are then that run's artifacts, so a packaging change can be tried before a release. On the
-way it installs the x64 MSI and the `.deb` on the runner, checks the `.dxf`/`.dwg` registration, and
+way it installs the x64 MSI and both `.deb`s on the runners, checks the `.dxf`/`.dwg` registration, and
 uninstalls them. The workflow creates the GitHub Release `DraftCraft v<version>` with them and `SHA256SUMS.txt`. The DMG is
 made on a macOS 26 runner, whose Xcode compiles the app icon. The workflow can also be started by hand
 (**Actions › Release › Run workflow**) for an existing tag.
@@ -45,8 +47,9 @@ made on a macOS 26 runner, whose Xcode compiles the app icon. The workflow can a
 
 From 2.0.2, **Update Now** in the app's update window downloads the new release and installs it
 ([`crates/ui-egui/src/self_update.rs`](../crates/ui-egui/src/self_update.rs)): `DraftCraft.app` from
-`draftcraft-macos-arm64.dmg`, a Windows folder from `draftcraft-windows-{x64,arm64}.zip` (whose top
-folder is `DraftCraft/`), the AppImage from `draftcraft-linux-x86_64.AppImage`. Each file is checked
+`draftcraft-macos-{arm64,x86_64}.dmg`, a Windows folder from `draftcraft-windows-{x64,arm64}.zip` (whose
+top folder is `DraftCraft/`), the AppImage from `draftcraft-linux-{x86_64,aarch64}.AppImage`, each for
+the processor it runs on. Each file is checked
 against `SHA256SUMS.txt`, and the DMG's app must have the bundle id `dev.skryx.draftcraft` and the
 release's version. Keep those names, that folder and `SHA256SUMS.txt`, or installed copies can no
 longer update themselves (they then offer the release page instead).
@@ -77,8 +80,23 @@ CRAFT_FONTS_DIR="$PWD/../craft-fonts" packaging/macos/package.sh --arch aarch64
 ```
 
 It writes `dist/release/draftcraft-<version>-macos-aarch64.dmg` and
-`draftcraft-cli-<version>-macos-aarch64.zip`. `--arch universal` also builds for Intel Macs (it needs
-`rustup target add x86_64-apple-darwin`).
+`draftcraft-cli-<version>-macos-aarch64.zip`. `--arch x86_64` builds the Intel package the release
+ships, and `--arch universal` one app for both; both need `rustup target add x86_64-apple-darwin`.
+
+### The DMG window
+
+The DMG opens as a window with its own background (logo, blueprint grid, a card behind the app and
+one behind Applications, a compass arc between them). `package.sh` only copies three committed files
+from `packaging/macos/dmg/`: `background.png` and `background@2x.png` (joined into the volume's
+`/.background/background.tiff`) and `DS_Store` (window size, icon places, the background). After
+changing the art (`background.swift`) or the layout, remake them on a Mac and commit them:
+
+```bash
+pip install ds_store==1.3.1 mac_alias==2.2.2   # or PYTHON=<a venv's python>
+packaging/macos/dmg/make-layout.sh <folder with Inter-Medium.ttf and Inter-Regular.ttf>
+```
+
+The background is found by its path on a volume named `DraftCraft`, so keep that volume name.
 
 ## Signing
 

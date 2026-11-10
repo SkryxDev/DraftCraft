@@ -1,8 +1,8 @@
 name: Release
 
 # Builds every DraftCraft package when a version tag is pushed (packages.yml) and attaches them to
-# that tag's GitHub release: macOS (Apple silicon DMG and CLI zip), Windows (x64 and arm64 installer
-# and zip) and Linux (x86_64 AppImage and .deb). The files carry no version in their names, so
+# that tag's GitHub release: macOS (Apple silicon and Intel DMG and CLI zip), Windows (x64 and arm64
+# installer and zip) and Linux (x86_64 and aarch64 AppImage and .deb). The files carry no version in their names, so
 # releases/latest/download/<name> always gives the newest.
 on:
   push:
