@@ -1,6 +1,6 @@
 //! Hit testing and window/crossing selection.
 
-use draftcraft_doc::{Drawing, Entity, EntityKind, Handle, Prim, Space, entity_bounds, text_outline};
+use draftcraft_doc::{Drawing, Entity, EntityKind, Handle, Prim, Space, entity_bounds, insert_text_outlines, text_outline};
 use draftcraft_geom::{Bounds2, Line, Vec2, point_in_polygon};
 
 use crate::spatial::{self, SpatialIndex};
@@ -18,18 +18,19 @@ pub fn hit_polylines(d: &Drawing, e: &Entity, tol: f64) -> Vec<Vec<Vec2>> {
         | EntityKind::Tolerance(_)
         | EntityKind::MLeader(_)
         | EntityKind::Image(_) => {
-            // Dimensions and multileaders are hit on what they draw (lines, arrows) and inside the
-            // box around their words, not on the outline of their axis-aligned bounds: its edges
-            // run through empty space, away from the lines (through the defining points), so the
-            // cursor found the dimension there rather than near its lines.
-            if matches!(e.kind, EntityKind::Dimension(_) | EntityKind::MLeader(_)) {
+            // Dimensions, multileaders and blocks are hit on what they draw (lines, arrows) and
+            // inside the boxes around their words, not on the outline of their axis-aligned
+            // bounds: its edges run through empty space, away from the lines (through a
+            // dimension's defining points, past a block's corners), so the cursor found the object
+            // there rather than near its lines.
+            if matches!(e.kind, EntityKind::Dimension(_) | EntityKind::MLeader(_) | EntityKind::Insert(_)) {
                 let list = draftcraft_render::build_entities(
                     d,
                     std::iter::once(e),
                     &draftcraft_render::Options { tolerance: tol, text: false, linetypes: false, ..Default::default() },
                 );
                 let mut v: Vec<Vec<Vec2>> = list.prims.iter().map(|p| list.points(p).to_vec()).collect();
-                v.extend(annotation_text_boxes(d, e).iter().map(TextBox::outline));
+                v.extend(annotation_text_boxes(d, e).iter().map(|c| vec![c[0], c[1], c[2], c[3], c[0]]));
                 return v;
             }
             // Text-like objects are hit inside their box: text turned with it, not the (much
@@ -45,17 +46,7 @@ pub fn hit_polylines(d: &Drawing, e: &Entity, tol: f64) -> Vec<Vec<Vec2>> {
                     b.corners()
                 }
             };
-            let mut v = vec![vec![c[0], c[1], c[2], c[3], c[0]]];
-            if matches!(e.kind, EntityKind::Insert(_)) {
-                let list = draftcraft_render::build_entities(
-                    d,
-                    std::iter::once(e),
-                    &draftcraft_render::Options { tolerance: tol, text: false, linetypes: false, ..Default::default() },
-                );
-                v = list.prims.iter().map(|p| list.points(p).to_vec()).collect();
-                v.push(vec![c[0], c[1], c[2], c[3], c[0]]);
-            }
-            v
+            vec![vec![c[0], c[1], c[2], c[3], c[0]]]
         }
         kind => {
             let mut out = Vec::new();
@@ -165,12 +156,12 @@ fn in_text_box(d: &Drawing, e: &Entity, p: Vec2) -> bool {
     }
 }
 
-/// Whether `p` is on the text of a dimension or multileader: inside the box around its words,
-/// turned with the text, as plain text is hit anywhere inside its box. Their other geometry is
-/// hit along its lines, so without this the cursor found the object only between the letters'
-/// edges and the lines.
+/// Whether `p` is on the text of a dimension, multileader or block: inside the box around its
+/// words, turned with the text, as plain text is hit anywhere inside its box. Their other
+/// geometry is hit along its lines, so without this the cursor found the object only between the
+/// letters' edges and the lines.
 fn in_text(d: &Drawing, e: &Entity, p: Vec2) -> bool {
-    annotation_text_boxes(d, e).iter().any(|b| b.contains(p))
+    annotation_text_boxes(d, e).iter().any(|q| point_in_polygon(q, p))
 }
 
 /// The box around some words, turned with them: `b` in the frame turned by `-angle`, then moved
@@ -189,20 +180,23 @@ impl TextBox {
         (!b.is_empty() && angle.is_finite()).then_some(TextBox { b, angle, offset: Vec2::ZERO })
     }
 
-    fn contains(&self, p: Vec2) -> bool {
-        self.b.contains((p - self.offset).rotate(-self.angle))
-    }
-
-    /// Its outline, closed, in drawing coordinates.
-    fn outline(&self) -> Vec<Vec2> {
-        let c = self.b.corners().map(|q| q.rotate(self.angle) + self.offset);
-        vec![c[0], c[1], c[2], c[3], c[0]]
+    /// Its corners in drawing coordinates.
+    fn quad(&self) -> [Vec2; 4] {
+        self.b.corners().map(|q| q.rotate(self.angle) + self.offset)
     }
 }
 
-/// The boxes around the words of a dimension or multileader, turned with the text (none for
-/// other objects).
-fn annotation_text_boxes(d: &Drawing, e: &Entity) -> Vec<TextBox> {
+/// The boxes around the words of a dimension, multileader or block (its text and attributes,
+/// [`insert_text_outlines`]), turned with the text: none for other objects.
+fn annotation_text_boxes(d: &Drawing, e: &Entity) -> Vec<[Vec2; 4]> {
+    if matches!(e.kind, EntityKind::Insert(_)) {
+        return insert_text_outlines(d, e);
+    }
+    dimension_text_boxes(d, e).iter().map(TextBox::quad).collect()
+}
+
+/// The boxes around the words of a dimension or multileader.
+fn dimension_text_boxes(d: &Drawing, e: &Entity) -> Vec<TextBox> {
     match &e.kind {
         // A dimension with a block (as AutoCAD saves them) is drawn from that block: its text is
         // the text there, not the text the dimension's own geometry would place.
@@ -372,10 +366,12 @@ pub(crate) fn in_window(d: &Drawing, e: &Entity, known: Option<Bounds2>, bx: &Bo
             pl.windows(2).any(|w| w.first().zip(w.get(1)).is_some_and(|(a, b)| seg_hits_box(*a, *b, bx)))
         }
     });
-    // A crossing box entirely inside a text/block bounding rectangle also selects it.
+    // A crossing box entirely inside a text's box, or the box of some words a dimension or block
+    // draws, also selects it (not one in the empty space of a block's bounds).
+    let within = |q: &[Vec2; 4]| bx.corners().iter().all(|c| point_in_polygon(q, *c));
     let inside_text = match &e.kind {
-        EntityKind::Text(_) | EntityKind::MText(_) => text_quad(d, e).is_some_and(|q| bx.corners().iter().all(|c| point_in_polygon(&q, *c))),
-        EntityKind::Insert(_) => eb.contains_box(bx),
+        EntityKind::Text(_) | EntityKind::MText(_) => text_quad(d, e).is_some_and(|q| within(&q)),
+        EntityKind::Insert(_) | EntityKind::Dimension(_) | EntityKind::MLeader(_) => annotation_text_boxes(d, e).iter().any(within),
         _ => false,
     };
     if hit || inside_text {
@@ -639,8 +635,8 @@ mod tests {
         let drawn =
             draftcraft_render::build_entities(&d, std::iter::once(e.as_ref()), &draftcraft_render::Options { text: false, ..Default::default() });
         assert!(drawn.prims.len() > 10_000, "the pattern draws {} dashes", drawn.prims.len());
-        // The line, and the block's bounding rectangle.
-        assert_eq!(hit_polylines(&d, e, 0.01).len(), 2);
+        // The line alone (not the block's bounding rectangle, which runs through empty space).
+        assert_eq!(hit_polylines(&d, e, 0.01).len(), 1);
     }
 
     /// A dashed line in a block is hit across its gaps, as one outside a block is.

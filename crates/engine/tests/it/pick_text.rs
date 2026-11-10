@@ -225,3 +225,53 @@ fn a_dimension_is_picked_on_its_lines_not_its_bounds_outline() {
     let bx = Bounds2::new(Vec2::new(tb.min.x - 0.5, mid_y - 0.05), Vec2::new(tb.min.x + 0.5, mid_y + 0.05));
     assert_eq!(draftcraft_engine::select::select_window(d, &Space::Model, bx, true), vec![h], "crossing the words' box");
 }
+
+/// Blocks were hit on the outline of their axis-aligned bounds too, as dimensions were: the cursor
+/// found a block in empty space along that outline, and a crossing window anywhere inside the
+/// bounds took it. Now a block is hit on what it draws and inside the boxes around its words (its
+/// text and attributes, placed, turned and scaled as the insert draws them).
+#[test]
+fn a_block_is_picked_on_its_lines_and_words_not_its_bounds() {
+    use draftcraft_engine::doc::entity_bounds;
+    use draftcraft_engine::select::select_window;
+    let mut s = Session::new();
+    // A 10×10 square, a label up and to the right of it, an attribute below it.
+    s.execute("line", &json!({"points": [[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]})).unwrap();
+    s.execute("text", &json!({"at": [20, 20], "height": 2.5, "text": "LABEL"})).unwrap();
+    s.execute("attdef", &json!({"tag": "TAG", "at": [0, -5], "default": "D", "height": 2})).unwrap();
+    let parts: Vec<String> = s.doc().unwrap().model.iter().map(|e| e.handle.hex()).collect();
+    s.execute("block", &json!({"name": "B", "base": [0, 0], "handles": parts, "keep": "delete"})).unwrap();
+    s.execute("insert", &json!({"name": "B", "at": [100, 0], "attribs": {"TAG": "hello"}})).unwrap();
+    s.execute("insert", &json!({"name": "B", "at": [300, 0], "rotation": 90, "scale": [2, 1], "attribs": {"TAG": "hello"}})).unwrap();
+    let d = s.doc().unwrap();
+    let inserts: Vec<_> = d.model.iter().filter(|e| matches!(e.kind, EntityKind::Insert(_))).collect();
+    assert_eq!(inserts.len(), 2);
+    for (i, e) in inserts.iter().enumerate() {
+        let h = e.handle;
+        let EntityKind::Insert(ins) = &e.kind else { unreachable!() };
+        let m = ins.transform(Vec2::ZERO);
+        let at = |x: f64, y: f64| m.apply(Vec2::new(x, y));
+        let b = entity_bounds(d, e, 0);
+        // A corner of the bounds and a point along their edge, both in empty space: the
+        // straight insert's top left (above the square, left of the label), the turned one's
+        // bottom left.
+        let (corner, edge) = if i == 0 {
+            (Vec2::new(b.min.x, b.max.y), Vec2::new(b.min.x + 10.0, b.max.y))
+        } else {
+            (Vec2::new(b.min.x, b.min.y), Vec2::new(b.min.x + 5.0, b.min.y))
+        };
+        for p in [corner, edge, at(5.0, 16.0)] {
+            assert_eq!(pick(d, &Space::Model, p, 0.5), None, "insert {i}: empty space at {p:?}");
+            let bx = Bounds2::new(p - Vec2::new(0.3, 0.3), p + Vec2::new(0.3, 0.3));
+            assert!(!select_window(d, &Space::Model, bx, true).contains(&h), "insert {i}: crossing in empty space at {p:?}");
+        }
+        // Near its lines, on its label, on its attribute.
+        for (what, p) in [("line", at(5.0, 0.1)), ("label", at(22.0, 21.0)), ("attribute", at(2.0, -4.0))] {
+            assert_eq!(pick(d, &Space::Model, p, 0.5), Some(h), "insert {i}: on its {what} at {p:?}");
+        }
+        // A crossing window inside the label's box, touching no stroke, takes it.
+        let q = at(22.0, 21.0);
+        let bx = Bounds2::new(q - Vec2::new(0.05, 0.05), q + Vec2::new(0.05, 0.05));
+        assert!(select_window(d, &Space::Model, bx, true).contains(&h), "insert {i}: crossing inside its label");
+    }
+}

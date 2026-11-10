@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use draftcraft_geom::{Arc, Bounds2, EPS, Polyline, Vec2, bulge_to_arc};
+use draftcraft_geom::{Arc, Bounds2, EPS, Mat3, Polyline, Vec2, bulge_to_arc};
 
 use crate::{Drawing, Entity, EntityKind, LwPolyline, Prim};
 
@@ -129,6 +129,72 @@ pub fn text_outline(d: &Drawing, e: &Entity) -> Option<[Vec2; 4]> {
         _ => return None,
     };
     quad.iter().all(|p| p.is_finite()).then_some(quad)
+}
+
+/// The most text boxes [`insert_text_outlines`] gives for one insert, and the most copies of a
+/// MINSERT grid it walks per level (hostile files: blocks of huge grids nested deep).
+pub const MAX_INSERT_TEXT_BOXES: usize = 4096;
+const MAX_GRID_COPIES: usize = 1024;
+/// The most block entities [`insert_text_outlines`] looks at for one insert, nested ones included.
+const MAX_INSERT_VISITS: usize = 200_000;
+
+/// The boxes around the text an INSERT draws, turned with it (parallelograms when the insert is
+/// scaled unevenly): the TEXT and MTEXT of its block, nested blocks too (to [`MAX_BLOCK_DEPTH`]),
+/// placed where the insert draws them, and its visible attributes. Picking hits a block on its
+/// lines and inside these, not on the outline of its bounds, which runs through empty space. Empty
+/// for other objects; at most [`MAX_INSERT_TEXT_BOXES`] boxes.
+pub fn insert_text_outlines(d: &Drawing, e: &Entity) -> Vec<[Vec2; 4]> {
+    let mut out = Vec::new();
+    if let EntityKind::Insert(ins) = &e.kind {
+        insert_texts(d, ins, Mat3::IDENTITY, 0, &mut out, &mut 0);
+    }
+    out
+}
+
+/// `visits`: block entities looked at so far, for [`MAX_INSERT_VISITS`].
+fn insert_texts(d: &Drawing, ins: &crate::Insert, outer: Mat3, depth: usize, out: &mut Vec<[Vec2; 4]>, visits: &mut usize) {
+    if depth >= MAX_BLOCK_DEPTH || out.len() >= MAX_INSERT_TEXT_BOXES || *visits >= MAX_INSERT_VISITS {
+        return;
+    }
+    let push = |q: [Vec2; 4], m: &Mat3, out: &mut Vec<[Vec2; 4]>| {
+        let q = q.map(|p| m.apply(p));
+        if out.len() < MAX_INSERT_TEXT_BOXES && q.iter().all(|p| p.is_finite()) {
+            out.push(q);
+        }
+    };
+    if let Some(blk) = d.block(&ins.block) {
+        // A MINSERT grid: one copy per cell, moved along the turned rows and columns.
+        let (cols, rows) = (ins.cols.max(1) as usize, ins.rows.max(1) as usize);
+        let cells = (0..rows).flat_map(|r| (0..cols).map(move |c| (c, r))).take(MAX_GRID_COPIES);
+        for (c, r) in cells {
+            let off = Vec2::new(ins.col_spacing * c as f64, ins.row_spacing * r as f64).rotate(ins.rotation);
+            let m = outer.then_before(Mat3::translate(off)).then_before(ins.transform(blk.base.xy()));
+            for be in blk.entities.iter().filter(|be| in_block_visible(d, be, false)) {
+                *visits = visits.saturating_add(1);
+                if out.len() >= MAX_INSERT_TEXT_BOXES || *visits >= MAX_INSERT_VISITS {
+                    return;
+                }
+                match &be.kind {
+                    EntityKind::Text(_) | EntityKind::MText(_) => {
+                        if let Some(q) = text_outline(d, be) {
+                            push(q, &m, out);
+                        }
+                    }
+                    EntityKind::Insert(inner) => insert_texts(d, inner, m, depth + 1, out, visits),
+                    _ => {}
+                }
+            }
+        }
+    }
+    // Attributes are placed already (in the coordinates the insert itself is in).
+    for a in ins.attribs.iter().filter(|a| !a.invisible && layer_counts(d, attrib_layer(d, ins, a), false)) {
+        let q = match a.multiline_text() {
+            Some(m) if !blank(&m.contents) => mtext_quad(&m),
+            None if !blank(&a.text.value) => text_quad(&a.text, a.text.value.chars().count()),
+            _ => continue,
+        };
+        push(q, &outer, out);
+    }
 }
 
 /// The box of what `e` draws (block contents on layers turned off left out).
@@ -596,5 +662,58 @@ mod tests {
         // The renderer draws at most 10,000 columns.
         let b = entity_bounds(&d, &array(u32::MAX, 1, 0.0), 0);
         assert!((b.max.x - (10.0 * 9_999.0 + 1.0)).abs() < 1e-6, "{b:?}");
+    }
+
+    /// The boxes around a block's words follow the insert (its grid copies too), and hostile
+    /// nesting stays bounded: a block that holds itself in a huge grid, many times over, ends at
+    /// the depth, copy and visit caps.
+    #[test]
+    fn insert_text_outlines_follow_the_insert_and_stay_bounded() {
+        let mut d = Drawing::new_metric();
+        let label = Text { value: "AB".into(), height: 2.0, ..text(HAlign::Left, VAlign::Baseline) };
+        let mut b = crate::Block::new("B");
+        b.entities.push(Entity::new(crate::Handle(1), EntityKind::Text(Text { insert: Vec3::new(10.0, 0.0, 0.0), ..label.clone() })));
+        d.blocks.insert("B".into(), std::sync::Arc::new(b));
+        let insert = |block: &str, cols: u32, rotation: f64| {
+            let ins = crate::Insert {
+                block: block.into(),
+                insert: Vec3::new(100.0, 0.0, 0.0),
+                scale: Vec3::new(2.0, 2.0, 1.0),
+                rotation,
+                cols,
+                rows: 1,
+                col_spacing: 50.0,
+                ..crate::Insert::default()
+            };
+            Entity::new(crate::Handle(2), EntityKind::Insert(ins))
+        };
+        // Doubled and moved: the text at (10, 0), height 2, lands at (120, 0), height 4.
+        let one = insert_text_outlines(&d, &insert("B", 1, 0.0));
+        assert_eq!(one.len(), 1);
+        let q = Bounds2::from_points(one[0]);
+        assert!((q.min.x - 120.0).abs() < 1e-9 && (q.height() - 4.0).abs() < 1e-9, "{q:?}");
+        // Turned a quarter: it stands up the Y axis.
+        let up = Bounds2::from_points(insert_text_outlines(&d, &insert("B", 1, std::f64::consts::FRAC_PI_2))[0]);
+        assert!((up.min.y - 20.0).abs() < 1e-9 && (up.width() - 4.0).abs() < 1e-9, "{up:?}");
+        // Three columns: three boxes, 50 apart.
+        let row = insert_text_outlines(&d, &insert("B", 3, 0.0));
+        assert_eq!(row.len(), 3);
+        assert!((Bounds2::from_points(row[2]).min.x - 220.0).abs() < 1e-9);
+        // A block holding itself in a huge grid, plus a word: bounded by the caps.
+        let mut lp = crate::Block::new("LOOP");
+        lp.entities.push(Entity::new(crate::Handle(3), EntityKind::Text(label.clone())));
+        for _ in 0..50 {
+            lp.entities.push(insert("LOOP", u32::MAX, 0.0));
+        }
+        d.blocks.insert("LOOP".into(), std::sync::Arc::new(lp));
+        let many = insert_text_outlines(&d, &insert("LOOP", u32::MAX, 0.0));
+        assert!(!many.is_empty() && many.len() <= MAX_INSERT_TEXT_BOXES, "{}", many.len());
+        // Blocks of nothing but nested references end at the visit cap.
+        let mut empty = crate::Block::new("E");
+        for _ in 0..50 {
+            empty.entities.push(insert("E", 1000, 0.0));
+        }
+        d.blocks.insert("E".into(), std::sync::Arc::new(empty));
+        assert!(insert_text_outlines(&d, &insert("E", 1000, 0.0)).is_empty());
     }
 }
