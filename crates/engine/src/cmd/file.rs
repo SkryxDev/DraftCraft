@@ -69,6 +69,7 @@ pub fn entity_codec() -> Option<&'static EntityCodec> {
 
 /// COMPARE (drawing comparison).
 pub mod compare;
+pub(crate) mod transmit;
 
 /// Decode a raster image file (PNG, JPEG, BMP, TIFF) to pixels: installed by the app with the
 /// image reader, a lower layer.

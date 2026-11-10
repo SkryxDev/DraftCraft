@@ -1563,3 +1563,62 @@ menu	View	视图
 	Manage Tool Palettes	管理工具选项板
 	Palettes	选项板
 menu	Palettes	选项板
+	2D Drafting	二维草图与注释
+	2D Wireframe	二维线框
+	Top	俯视
+	CAD Standards	CAD 标准
+	Commands	命令
+	Edit Aliases	编辑别名
+	Edit Aliases...	编辑别名...
+	Changes apply at once; Save Current As keeps them in a workspace.	更改立即生效；“将当前另存为”会把它们保存在工作空间中。
+	Click layers to show only them; Ctrl or Shift adds to the choice.	单击图层只显示这些图层；按住 Ctrl 或 Shift 可加入选择。
+	Current Workspace	当前工作空间
+	Customize Interface	自定义界面
+	Customize User Interface	自定义用户界面
+	Customize...	自定义...
+	Force object color and linetype to ByLayer	强制对象颜色和线型为随层
+	Geographic Location	地理位置
+	Geographic Location...	地理位置...
+	Latitude	纬度
+	Longitude	经度
+	North direction	北向
+	Layer Translation Mappings	图层转换映射
+	Layer Translator	图层转换器
+	Layer Translator...	图层转换器...
+	Layer Walk	图层漫游
+	Layer Walk...	图层漫游...
+	Location	位置
+	Set Location	设置位置
+	Remove Location	删除位置
+	The drawing's origin is at this place (WGS 84 degrees).	图形原点位于此处（WGS 84 度）。
+	Map	映射
+	New layer name	新图层名
+	No mappings yet: pick layers on the left, a name on the right, then Map.	尚无映射：在左侧选择图层，在右侧选择名称，然后单击“映射”。
+	Translate	转换
+	Translate From	转换自
+	Translate To	转换为
+	Restore on exit	退出时恢复
+	Point Cloud	点云
+	Point Cloud...	点云...
+	Point clouds (XYZ, LAS)	点云 (XYZ, LAS)
+	ZIP archive	ZIP 压缩文件
+	eTransmit	电子传递
+	eTransmit...	电子传递...
+	Quick Access Toolbar	快速访问工具栏
+	Rename	重命名
+	Reset to Standard	重置为标准
+	Ribbon Tabs	功能区选项卡
+	Save Current As	将当前另存为
+	Save Current As...	将当前另存为...
+	Save Workspace	保存工作空间
+	User Interface	用户界面
+	Workspace	工作空间
+	Workspace Settings	工作空间设置
+	Workspace Settings...	工作空间设置...
+	Workspace name	工作空间名称
+	Workspace:	工作空间：
+	Workspaces	工作空间
+	Interface...	界面...
+menu	Customize	自定义
+menu	Workspaces	工作空间
+menu	CAD Standards	CAD 标准

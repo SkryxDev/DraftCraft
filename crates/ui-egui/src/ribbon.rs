@@ -195,6 +195,7 @@ const SLIDE_OUTS: &[(&str, &str, &[Tool])] = &[
             (Icon::LayerMatch, "laymrg", "Merge"),
             (Icon::Erase, "laydel", "Delete"),
             (Icon::LayerPrev, "layerp", "Previous"),
+            (Icon::LayerWalk, "laywalk", "Layer Walk"),
         ],
     ),
     (
@@ -379,6 +380,8 @@ pub(crate) const TABS: &[RibbonTab] = &[
                     ]),
                 ],
             },
+            RibbonPanel { title: "Point Cloud", cols: &[Large(b(Icon::PointCloud, "pointcloudattach", "Attach"))] },
+            RibbonPanel { title: "Location", cols: &[Large(b(Icon::GeoLocation, "geographiclocation", "Set Location"))] },
             RibbonPanel {
                 title: "Data",
                 cols: &[
@@ -566,8 +569,13 @@ pub(crate) const TABS: &[RibbonTab] = &[
             RibbonPanel {
                 title: "Customization",
                 cols: &[
+                    Large(b(Icon::Customize, "cui", "User Interface")),
                     Large(b(Icon::Gear, "options", "Options")),
-                    Small(&[b(Icon::Text, "aliasedit", "Edit Aliases"), b(Icon::Menu, "ui.dialog.commands", "Commands")]),
+                    Small(&[
+                        b(Icon::Text, "aliasedit", "Edit Aliases"),
+                        b(Icon::Menu, "ui.dialog.commands", "Commands"),
+                        b(Icon::Workspace, "workspace", "Workspaces"),
+                    ]),
                 ],
             },
             RibbonPanel { title: "Applications", cols: &[Large(b(Icon::Open, "appload", "Load Application"))] },
@@ -575,6 +583,7 @@ pub(crate) const TABS: &[RibbonTab] = &[
                 title: "CAD Standards",
                 cols: &[
                     Large(b(Icon::Erase, "purge", "Purge")),
+                    Large(b(Icon::LayerTranslate, "laytrans", "Layer Translator")),
                     Small(&[b(Icon::Search, "audit", "Audit"), b(Icon::Join, "overkill", "Overkill"), b(Icon::Redo, "recover", "Recover")]),
                 ],
             },
@@ -691,6 +700,7 @@ const APP_MENU: &[(Icon, &str, &str)] = &[
     (Icon::Import, "import", "Import"),
     (Icon::Export, "export", "Export"),
     (Icon::Publish, "publish", "Publish"),
+    (Icon::Transmit, "etransmit", "eTransmit"),
     (Icon::Plot, "plot", "Print"),
     (Icon::Search, "audit", "Drawing Utilities"),
     (Icon::Close, "close", "Close"),
@@ -1090,7 +1100,7 @@ fn app_bar(app: &mut CadApp, ui: &mut egui::Ui, bar: Rect, out: &mut Out) {
     aresp.on_hover_text(crate::tl!("Application Menu"));
     x = ab.right() + 10.0;
     // Quick Access Toolbar.
-    for (icon, cmd, label) in QAT {
+    for (icon, cmd, label) in &qat_tools(app) {
         if !known(cmd) {
             continue;
         }
@@ -1113,17 +1123,40 @@ fn app_bar(app: &mut CadApp, ui: &mut egui::Ui, bar: Rect, out: &mut Out) {
     let wresp = ui.interact(ws, ui.scope_id().with("workspace"), Sense::click());
     p.rect_filled(ws, 2.0, if wresp.hovered() { t.control } else { t.chrome_dark });
     p.rect_stroke(ws, 2.0, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
-    p.with_clip_rect(ws.shrink(2.0)).text(pos2(ws.left() + 7.0, cy), Align2::LEFT_CENTER, crate::tl!("2D Drafting"), label_font(), t.text);
+    let current = crate::workspaces::current(app);
+    let shown = if current == crate::workspaces::BUILT_IN { crate::i18n::t(crate::workspaces::BUILT_IN).to_string() } else { current.clone() };
+    p.with_clip_rect(ws.shrink(2.0)).text(pos2(ws.left() + 7.0, cy), Align2::LEFT_CENTER, shown, label_font(), t.text);
     arrow(&p, pos2(ws.right() - 9.0, cy), t.text);
     icons::describe_control(ui, &wresp, "Workspace", None, false);
+    let names = crate::workspaces::names(app);
+    let mut switch_to: Option<String> = None;
     egui::Popup::menu(&wresp).show(|ui| {
-        let _ = ui.selectable_label(true, crate::tl!("2D Drafting"));
+        for n in &names {
+            let label = if n == crate::workspaces::BUILT_IN { crate::i18n::t(n).to_string() } else { n.clone() };
+            if ui.selectable_label(*n == current, label).clicked() && *n != current {
+                switch_to = Some(n.clone());
+                ui.close();
+            }
+        }
         ui.separator();
+        if ui.button(crate::tl!("Save Current As...")).clicked() {
+            out.command = Some("cui");
+            ui.close();
+        }
+        if ui.button(crate::tl!("Customize...")).clicked() {
+            out.command = Some("cui");
+            ui.close();
+        }
         if ui.button(crate::tl!("Reset Palettes")).clicked() {
             out.command = Some("ui.dock.reset");
             ui.close();
         }
     });
+    if let Some(n) = switch_to
+        && let Err(e) = crate::workspaces::set_current(app, &n)
+    {
+        app.set_status(e);
+    }
     let qat_end = ws.right() + 14.0;
     // Search box on the right: typed text runs as a command, like the command line.
     let search_w = 220.0;
@@ -1203,7 +1236,40 @@ fn fit_panels(p: &egui::Painter, tab: &RibbonTab, available: f32) -> (Vec<bool>,
 /// The tabs the ribbon shows now: the standard ones, then the contextual tab the app's state
 /// calls for ([`context`]).
 fn shown_tabs(app: &CadApp) -> Vec<&'static RibbonTab> {
-    TABS.iter().chain(context::current(app)).collect()
+    TABS.iter().filter(|tab| !app.ui.hidden_tabs.iter().any(|h| h == tab.name)).chain(context::current(app)).collect()
+}
+
+/// The standard ribbon tabs' names (CUI shows or hides them).
+pub(crate) fn tab_names() -> Vec<&'static str> {
+    TABS.iter().map(|tab| tab.name).collect()
+}
+
+/// The Quick Access Toolbar's tools: the customized ones (CUI), else the standard ones.
+fn qat_tools(app: &CadApp) -> Vec<Tool> {
+    match &app.ui.qat {
+        None => QAT.to_vec(),
+        Some(ids) => ids.iter().filter_map(|id| qat_tool(id)).take(crate::workspaces::MAX_QAT).collect(),
+    }
+}
+
+/// The Quick Access Toolbar's command ids.
+pub(crate) fn qat_ids(app: &CadApp) -> Vec<String> {
+    qat_tools(app).iter().map(|t| t.1.to_string()).collect()
+}
+
+/// A command as a Quick Access Toolbar tool: its ribbon icon, else a generic one.
+fn qat_tool(id: &str) -> Option<Tool> {
+    let id = id.trim();
+    if let Some(t) = QAT.iter().chain(APP_MENU).find(|t| t.1.eq_ignore_ascii_case(id)) {
+        return Some(*t);
+    }
+    if let Some(t) = TABS.iter().flat_map(|t| t.panels.iter()).flat_map(all_tools).find(|t| t.1.eq_ignore_ascii_case(id)) {
+        return Some(t);
+    }
+    if let Some(c) = draftcraft_engine::find_command(id) {
+        return Some((Icon::Customize, c.id, c.label));
+    }
+    crate::menus::UI_COMMANDS.iter().find(|c| c.0.eq_ignore_ascii_case(id)).map(|c| (Icon::Customize, c.0, c.1))
 }
 
 /// The ribbon tab names and the minimize switch after them.

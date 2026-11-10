@@ -46,6 +46,10 @@ const HEADER_VARS: &[(&str, i32)] = &[
     ("INSUNITS", 70),
     ("MEASUREMENT", 70),
     ("PSLTSCALE", 70),
+    // The geographic location (GEOGRAPHICLOCATION): degrees, and the north direction in radians.
+    ("LATITUDE", 40),
+    ("LONGITUDE", 40),
+    ("NORTHDIRECTION", 40),
 ];
 
 /// The current dimension style's variables as header variables (`$DIMTXT`, `$DIMDEC`…), after

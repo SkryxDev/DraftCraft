@@ -102,6 +102,13 @@ pub const UI_COMMANDS: &[(&str, &str, &[&str], Option<&str>)] = &[
     ("ui.mtext.ok", "Close Text Editor", &[], None),
     ("ui.mtext.cancel", "Cancel", &[], None),
     ("ui.quit", "Quit DraftCraft", &[], Some("Cmd+Q")),
+    ("cui", "Customize User Interface", &["Tools", "Customize", "Interface..."], None),
+    ("workspace", "Workspaces", &["Tools", "Workspaces", "Workspace Settings..."], None),
+    ("-workspace", "Workspaces", &[], None),
+    ("wscurrent", "Current Workspace", &[], None),
+    ("wssave", "Save Workspace", &["Tools", "Workspaces", "Save Current As..."], None),
+    ("wssettings", "Workspace Settings", &[], None),
+    ("ui.cui", "Customize Interface", &[], None),
 ];
 
 pub fn is_ui_command(id: &str) -> bool {
@@ -130,6 +137,9 @@ fn route_ui_subsystems(app: &mut CadApp, id: &str, params: &Value) -> Option<Res
         return Some(r);
     }
     if let Some(r) = crate::managers::route(app, id, params) {
+        return Some(r);
+    }
+    if let Some(r) = crate::workspaces::route(app, id, params) {
         return Some(r);
     }
     if matches!(id, "ui.dock" | "ui.dock.reset") {
@@ -449,7 +459,7 @@ fn run_ui_command_inner(app: &mut CadApp, id: &str, params: &Value) -> Option<Re
             Ok(Value::Null)
         }
         "export" | "exp" | "import" | "imp" | "publish" | "preview" | "pre" | "attach" | "imageattach" | "iat" | "pdfattach" | "pdfat"
-        | "pdfimport"
+        | "pdfimport" | "etransmit" | "pointcloudattach" | "pcattach" | "pointcloud"
             if params.is_null() && app.session.state().is_ok() =>
         {
             return Some(crate::exchange::route(app, id));

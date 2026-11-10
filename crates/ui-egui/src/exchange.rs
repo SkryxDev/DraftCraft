@@ -1,4 +1,4 @@
-//! EXPORT, IMPORT, PUBLISH and PREVIEW from a menu, the tool bar or the command line: the first
+//! EXPORT, IMPORT, PUBLISH, ETRANSMIT, POINTCLOUDATTACH and PREVIEW from a menu, the tool bar or the command line: the first
 //! three ask for a file, PREVIEW shows the plot in a window. Calls with parameters (scripts, the
 //! control channel, MCP) never get here and never open a dialog: they run the engine commands.
 
@@ -38,6 +38,20 @@ pub fn route(app: &mut CadApp, id: &str) -> Result<Value, String> {
             let Some(pick) = app.services.pick_file.as_ref() else { return no_picker(app, &cmd.to_ascii_uppercase(), r#"{"path": "plan.pdf"}"#) };
             match pick(label, exts) {
                 Some(path) => app.run(cmd, json!({ "path": path })),
+                None => Ok(Value::Null),
+            }
+        }
+        "pointcloudattach" | "pcattach" | "pointcloud" => {
+            let Some(pick) = app.services.pick_file.as_ref() else { return no_picker(app, "POINTCLOUDATTACH", r#"{"path": "scan.las"}"#) };
+            match pick("Point clouds (XYZ, LAS)", &["xyz", "pts", "csv", "txt", "las"]) {
+                Some(path) => app.run("pointcloudattach", json!({ "path": path })),
+                None => Ok(Value::Null),
+            }
+        }
+        "etransmit" => {
+            let Some(pick) = app.services.pick_save.as_ref() else { return no_picker(app, "ETRANSMIT", r#"{"path": "package.zip"}"#) };
+            match pick(&format!("{stem}.zip")) {
+                Some(path) => app.run("etransmit", json!({ "path": path })),
                 None => Ok(Value::Null),
             }
         }

@@ -72,6 +72,7 @@ pub mod viewcube;
 pub mod vpscale;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod window_frame;
+pub mod workspaces;
 
 pub mod exchange;
 
@@ -141,6 +142,14 @@ pub struct UiState {
     pub recent_files: Vec<String>,
     /// The folder the last APPLOAD file came from: the next pick starts there.
     pub last_lisp_dir: Option<String>,
+    /// The Quick Access Toolbar's commands (CUI); `None`: the standard ones.
+    pub qat: Option<Vec<String>>,
+    /// Ribbon tabs the user hid (CUI).
+    pub hidden_tabs: Vec<String>,
+    /// Saved workspaces (WORKSPACE); the built-in "2D Drafting" isn't among them.
+    pub workspaces: Vec<workspaces::SavedWorkspace>,
+    /// The current workspace's name; empty: the built-in one.
+    pub current_workspace: String,
 }
 
 /// A DXF/DWG file version (2000 … 2018).
@@ -223,6 +232,10 @@ impl Default for UiState {
             save_version: SaveVersion::default().year().to_string(),
             recent_files: Vec::new(),
             last_lisp_dir: None,
+            qat: None,
+            hidden_tabs: Vec::new(),
+            workspaces: Vec::new(),
+            current_workspace: String::new(),
         }
     }
 }
