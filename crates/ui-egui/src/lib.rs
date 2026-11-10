@@ -62,6 +62,8 @@ pub mod plotstyles;
 pub mod quick;
 pub mod ribbon;
 pub mod save_loss;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod self_update;
 pub mod shortcut_menus;
 pub mod theme;
 #[cfg(not(target_arch = "wasm32"))]

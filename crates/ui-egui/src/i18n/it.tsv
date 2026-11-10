@@ -1386,6 +1386,22 @@ menu	Modify	Edita
 	Skip This Version	Salta questa versione
 	DraftCraft is up to date (version {version}).	DraftCraft è aggiornato (versione {version}).
 	Could not check for updates.	Impossibile verificare gli aggiornamenti.
+	Do you want to install the update now?	Vuoi installare l'aggiornamento adesso?
+	Update Now	Aggiorna ora
+	Open the release page	Apri la pagina della release
+	This copy of DraftCraft can't update itself.	Questa copia di DraftCraft non può aggiornarsi da sola.
+	Updating DraftCraft	Aggiornamento di DraftCraft
+	Update Failed	Aggiornamento non riuscito
+	Installing DraftCraft {version}	Installazione di DraftCraft {version}
+	Downloading: {done} of {total} MB	Download: {done} di {total} MB
+	Installing…	Installazione…
+	Starting the download…	Avvio del download…
+	The connection dropped; trying again…	Connessione interrotta; nuovo tentativo…
+	DraftCraft {version} is installed.	DraftCraft {version} è installato.
+	Restart DraftCraft to use it. If you restart later, it opens the next time you start DraftCraft.	Riavvia DraftCraft per usarlo. Se riavvii più tardi, si aprirà al prossimo avvio di DraftCraft.
+	Restart Now	Riavvia ora
+	The update could not be installed.	Impossibile installare l'aggiornamento.
+	You can download it from the release page instead.	Puoi scaricarlo invece dalla pagina della release.
 	Find All	Find All
 	Find what:	Find what:
 	Match case	Match case
