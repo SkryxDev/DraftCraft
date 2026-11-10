@@ -18,6 +18,20 @@ pub fn hit_polylines(d: &Drawing, e: &Entity, tol: f64) -> Vec<Vec<Vec2>> {
         | EntityKind::Tolerance(_)
         | EntityKind::MLeader(_)
         | EntityKind::Image(_) => {
+            // Dimensions and multileaders are hit on what they draw (lines, arrows) and inside the
+            // box around their words, not on the outline of their axis-aligned bounds: its edges
+            // run through empty space, away from the lines (through the defining points), so the
+            // cursor found the dimension there rather than near its lines.
+            if matches!(e.kind, EntityKind::Dimension(_) | EntityKind::MLeader(_)) {
+                let list = draftcraft_render::build_entities(
+                    d,
+                    std::iter::once(e),
+                    &draftcraft_render::Options { tolerance: tol, text: false, linetypes: false, ..Default::default() },
+                );
+                let mut v: Vec<Vec<Vec2>> = list.prims.iter().map(|p| list.points(p).to_vec()).collect();
+                v.extend(annotation_text_boxes(d, e).iter().map(TextBox::outline));
+                return v;
+            }
             // Text-like objects are hit inside their box: text turned with it, not the (much
             // larger) axis-aligned bounds of turned text.
             let c = match text_quad(d, e) {
@@ -32,7 +46,7 @@ pub fn hit_polylines(d: &Drawing, e: &Entity, tol: f64) -> Vec<Vec<Vec2>> {
                 }
             };
             let mut v = vec![vec![c[0], c[1], c[2], c[3], c[0]]];
-            if matches!(e.kind, EntityKind::Dimension(_) | EntityKind::Insert(_) | EntityKind::MLeader(_)) {
+            if matches!(e.kind, EntityKind::Insert(_)) {
                 let list = draftcraft_render::build_entities(
                     d,
                     std::iter::once(e),
@@ -156,36 +170,71 @@ fn in_text_box(d: &Drawing, e: &Entity, p: Vec2) -> bool {
 /// hit along its lines, so without this the cursor found the object only between the letters'
 /// edges and the lines.
 fn in_text(d: &Drawing, e: &Entity, p: Vec2) -> bool {
+    annotation_text_boxes(d, e).iter().any(|b| b.contains(p))
+}
+
+/// The box around some words, turned with them: `b` in the frame turned by `-angle`, then moved
+/// by `offset` (where a dimension's block is drawn).
+struct TextBox {
+    b: Bounds2,
+    angle: f64,
+    offset: Vec2,
+}
+
+impl TextBox {
+    /// The box around `pts` turned by `angle` (the box of text set at `angle`); `None` when
+    /// nothing finite is drawn.
+    fn around(pts: impl Iterator<Item = Vec2>, angle: f64) -> Option<TextBox> {
+        let b = Bounds2::from_points(pts.filter(|q| q.is_finite()).map(|q| q.rotate(-angle)));
+        (!b.is_empty() && angle.is_finite()).then_some(TextBox { b, angle, offset: Vec2::ZERO })
+    }
+
+    fn contains(&self, p: Vec2) -> bool {
+        self.b.contains((p - self.offset).rotate(-self.angle))
+    }
+
+    /// Its outline, closed, in drawing coordinates.
+    fn outline(&self) -> Vec<Vec2> {
+        let c = self.b.corners().map(|q| q.rotate(self.angle) + self.offset);
+        vec![c[0], c[1], c[2], c[3], c[0]]
+    }
+}
+
+/// The boxes around the words of a dimension or multileader, turned with the text (none for
+/// other objects).
+fn annotation_text_boxes(d: &Drawing, e: &Entity) -> Vec<TextBox> {
     match &e.kind {
         // A dimension with a block (as AutoCAD saves them) is drawn from that block: its text is
         // the text there, not the text the dimension's own geometry would place.
         EntityKind::Dimension(dm) => match dm.block.as_ref().and_then(|n| d.block(n)) {
-            // The block draws translated by the insertion point (group 12): test there (#2634).
+            // The block draws translated by the insertion point (group 12) (#2634).
             Some(blk) => {
-                let p = p - dm.insertion_point.xy();
-                blk.entities.iter().any(|be| match &be.kind {
-                    EntityKind::MText(t) => in_box(draftcraft_render::layout_mtext_entity(d, t).strokes.into_iter().flatten(), t.rotation, p),
-                    EntityKind::Text(_) => entity_bounds(d, be, 0).contains(p),
-                    _ => false,
-                })
+                let offset = dm.insertion_point.xy();
+                blk.entities
+                    .iter()
+                    .filter_map(|be| match &be.kind {
+                        EntityKind::MText(t) => {
+                            TextBox::around(draftcraft_render::layout_mtext_entity(d, t).strokes.into_iter().flatten(), t.rotation)
+                        }
+                        EntityKind::Text(_) => TextBox::around(entity_bounds(d, be, 0).corners().into_iter(), 0.0),
+                        _ => None,
+                    })
+                    .map(|b| TextBox { offset, ..b })
+                    .collect()
             }
             None => {
                 let g = draftcraft_render::dimension_in(d, dm);
-                in_box(g.text.iter().flatten().chain(g.text_glyphs.iter().flatten().flatten()).copied(), g.text_angle, p)
+                TextBox::around(g.text.iter().flatten().chain(g.text_glyphs.iter().flatten().flatten()).copied(), g.text_angle).into_iter().collect()
             }
         },
-        EntityKind::MLeader(m) => {
-            m.text.as_ref().is_some_and(|t| in_box(draftcraft_render::layout_mtext_entity(d, t).strokes.into_iter().flatten(), t.rotation, p))
-        }
-        _ => false,
+        EntityKind::MLeader(m) => m
+            .text
+            .as_ref()
+            .and_then(|t| TextBox::around(draftcraft_render::layout_mtext_entity(d, t).strokes.into_iter().flatten(), t.rotation))
+            .into_iter()
+            .collect(),
+        _ => Vec::new(),
     }
-}
-
-/// Whether `p` is inside the box around `pts` turned by `angle` (the box of text set at `angle`).
-fn in_box(pts: impl Iterator<Item = Vec2>, angle: f64, p: Vec2) -> bool {
-    let turn = |q: Vec2| q.rotate(-angle);
-    let b = Bounds2::from_points(pts.filter(|q| q.is_finite()).map(turn));
-    !b.is_empty() && b.contains(turn(p))
 }
 
 fn selectable(d: &Drawing, e: &Entity) -> bool {

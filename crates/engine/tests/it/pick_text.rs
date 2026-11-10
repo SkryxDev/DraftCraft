@@ -175,3 +175,53 @@ fn text_is_picked_around_its_letters_not_a_full_height_estimate() {
         s.execute("erase", &json!({"handles": [text.0]})).unwrap();
     }
 }
+
+/// The case reported from the field: a dimension was found with the cursor well away from its
+/// lines and not with the cursor near them. It was hit on the outline of its axis-aligned bounds,
+/// whose edges run through empty space (through the defining points). Now it is hit on what it
+/// draws and inside the box around its words, by picks and by crossing windows alike.
+#[test]
+fn a_dimension_is_picked_on_its_lines_not_its_bounds_outline() {
+    let mut s = Session::new();
+    // Defining points well apart from the dimension line, as on a drawn part.
+    s.execute("dimlinear", &json!({"p1": [0, 0], "p2": [100, 0], "at": [50, 30]})).unwrap();
+    s.execute("dimlinear", &json!({"p1": [200, 0], "p2": [200, 80], "at": [170, 40]})).unwrap();
+    let d = s.doc().unwrap();
+    let dims: Vec<_> = d.model.iter().filter(|e| matches!(e.kind, EntityKind::Dimension(_))).collect();
+    let (h, v) = (dims[0].handle, dims[1].handle);
+    let ap = 0.5;
+    let bounds = |dim| draftcraft_engine::doc::entity_bounds(d, d.entity(dim).unwrap(), 0);
+    let (bh, bv) = (bounds(h), bounds(v));
+    for (dim, probes_off, probes_on) in [
+        // Horizontal: the bounds' bottom edge runs by the defining points, between them; the
+        // extension lines and the dimension line are hit.
+        (h, [Vec2::new(50.0, bh.min.y), Vec2::new(30.0, bh.min.y)], [Vec2::new(0.2, 15.0), Vec2::new(70.0, 30.2)]),
+        // Vertical (as the 5.00 one at the left of the sample): the bounds' right edge.
+        (v, [Vec2::new(bv.max.x, 20.0), Vec2::new(bv.max.x, 60.0)], [Vec2::new(185.0, 0.2), Vec2::new(169.8, 20.0)]),
+    ] {
+        for p in probes_off {
+            assert_eq!(pick(d, &Space::Model, p, ap), None, "empty space on the bounds' outline at {p:?}");
+            // A crossing window touching only that outline doesn't take it either.
+            let bx = Bounds2::new(p - Vec2::new(1.0, 1.0), p + Vec2::new(1.0, 1.0));
+            assert!(!draftcraft_engine::select::select_window(d, &Space::Model, bx, true).contains(&dim), "crossing at {p:?}");
+        }
+        for p in probes_on {
+            assert_eq!(pick(d, &Space::Model, p, ap), Some(dim), "near its lines at {p:?}");
+        }
+    }
+    // Its words are still hit anywhere inside their box, and a crossing window across the edge
+    // of that box (touching no line) takes it.
+    let d = s.doc().unwrap();
+    let words = |dim| {
+        let e = d.entity(dim).unwrap();
+        let EntityKind::Dimension(dm) = &e.kind else { unreachable!() };
+        let g = render::dimension_in(d, dm);
+        Bounds2::from_points(g.text.iter().flatten().chain(g.text_glyphs.iter().flatten().flatten()).copied())
+    };
+    // Level words: their box is axis-aligned.
+    let tb = words(h);
+    assert_eq!(pick(d, &Space::Model, tb.center(), 0.01), Some(h), "between the letters");
+    let mid_y = tb.center().y;
+    let bx = Bounds2::new(Vec2::new(tb.min.x - 0.5, mid_y - 0.05), Vec2::new(tb.min.x + 0.5, mid_y + 0.05));
+    assert_eq!(draftcraft_engine::select::select_window(d, &Space::Model, bx, true), vec![h], "crossing the words' box");
+}
