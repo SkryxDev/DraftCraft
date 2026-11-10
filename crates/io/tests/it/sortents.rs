@@ -107,8 +107,8 @@ fn the_block_draw_order_survives_dxf_and_dwg() {
 /// The table itself (not DraftCraft's reordered records) goes through the DWG bridge (#2410).
 #[test]
 fn a_partial_block_table_survives_the_dwg_bridge() {
-    let dwg = draftcraft_dwg::dxf_to_dwg(block_dxf().as_bytes()).unwrap();
-    let dxf = draftcraft_dwg::dwg_to_dxf(&dwg).unwrap();
+    let dwg = draftcraft_dwg::acadrust::dxf_to_dwg(block_dxf().as_bytes()).unwrap();
+    let dxf = draftcraft_dwg::acadrust::dwg_to_dxf(&dwg).unwrap();
     let d = draftcraft_io::read_dxf(&dxf).unwrap();
     assert_eq!(block_kinds(&d), ["wipeout", "circle", "hline", "vline"]);
 }
@@ -120,8 +120,8 @@ fn a_zero_sort_handle_draws_last() {
     let dxf = block_dxf_with("331\n25B\n5\n0\n331\n25D\n5\n25E\n331\n25E\n5\n25B\n");
     let want = ["wipeout", "circle", "vline", "hline"];
     assert_eq!(block_kinds(&draftcraft_io::read_dxf(dxf.as_bytes()).unwrap()), want, "DXF");
-    let dwg = draftcraft_dwg::dxf_to_dwg(dxf.as_bytes()).unwrap();
-    let back = draftcraft_io::read_dxf(&draftcraft_dwg::dwg_to_dxf(&dwg).unwrap()).unwrap();
+    let dwg = draftcraft_dwg::acadrust::dxf_to_dwg(dxf.as_bytes()).unwrap();
+    let back = draftcraft_io::read_dxf(&draftcraft_dwg::acadrust::dwg_to_dxf(&dwg).unwrap()).unwrap();
     assert_eq!(block_kinds(&back), want, "DWG");
 }
 
@@ -135,7 +135,7 @@ fn two_unlisted_block_entities_each_sort_by_their_own_handle() {
     let dxf = block_dxf_with("331\n25B\n5\n25B\n331\n25D\n5\n25D\n");
     let want = ["hline", "circle", "vline", "wipeout"];
     assert_eq!(block_kinds(&draftcraft_io::read_dxf(dxf.as_bytes()).unwrap()), want, "DXF");
-    let dwg = draftcraft_dwg::dxf_to_dwg(dxf.as_bytes()).unwrap();
-    let back = draftcraft_io::read_dxf(&draftcraft_dwg::dwg_to_dxf(&dwg).unwrap()).unwrap();
+    let dwg = draftcraft_dwg::acadrust::dxf_to_dwg(dxf.as_bytes()).unwrap();
+    let back = draftcraft_io::read_dxf(&draftcraft_dwg::acadrust::dwg_to_dxf(&dwg).unwrap()).unwrap();
     assert_eq!(block_kinds(&back), want, "DWG");
 }

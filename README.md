@@ -312,7 +312,7 @@ DraftCraft™ is made together by **[SkryxDev](https://github.com/SkryxDev)** an
 1.1): the Windows-style ribbon, CONIC's conic arcs and DWG files that AutoCAD opens. WithShalom Studios brought the
 DraftCraft name and its work toward native, lossless DWG, which joins the main build as it lands. Both started from
 [CADCraft](https://github.com/storytold/cadcraft) by the ArtCraft Team and the CADCraft contributors, credited in
-**Help › About › Contributors**.
+[NOTICE](NOTICE).
 
 ## License
 

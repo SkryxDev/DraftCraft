@@ -43,12 +43,12 @@ const MODELLED_XDICT_KEYS: &[&str] = &["ACAD_DIMASSOC", "ACAD_SORTENTS", "ACDBCO
 
 /// Applications whose xdata DraftCraft reads and writes itself. `ACAD` holds dimension overrides
 /// (DSTYLE) on dimensions and dimension styles; elsewhere it is kept.
-const OWN_APPS: &[&str] = &["DRAFTCRAFT", "ACADANNOTATIVE", "ACCMTRANSPARENCY", "ACAECLAYERSTANDARD"];
+pub(crate) const OWN_APPS: &[&str] = &["DRAFTCRAFT", "ACADANNOTATIVE", "ACCMTRANSPARENCY", "ACAECLAYERSTANDARD"];
 
 /// Most objects kept from one file.
 const MAX_OBJECTS: usize = 1_000_000;
 /// Most xdata groups kept per record (AutoCAD allows 16 KB of xdata per object).
-const MAX_XDATA_GROUPS: usize = 16_384;
+pub(crate) const MAX_XDATA_GROUPS: usize = 16_384;
 /// Longest ownership chain followed.
 const MAX_DEPTH: usize = 64;
 
