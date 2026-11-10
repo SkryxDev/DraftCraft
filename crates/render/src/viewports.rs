@@ -208,8 +208,25 @@ pub(crate) enum Clip<'a> {
 
 /// Append `src` to `dst`, clipped to `clip`.
 pub(crate) fn append_clipped(dst: &mut DisplayList, src: &DisplayList, clip: &Clip) {
-    for p in &src.prims {
+    for (i, p) in src.prims.iter().enumerate() {
+        let first = dst.prims.len();
         clip_prim(dst, src, p, clip);
+        keep_curve(dst, src, i, first);
+    }
+}
+
+/// A curve primitive `i` of `src` carries over to `dst` when the clip left it whole: one
+/// polyline (appended at `first`) with the same points.
+fn keep_curve(dst: &mut DisplayList, src: &DisplayList, i: usize, first: usize) {
+    if dst.prims.len() != first + 1 {
+        return;
+    }
+    let (Some(path), Some(p), Some(q)) = (src.curve(i), src.prims.get(i), dst.prims.get(first)) else { return };
+    if q.kind == Kind::Polyline
+        && dst.points(q) == src.points(p)
+        && let Ok(prim) = u32::try_from(first)
+    {
+        dst.curves.push(crate::DCurve { prim, path: path.clone() });
     }
 }
 
@@ -221,6 +238,7 @@ pub(crate) fn append_clipped_keep(dst: &mut DisplayList, src: &DisplayList, clip
     for (i, p) in src.prims.iter().enumerate() {
         let first = dst.prims.len();
         clip_prim(dst, src, p, clip);
+        keep_curve(dst, src, i, first);
         // Each piece keeps its source's layer (block contents not on layer 0 keep theirs).
         if let Some(layer) = src.prim_layers.get(i).copied() {
             for k in first..dst.prims.len() {

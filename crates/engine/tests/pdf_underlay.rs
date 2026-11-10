@@ -159,9 +159,8 @@ fn pdfimport_turns_a_page_into_objects() {
     layers.sort();
     assert_eq!(layers, ["PDF_Geometry", "PDF_Solid Fills", "PDF_Text"]);
     // At 72 units per inch one point is one unit: the line runs from (172, 72) to (244, 72).
-    let line = d.model.iter().find_map(|e| if let EntityKind::LwPolyline(p) = &e.kind { Some(p.clone()) } else { None }).unwrap();
-    let pts: Vec<(f64, f64)> = line.vertices.iter().map(|v| (v.p.x, v.p.y)).collect();
-    assert_eq!(pts, [(172.0, 72.0), (244.0, 72.0)]);
+    let line = d.model.iter().find_map(|e| if let EntityKind::Line(l) = &e.kind { Some(l.clone()) } else { None }).unwrap();
+    assert_eq!([(line.a.x, line.a.y), (line.b.x, line.b.y)], [(172.0, 72.0), (244.0, 72.0)]);
     let text = d.model.iter().find_map(|e| if let EntityKind::Text(t) = &e.kind { Some(t.clone()) } else { None }).unwrap();
     assert_eq!(text.value, "Plan");
     assert!((text.insert.x - 172.0).abs() < 1e-6 && (text.insert.y - 300.0).abs() < 1e-6);

@@ -3,9 +3,10 @@
 //! - [`pages`]: each page's size in points (1/72 inch), as the page is shown (after its rotation).
 //! - [`rasterize`]: one page as pixels, on white paper, for an underlay to show.
 //! - [`import`]: one page's vector content as DraftCraft objects in points, the page's lower-left
-//!   corner at the origin and y up: stroked paths as polylines and splines (each cubic Bézier
-//!   exactly), filled areas as solid hatches, and text as single-line text. Images, shadings and
-//!   clipping are not imported.
+//!   corner at the origin and y up: stroked paths as lines, arcs, circles and polylines (with arc
+//!   segments) where their curves are circular arcs, as CAD programs write arcs, DraftCraft
+//!   included; other curves as splines (each cubic Bézier exactly); filled areas as solid
+//!   hatches, and text as single-line text. Images, shadings and clipping are not imported.
 //!
 //! PDF files are hostile input: the input size, page count, objects and points are capped, and
 //! the reader runs inside `catch_unwind` (craft-pdf's guards), so a damaged file is an error.
@@ -17,7 +18,9 @@ use craft_pdf::interpret::{
 };
 use craft_pdf::syntax::page::Page;
 use draftcraft_color::Rgb;
-use draftcraft_doc::{EntityKind, Hatch, HatchLoop, ImportedShape, LwPolyline, Raster, ShapeClass, Text};
+use draftcraft_doc::{
+    Arc as ArcE, Circle as CircleE, EntityKind, Hatch, HatchLoop, ImportedShape, Line as LineE, LwPolyline, Raster, ShapeClass, Text,
+};
 use draftcraft_geom::{PolyVertex, Spline, Vec2};
 use kurbo::{Affine, BezPath, PathEl, Point, Rect, Shape};
 
@@ -274,6 +277,171 @@ impl Piece {
     }
 }
 
+/// A piece of a subpath once its cubics are known to be circular arcs.
+#[derive(Clone, Copy, Debug)]
+enum Edge {
+    Line {
+        from: Vec2,
+        to: Vec2,
+    },
+    /// From angle `a0` about `c`, turning by `sweep` (negative: clockwise).
+    Arc {
+        c: Vec2,
+        r: f64,
+        a0: f64,
+        sweep: f64,
+        from: Vec2,
+        to: Vec2,
+    },
+}
+
+impl Edge {
+    fn from(&self) -> Vec2 {
+        match *self {
+            Edge::Line { from, .. } | Edge::Arc { from, .. } => from,
+        }
+    }
+    fn to(&self) -> Vec2 {
+        match *self {
+            Edge::Line { to, .. } | Edge::Arc { to, .. } => to,
+        }
+    }
+}
+
+/// How far a cubic may stray from the circle it stands for, as a share of the radius: a quarter
+/// circle drawn as one cubic is off by 0.027 %, and writers round their handles differently.
+const ARC_FIT: f64 = 2e-3;
+
+/// The angle `a` brought into (-π, π].
+fn wrap(a: f64) -> f64 {
+    let r = a.rem_euclid(std::f64::consts::TAU);
+    if r > std::f64::consts::PI { r - std::f64::consts::TAU } else { r }
+}
+
+/// The point at `t` on the cubic.
+fn cubic_at(p: [Vec2; 4], t: f64) -> Vec2 {
+    let s = 1.0 - t;
+    p[0] * (s * s * s) + p[1] * (3.0 * s * s * t) + p[2] * (3.0 * s * t * t) + p[3] * (t * t * t)
+}
+
+/// The circular arc a cubic draws, when it draws one: centre, radius, start angle and sweep
+/// (negative: clockwise). The centre is where the normals at the ends meet; the curve must stay
+/// on that circle at its quarter points.
+fn cubic_arc(p: [Vec2; 4]) -> Option<(Vec2, f64, f64, f64)> {
+    let [p0, p1, p2, p3] = p;
+    let t0 = if p1.dist(p0) > 1e-12 { p1 - p0 } else { p2 - p0 };
+    let t3 = if p3.dist(p2) > 1e-12 { p3 - p2 } else { p3 - p1 };
+    let (n0, n3) = (t0.perp(), t3.perp());
+    let denom = n0.cross(n3);
+    // Parallel end tangents (or NaN): no centre to find.
+    if denom.is_nan() || denom.abs() <= 1e-12 * n0.len() * n3.len() {
+        return None;
+    }
+    let c = p0 + n0 * ((p3 - p0).cross(n3) / denom);
+    let r = c.dist(p0);
+    if !(r.is_finite() && r > 1e-9 && r < 1e8) {
+        return None;
+    }
+    let tol = r * ARC_FIT;
+    let on = |q: Vec2| (c.dist(q) - r).abs() <= tol;
+    if !(on(p3) && [0.25, 0.5, 0.75].iter().all(|t| on(cubic_at(p, *t)))) {
+        return None;
+    }
+    let ang = |q: Vec2| (q.y - c.y).atan2(q.x - c.x);
+    let (a0, am, a3) = (ang(p0), ang(cubic_at(p, 0.5)), ang(p3));
+    let (d1, d2) = (wrap(am - a0), wrap(a3 - am));
+    // Both halves turn the same way, the way the curve leaves its start.
+    let turn = (p0 - c).cross(t0);
+    if d1 * d2 <= 0.0 || d1 * turn <= 0.0 {
+        return None;
+    }
+    Some((c, r, a0, d1 + d2))
+}
+
+/// A subpath whose curves are all circular arcs as one object: a circle, an arc, a line, or a
+/// polyline with arc segments, and how many points it holds. `None` when it has no curve or a
+/// curve that isn't an arc (left to splines).
+fn arcs_and_lines(pieces: &[Piece], closed: bool) -> Option<(EntityKind, usize)> {
+    if !pieces.iter().any(|p| matches!(p, Piece::Curves(_))) {
+        return None;
+    }
+    let mut edges: Vec<Edge> = Vec::new();
+    for piece in pieces {
+        match piece {
+            Piece::Lines(pts) => {
+                for w in pts.windows(2) {
+                    let (Some(a), Some(b)) = (w.first(), w.get(1)) else { continue };
+                    if a.dist(*b) > 1e-9 {
+                        edges.push(Edge::Line { from: *a, to: *b });
+                    }
+                }
+            }
+            Piece::Curves(pts) => {
+                let (first, rest) = pts.split_first()?;
+                let mut cur = *first;
+                for c in rest.chunks(3) {
+                    let [c1, c2, to] = <[Vec2; 3]>::try_from(c).ok()?;
+                    let (center, r, a0, sweep) = cubic_arc([cur, c1, c2, to])?;
+                    let arc = Edge::Arc { c: center, r, a0, sweep, from: cur, to };
+                    // Consecutive pieces of one circle, turning the same way, are one arc.
+                    match edges.last_mut() {
+                        Some(Edge::Arc { c: pc, r: pr, sweep: ps, to: pt, .. })
+                            if pc.dist(center) <= pr.max(r) * ARC_FIT
+                                && (*pr - r).abs() <= pr.max(r) * ARC_FIT
+                                && *ps * sweep > 0.0
+                                && (*ps + sweep).abs() <= std::f64::consts::TAU + 1e-6 =>
+                        {
+                            *ps += sweep;
+                            *pt = to;
+                        }
+                        _ => edges.push(arc),
+                    }
+                    cur = to;
+                }
+            }
+        }
+    }
+    let (first, last) = (edges.first()?, edges.last()?);
+    let tight = |a: Vec2, b: Vec2| a.dist(b) <= 1e-6 * (1.0 + a.len());
+    let ring = tight(first.from(), last.to());
+    if let [Edge::Arc { c, r, a0, sweep, .. }] = edges.as_slice() {
+        let (c, r) = (*c, *r);
+        if ring && (sweep.abs() - std::f64::consts::TAU).abs() < 1e-3 {
+            return Some((EntityKind::Circle(CircleE { center: c.to3(0.0), radius: r }), 1));
+        }
+        let (start, end) = if *sweep > 0.0 { (*a0, a0 + sweep) } else { (a0 + sweep, *a0) };
+        let n = |a: f64| a.rem_euclid(std::f64::consts::TAU);
+        return Some((EntityKind::Arc(ArcE { center: c.to3(0.0), radius: r, start: n(start), end: n(end) }), 1));
+    }
+    // A polyline: each edge from its start vertex, an arc segment by its bulge (a whole circle
+    // inside a polyline as two halves).
+    let mut vertices: Vec<PolyVertex> = Vec::with_capacity(edges.len() + 1);
+    for e in &edges {
+        match *e {
+            Edge::Line { from, .. } => vertices.push(PolyVertex::new(from)),
+            Edge::Arc { c, r, a0, sweep, from, .. } => {
+                if sweep.abs() >= std::f64::consts::PI * 1.999 {
+                    let half = sweep / 2.0;
+                    let mid = c + Vec2::new((a0 + half).cos(), (a0 + half).sin()) * r;
+                    vertices.push(PolyVertex { bulge: (half / 4.0).tan(), ..PolyVertex::new(from) });
+                    vertices.push(PolyVertex { bulge: (half / 4.0).tan(), ..PolyVertex::new(mid) });
+                } else {
+                    vertices.push(PolyVertex { bulge: (sweep / 4.0).tan(), ..PolyVertex::new(from) });
+                }
+            }
+        }
+    }
+    let closed = closed || ring;
+    if !ring {
+        vertices.push(PolyVertex::new(last.to()));
+    }
+    if vertices.iter().any(|v| !(v.p.is_finite() && v.bulge.is_finite())) {
+        return None;
+    }
+    let n = vertices.len();
+    Some((EntityKind::LwPolyline(LwPolyline { vertices, closed, const_width: 0.0, elevation: 0.0, plinegen: false }), n))
+}
+
 /// The length of the vector (1, 0) under `m`, for widths and sizes.
 fn mean_scale(m: Affine) -> f64 {
     let c = m.as_coeffs();
@@ -296,6 +464,15 @@ impl Collector {
 
     fn stroke(&mut self, path: &BezPath, m: Affine, color: Option<Rgb>, width: f64) {
         for (pieces, closed) in subpaths(path, m) {
+            // Circular arcs (and the lines between them) come back as arcs, circles and
+            // polylines with arc segments.
+            if let Some((kind, points)) = arcs_and_lines(&pieces, closed) {
+                if !self.room(points) {
+                    return;
+                }
+                self.push(kind, color, width, ShapeClass::Vector);
+                continue;
+            }
             let whole = pieces.len() == 1;
             for piece in pieces {
                 if !self.room(piece.len()) {
@@ -309,6 +486,11 @@ impl Collector {
                             pts.pop();
                         }
                         if pts.len() < 2 {
+                            continue;
+                        }
+                        // One straight segment is a line.
+                        if let ([a, b], false) = (pts.as_slice(), closed) {
+                            self.push(EntityKind::Line(LineE { a: a.to3(0.0), b: b.to3(0.0) }), color, width, ShapeClass::Vector);
                             continue;
                         }
                         let vertices = pts.into_iter().map(PolyVertex::new).collect();
@@ -541,9 +723,9 @@ BT /F1 12 Tf 72 300 Td (Hi there) Tj ET";
     fn import_reads_lines_curves_fills_and_text() {
         let (shapes, notes) = import(&sample_pdf(), 0, ImportOptions::default()).unwrap();
         assert_eq!(notes, ImportNotes::default());
-        let line = shapes.iter().find(|s| matches!(s.kind, EntityKind::LwPolyline(_))).unwrap();
-        let EntityKind::LwPolyline(p) = &line.kind else { panic!("a polyline") };
-        assert_eq!(p.vertices.iter().map(|v| v.p).collect::<Vec<_>>(), vec![Vec2::new(72.0, 72.0), Vec2::new(144.0, 72.0)]);
+        let line = shapes.iter().find(|s| matches!(s.kind, EntityKind::Line(_))).unwrap();
+        let EntityKind::Line(l) = &line.kind else { panic!("a line") };
+        assert_eq!((l.a.xy(), l.b.xy()), (Vec2::new(72.0, 72.0), Vec2::new(144.0, 72.0)));
         assert_eq!(line.color, Some(Rgb(0, 0, 255)));
         assert!((line.width - 2.0).abs() < 1e-9);
         let curve = shapes.iter().find_map(|s| if let EntityKind::Spline(s) = &s.kind { Some(s) } else { None }).unwrap();

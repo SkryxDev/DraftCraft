@@ -1,6 +1,6 @@
 # DraftCraft roadmap
 
-DraftCraft **2.0.2** is out for macOS (Apple silicon), Windows (x64 and ARM64) and Linux (x64 AppImage). It is a
+DraftCraft **2.1.0** is out for macOS (Apple silicon), Windows (x64 and ARM64) and Linux (x64 AppImage). It is a
 young project: good for 2D drafting, dimensioning and plotting, and still missing parts of what a full
 CAD suite does. This page says what works today, what is known to be missing and what comes next.
 
@@ -19,8 +19,8 @@ Something not listed here is broken, or missing something you need?
 | Annotation | DIM commands with dimension styles and associative dimensions, multileaders, tables, TrueType and SHX fonts, right-to-left text |
 | Hatches and blocks | Pattern, solid and gradient fills; blocks, attributes, the Block Editor, in-place editing, external references |
 | Parametric | Geometric and dimensional constraints, AUTOCONSTRAIN, parameters with expressions |
-| Layouts and output | Paper-space layouts, viewports, page setups, plot styles, PLOT and EXPORTPDF, SVG and PNG export |
-| Files | DWG and DXF reading and writing, at a chosen file version; AUDIT and RECOVER; autosave and drawing recovery |
+| Layouts and output | Paper-space layouts, viewports, page setups, plot styles, PLOT and EXPORTPDF (arcs, circles and splines kept as true curves), SVG and PNG export |
+| Files | DWG and DXF reading and writing, at a chosen file version; AUDIT and RECOVER; autosave and drawing recovery; PDF underlays and PDFIMPORT (PDF vectors to lines, arcs, circles, polylines, splines, hatches and text) |
 | Automation | MCP server, JSON control channel, `draftcraft-cli`, AutoLISP, scripts and alias files |
 
 ## Known gaps
@@ -28,14 +28,13 @@ Something not listed here is broken, or missing something you need?
 - **3D** — there is no 3D modelling yet (no EXTRUDE, REVOLVE, solids or surfaces).
 - **File round-trips** — some objects that DraftCraft doesn't model can be lost when a DWG or DXF is
   saved. Keep a copy of drawings that come from other programs before saving over them.
-- **Ribbon** — no contextual tabs yet (for example a Text Editor tab while editing MTEXT) and no
-  slide-out panels; collapsed panels open a plain list of their commands.
+- **Ribbon** — no slide-out panels yet; collapsed panels open a plain list of their commands.
 - **Builds** — the macOS and Windows builds are not signed or notarized, there is no Linux ARM build and
   no Windows installer yet.
 
 ## Next
 
-1. Contextual ribbon tabs and slide-out panels, so the ribbon behaves like Windows CAD in every state.
+1. Slide-out ribbon panels, so the ribbon behaves like Windows CAD in every state.
 2. Keep every object through a DWG/DXF save.
 3. Signed and notarized builds, a Windows installer, and a Linux ARM build.
 4. The first 3D commands.
