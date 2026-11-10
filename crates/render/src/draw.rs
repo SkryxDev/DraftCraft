@@ -288,7 +288,7 @@ fn draw_image(b: &mut Builder, ctx: &Ctx, i: &draftcraft_doc::Image, rgb: Ink, l
     let v = i.v.xy() * i.size.y;
     // Display flag 1: show the image. Without pixels (file not found, not loaded yet, hidden)
     // the rectangle is crossed out.
-    let raster = if i.display & 1 != 0 { ctx.d.rasters.get(&i.path) } else { None };
+    let raster = if i.display & 1 != 0 { ctx.d.rasters.get(&i.raster_key()) } else { None };
     if let Some(r) = raster {
         b.image(ctx, rgb, i, r);
     }

@@ -46,6 +46,11 @@ fn install_io() {
         plot: Some(|d, space, opts| draftcraft_io::plotter::plot(d, space, opts).map_err(|e| e.to_string())),
     });
     draftcraft_engine::cmd::file::set_image_decoder(|b| draftcraft_io::raster::decode(b).map_err(|e| e.to_string()));
+    draftcraft_engine::cmd::file::set_pdf_hooks(draftcraft_engine::cmd::file::PdfHooks {
+        pages: |b| draftcraft_io::pdf_read::pages(b).map_err(|e| e.to_string()),
+        rasterize: |b, page, dpi| draftcraft_io::pdf_read::rasterize(b, page, dpi).map_err(|e| e.to_string()),
+        import: draftcraft_io::pdf_read::import_flat,
+    });
     draftcraft_engine::cmd::file::set_write_as(|d, name, o| {
         draftcraft_io::write_with(d, name, &draftcraft_io::SaveOptions { version: o.version, binary: o.binary }).map_err(|e| e.to_string())
     });

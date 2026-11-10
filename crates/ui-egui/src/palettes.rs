@@ -9,12 +9,44 @@ use crate::CadApp;
 use crate::icons::{self, Icon};
 use crate::theme::Tokens;
 
+/// DesignCenter (ADCENTER).
+pub mod designcenter;
 #[cfg(test)]
 mod layer_menu_tests;
 /// The hatch pattern picker.
 pub mod patterns;
 /// The QuickCalc palette.
 pub mod quickcalc;
+/// The Sheet Set Manager (SHEETSET).
+pub mod sheetset;
+/// The Tool Palettes window (TOOLPALETTES).
+pub mod toolpalettes;
+
+/// The DesignCenter, Tool Palettes and Sheet Set Manager palettes' state.
+#[derive(Default)]
+pub struct SidePalettes {
+    pub design_center: designcenter::State,
+    pub tool_palettes: toolpalettes::State,
+    pub sheet_set: sheetset::State,
+}
+
+/// Open or close DesignCenter, Tool Palettes and the Sheet Set Manager: typed or chosen without
+/// parameters (ADCENTER, TOOLPALETTES, SHEETSET and their CLOSE/HIDE commands); `ui.toolpalettes`
+/// manages the tool palettes.
+pub fn route(app: &mut CadApp, id: &str, params: &Value) -> Option<Result<Value, String>> {
+    use crate::docking::{Panel, command};
+    let close = |app: &mut CadApp, panel: Panel| command(app, false, &json!({ "operation": "close", "panel": panel.id() }));
+    match id {
+        "ui.toolpalettes" => Some(app.side_palettes.tool_palettes.command(params)),
+        "toolpalettes" | "tp" if params.is_null() => Some(toolpalettes::open(app)),
+        "toolpalettesclose" => Some(close(app, Panel::ToolPalettes)),
+        "adcenter" | "adc" | "dc" | "dcenter" if params.is_null() => Some(designcenter::open(app)),
+        "adcclose" => Some(close(app, Panel::DesignCenter)),
+        "sheetset" | "ssm" | "opensheetset" | "newsheetset" if params.is_null() => Some(sheetset::open(app)),
+        "sheetsethide" => Some(close(app, Panel::SheetSet)),
+        _ => None,
+    }
+}
 
 type Tool = (Icon, &'static str, &'static str);
 

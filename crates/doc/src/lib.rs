@@ -35,7 +35,7 @@ pub use gdt::*;
 pub use header::{HVal, Header};
 pub use plotstyle::*;
 pub use plotter::*;
-pub use raster::{Raster, Rasters};
+pub use raster::{ImportedShape, Raster, Rasters, ShapeClass};
 pub use refedit::{RefEdit, WorkItem};
 pub use store::EntityStore;
 pub use tables::*;

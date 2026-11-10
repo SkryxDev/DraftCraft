@@ -13,10 +13,12 @@ mod dxf_image;
 mod dxf_mleader;
 mod dxf_read;
 mod dxf_table;
+mod dxf_underlay;
 mod dxf_write;
 mod dxf_xref;
 mod legacy_names;
 pub mod pdf;
+pub mod pdf_read;
 pub mod plotter;
 /// Raster image files (PNG, JPEG, BMP, TIFF) decoded to pixels.
 pub mod raster;

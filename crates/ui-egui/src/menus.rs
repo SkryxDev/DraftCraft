@@ -32,6 +32,11 @@ pub const UI_COMMANDS: &[(&str, &str, &[&str], Option<&str>)] = &[
     ("ui.panel.layers", "Layers Palette", &["Window", "Layers Palette"], None),
     ("ui.toggle.quickcalc", "QuickCalc", &["Window", "QuickCalc"], Some("Cmd+8")),
     ("ui.panel.quickcalc", "QuickCalc", &[], None),
+    ("toolpalettes", "Tool Palettes", &["Tools", "Palettes", "Tool Palettes"], None),
+    ("toolpalettesclose", "Close Tool Palettes", &[], None),
+    ("adcclose", "Close DesignCenter", &[], None),
+    ("sheetsethide", "Close Sheet Set Manager", &[], None),
+    ("ui.toolpalettes", "Manage Tool Palettes", &[], None),
     ("ui.toggle.systemcursor", "Show System Cursor", &["View", "Accessibility", "Show System Cursor"], None),
     ("ui.animations.system", "Use System Setting", &["View", "Accessibility", "Animation Effects", "Use System Setting"], None),
     ("ui.animations.on", "On", &["View", "Accessibility", "Animation Effects", "On"], None),
@@ -78,7 +83,32 @@ pub const UI_COMMANDS: &[(&str, &str, &[&str], Option<&str>)] = &[
     ("ui.dialog.find", "Find and Replace", &[], Some("Cmd+F")),
     ("ui.language", "Language", &[], None),
     ("ui.noop", "", &[], None),
+    // The contextual ribbon tabs' buttons (crate::ribbon::context).
+    ("ui.context.close", "Close", &[], None),
+    ("ui.mtext.bold", "Bold", &[], None),
+    ("ui.mtext.italic", "Italic", &[], None),
+    ("ui.mtext.underline", "Underline", &[], None),
+    ("ui.mtext.overline", "Overline", &[], None),
+    ("ui.mtext.left", "Left", &[], None),
+    ("ui.mtext.center", "Center", &[], None),
+    ("ui.mtext.right", "Right", &[], None),
+    ("ui.mtext.justify", "Justify", &[], None),
+    ("ui.mtext.bullets", "Bulleted list", &[], None),
+    ("ui.mtext.numbers", "Numbered list", &[], None),
+    ("ui.mtext.degree", "Degree", &[], None),
+    ("ui.mtext.plusminus", "Plus/minus", &[], None),
+    ("ui.mtext.diameter", "Diameter", &[], None),
+    ("ui.mtext.tab", "Insert tab", &[], None),
+    ("ui.mtext.ok", "Close Text Editor", &[], None),
+    ("ui.mtext.cancel", "Cancel", &[], None),
     ("ui.quit", "Quit DraftCraft", &[], Some("Cmd+Q")),
+    ("cui", "Customize User Interface", &["Tools", "Customize", "Interface..."], None),
+    ("workspace", "Workspaces", &["Tools", "Workspaces", "Workspace Settings..."], None),
+    ("-workspace", "Workspaces", &[], None),
+    ("wscurrent", "Current Workspace", &[], None),
+    ("wssave", "Save Workspace", &["Tools", "Workspaces", "Save Current As..."], None),
+    ("wssettings", "Workspace Settings", &[], None),
+    ("ui.cui", "Customize Interface", &[], None),
 ];
 
 pub fn is_ui_command(id: &str) -> bool {
@@ -100,7 +130,16 @@ fn route_ui_subsystems(app: &mut CadApp, id: &str, params: &Value) -> Option<Res
     if let Some(r) = crate::bedit::route(app, id, params) {
         return Some(r);
     }
+    if let Some(r) = crate::ribbon::context::route(app, id, params) {
+        return Some(r);
+    }
+    if let Some(r) = crate::palettes::route(app, id, params) {
+        return Some(r);
+    }
     if let Some(r) = crate::managers::route(app, id, params) {
+        return Some(r);
+    }
+    if let Some(r) = crate::workspaces::route(app, id, params) {
         return Some(r);
     }
     if matches!(id, "ui.dock" | "ui.dock.reset") {
@@ -419,7 +458,10 @@ fn run_ui_command_inner(app: &mut CadApp, id: &str, params: &Value) -> Option<Re
             app.ui.start_tab = false;
             Ok(Value::Null)
         }
-        "export" | "exp" | "import" | "imp" | "publish" | "preview" | "pre" if params.is_null() && app.session.state().is_ok() => {
+        "export" | "exp" | "import" | "imp" | "publish" | "preview" | "pre" | "attach" | "imageattach" | "iat" | "pdfattach" | "pdfat"
+        | "pdfimport" | "etransmit" | "pointcloudattach" | "pcattach" | "pointcloud"
+            if params.is_null() && app.session.state().is_ok() =>
+        {
             return Some(crate::exchange::route(app, id));
         }
         "ui.hidepalettes" => {

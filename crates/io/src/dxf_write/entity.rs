@@ -570,6 +570,14 @@ fn write_annotations_entity(w: &mut W, d: &Drawing, e: &Entity, owner: &str, pap
                 w.p(10, *v);
             }
         }
+        EntityKind::Image(i) if i.underlay.is_some() => {
+            // Every underlay has its definition (planned in `write`); the fallback never happens.
+            let Some(def) = cx.underlays.by_entity.get(&e.handle) else { return };
+            let (kind, _) = i.underlay.as_ref().map(|u| u.kind.dxf_names()).unwrap_or(("PDFUNDERLAY", ""));
+            w.s(0, kind);
+            common(w, e, owner, paper, "AcDbUnderlayReference");
+            w.t.extend(crate::dxf_underlay::entity_tags(i, def));
+        }
         EntityKind::Image(i) => {
             // Every image has its IMAGEDEF (planned in `write`); the fallback never happens.
             let Some((def, reactor)) = cx.images.by_entity.get(&e.handle) else { return };
