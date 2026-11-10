@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/SkryxDev/DraftCraft/releases/latest/download/draftcraft-windows-x64.zip"><img alt="Download for Windows" src="https://img.shields.io/badge/Windows-Download-0078D6?style=for-the-badge&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0zIDNoOC41djguNUgzek0xMi41IDNIMjF2OC41aC04LjV6TTMgMTIuNWg4LjVWMjFIM3pNMTIuNSAxMi41SDIxVjIxaC04LjV6Ii8%2BPC9zdmc%2B&logoColor=white"></a>
+  <a href="https://github.com/SkryxDev/DraftCraft/releases/latest/download/draftcraft-windows-x64.msi"><img alt="Download for Windows" src="https://img.shields.io/badge/Windows-Download-0078D6?style=for-the-badge&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0zIDNoOC41djguNUgzek0xMi41IDNIMjF2OC41aC04LjV6TTMgMTIuNWg4LjVWMjFIM3pNMTIuNSAxMi41SDIxVjIxaC04LjV6Ii8%2BPC9zdmc%2B&logoColor=white"></a>
   <a href="https://github.com/SkryxDev/DraftCraft/releases/latest/download/draftcraft-macos-arm64.dmg"><img alt="Download for macOS" src="https://img.shields.io/badge/macOS-Download-333333?style=for-the-badge&logo=apple&logoColor=white"></a>
   <a href="https://github.com/SkryxDev/DraftCraft/releases/latest/download/draftcraft-linux-x86_64.AppImage"><img alt="Download for Linux (AppImage)" src="https://img.shields.io/badge/Linux-AppImage-E95420?style=for-the-badge&logo=linux&logoColor=white"></a>
 </p>
@@ -242,20 +242,26 @@ One click downloads the newest version from the [latest release](https://github.
 
 | System | Download |
 |---|---|
-| Windows 10 and 11 | [64-bit (x64)](https://github.com/SkryxDev/DraftCraft/releases/latest/download/draftcraft-windows-x64.zip) · [ARM64](https://github.com/SkryxDev/DraftCraft/releases/latest/download/draftcraft-windows-arm64.zip) |
+| Windows 10 and 11 | Installer: [64-bit (x64)](https://github.com/SkryxDev/DraftCraft/releases/latest/download/draftcraft-windows-x64.msi) · [ARM64](https://github.com/SkryxDev/DraftCraft/releases/latest/download/draftcraft-windows-arm64.msi) — zip: [x64](https://github.com/SkryxDev/DraftCraft/releases/latest/download/draftcraft-windows-x64.zip) · [ARM64](https://github.com/SkryxDev/DraftCraft/releases/latest/download/draftcraft-windows-arm64.zip) |
 | macOS 11 or later (Apple silicon) | [Disk image](https://github.com/SkryxDev/DraftCraft/releases/latest/download/draftcraft-macos-arm64.dmg) |
-| Linux, any distribution | [AppImage x86_64](https://github.com/SkryxDev/DraftCraft/releases/latest/download/draftcraft-linux-x86_64.AppImage) |
+| Linux x86_64 | [AppImage](https://github.com/SkryxDev/DraftCraft/releases/latest/download/draftcraft-linux-x86_64.AppImage) (any distribution) · [.deb](https://github.com/SkryxDev/DraftCraft/releases/latest/download/draftcraft-linux-x86_64.deb) (Debian, Ubuntu 22.04 or later) |
 
 The release page also has the macOS command-line tool on its own (`draftcraft-cli-macos-arm64.zip`) and
 `SHA256SUMS.txt`. Every download includes `draftcraft-cli`, the command-line and MCP tool.
 
-- **Windows** — unzip the folder anywhere and run `DraftCraft.exe`. The build isn't signed, so SmartScreen
-  may stop it the first time: choose **More info**, then **Run anyway**. DraftCraft draws its own title bar
+- **Windows** — run the installer: it installs for your account (or, if you choose, for everyone), adds
+  DraftCraft to the Start menu and offers it in **Open with** for `.dxf` and `.dwg` files; to open them
+  with DraftCraft by default, pick it in **Settings › Apps › Default apps**. The zip runs from any folder
+  instead (`DraftCraft.exe`) and changes nothing on the system. Neither is signed yet, so SmartScreen may
+  stop it the first time: choose **More info**, then **Run anyway**. DraftCraft draws its own title bar
   there, with the menu bar in it; set `DRAFTCRAFT_TITLEBAR=system` to keep Windows' own.
 - **macOS** — open the disk image and drag **DraftCraft** into **Applications**. It isn't notarized yet, so
   the first time open it once, then **System Settings › Privacy & Security › Open Anyway** — or run
-  `xattr -dr com.apple.quarantine /Applications/DraftCraft.app`.
-- **Linux** — make the AppImage executable (`chmod +x draftcraft-linux-x86_64.AppImage`) and run it.
+  `xattr -dr com.apple.quarantine /Applications/DraftCraft.app`. Finder then lists DraftCraft under
+  **Open With** for `.dxf` and `.dwg` files.
+- **Linux** — install the `.deb` (`sudo apt install ./draftcraft-linux-x86_64.deb`): DraftCraft appears in
+  the applications menu and in the file manager's **Open With** for `.dxf` and `.dwg`. Or make the AppImage
+  executable (`chmod +x draftcraft-linux-x86_64.AppImage`) and run it.
 
 DraftCraft tells you when a newer version is out: it asks GitHub when it starts, and **Help › Check for
 Updates…** checks at any time. That one request to `api.github.com` is all it sends; set

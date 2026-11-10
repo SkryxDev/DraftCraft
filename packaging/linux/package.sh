@@ -7,7 +7,11 @@
 #   $DIST/draftcraft-<version>-linux-<arch>.rpm       Fedora, openSUSE, RHEL, ...
 #   $DIST/draftcraft-<version>-linux-<arch>.tar.gz    plain FHS-style tree (bin/, share/)
 #
-# Usage: packaging/linux/package.sh [--skip-build] [--formats "appimage deb rpm tar"]
+# Usage: packaging/linux/package.sh [--skip-build] [--target TRIPLE] [--formats "appimage deb rpm tar"]
+#
+# --target packages a native build made with `cargo build --target TRIPLE` (the release workflow
+# builds that way); with --skip-build the binaries and the man-and-completions example must already
+# be in $CARGO_TARGET_DIR/TRIPLE/release.
 #
 # Needs: cargo; nfpm for deb/rpm (https://nfpm.goreleaser.com); appimagetool for the AppImage
 # (downloaded into $CARGO_TARGET_DIR if missing). Build on an old distro (CI: Ubuntu 22.04,
@@ -21,17 +25,23 @@ APP_ID=dev.skryx.draftcraft
 
 SKIP_BUILD=0
 FORMATS="appimage deb rpm tar"
+NATIVE_TARGET=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-build) SKIP_BUILD=1; shift ;;
+    --target) NATIVE_TARGET="$2"; shift 2 ;;
     --formats) FORMATS="$2"; shift 2 ;;
-    -h | --help) sed -n '2,17p' "$0"; exit 0 ;;
+    -h | --help) sed -n '2,21p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
 
 # Cross builds (CI's riscv64 job) set CROSS_ARCH, CROSS_TARGET (the Rust target), CROSS_COMPILE
 # (the binutils prefix, for strip) and optionally EMULATOR (e.g. qemu-riscv64, for the smoke test).
+if [[ -n "$NATIVE_TARGET" ]] && [[ -n "${CROSS_TARGET:-}" ]]; then
+  echo "error: --target is for native builds; cross builds set CROSS_TARGET" >&2
+  exit 2
+fi
 ARCH="${CROSS_ARCH:-$(uname -m)}"
 case "$ARCH" in
   riscv64) DEB_ARCH=riscv64 ;;
@@ -52,11 +62,14 @@ if [[ "$SKIP_BUILD" = 0 ]]; then
     (cd "$ROOT" && cargo build --release --locked -p draftcraft -p draftcraft-cli --target "$CROSS_TARGET")
     (cd "$ROOT" && cargo build --release --locked -p draftcraft-cli --example man-and-completions --target "$CROSS_TARGET")
   else
-    (cd "$ROOT" && cargo build --release --locked -p draftcraft -p draftcraft-cli)
-    (cd "$ROOT" && cargo build --release --locked -p draftcraft-cli --example man-and-completions)
+    target=()
+    [[ -n "$NATIVE_TARGET" ]] && target=(--target "$NATIVE_TARGET")
+    (cd "$ROOT" && cargo build --release --locked -p draftcraft -p draftcraft-cli ${target[@]+"${target[@]}"})
+    (cd "$ROOT" && cargo build --release --locked -p draftcraft-cli --example man-and-completions ${target[@]+"${target[@]}"})
   fi
 fi
-BIN="$CARGO_TARGET_DIR/${CROSS_TARGET:+$CROSS_TARGET/}release"
+TRIPLE="${CROSS_TARGET:-$NATIVE_TARGET}"
+BIN="$CARGO_TARGET_DIR/${TRIPLE:+$TRIPLE/}release"
 WORK="$CARGO_TARGET_DIR/linux-package"
 STAGE="$WORK/root"
 rm -rf "$WORK"

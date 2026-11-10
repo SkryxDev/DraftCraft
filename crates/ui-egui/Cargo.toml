@@ -34,6 +34,11 @@ craft-update = { workspace = true }
 # Unpacks the Windows update zip (self_update.rs); the same version and features craft-update uses.
 zip = { version = "9", default-features = false, features = ["deflate"] }
 
+[target.'cfg(windows)'.dependencies]
+# Tells a copy the installer (MSI) put in place from an unzipped folder (self_update.rs); the same
+# version craft-update reads the registry with.
+winreg = "0.55"
+
 [dev-dependencies]
 # Tests build the dock area as the desktop app does (headless contexts keep floats in-window).
 craft-ui = { workspace = true, features = ["native-windows"] }

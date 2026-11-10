@@ -8,8 +8,10 @@
 //! | Windows folder with `DraftCraft.exe` | `draftcraft-windows-{x64,arm64}.zip` | unzipped beside it; each running file renamed to `*.old` (Windows allows that) and the new one moved in |
 //! | Linux AppImage (`$APPIMAGE`) | `draftcraft-linux-x86_64.AppImage` | renamed over the old one (fine while it runs) |
 //!
-//! Anything else (a build from source, a folder this account can't write, another system) gets the
-//! release page instead, as before. The leftovers of a swap (the old app, `*.old` files) are deleted
+//! Anything else (a build from source, a folder this account can't write, a copy installed by the
+//! Windows installer or a Linux `.deb`, another system) gets the release page instead, as before:
+//! the installer and the package manager keep their own record of the installed version, which
+//! replacing the files would leave behind. The leftovers of a swap (the old app, `*.old` files) are deleted
 //! at the next start ([`clean_leftovers`]).
 //!
 //! Downloading, resuming and the checksum are `craft_update::Http::download`; only files under
@@ -80,6 +82,9 @@ pub fn detect() -> Option<Install> {
         return None;
     }
     let install = detect_at(&exe, std::env::var_os("APPIMAGE").map(PathBuf::from))?;
+    if matches!(install, Install::WindowsFolder(_)) && installed_by_msi(&exe) {
+        return None;
+    }
     install.asset_name()?;
     writable(container(&install)?).then_some(install)
 }
@@ -98,6 +103,37 @@ fn detect_at(exe: &Path, appimage: Option<PathBuf>) -> Option<Install> {
         return appimage.filter(|p| p.is_file()).map(Install::AppImage);
     }
     None
+}
+
+/// The `App Paths` key the Windows installer registers the app under (`packaging/windows/draftcraft.wxs`).
+#[cfg(windows)]
+const APP_PATHS_KEY: &str = r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\draftcraft.exe";
+
+/// Windows: whether `exe` (canonical) is the copy the installer (MSI) put in place. The installer
+/// names its exe in `App Paths`, under HKCU when installed for one account and HKLM for everyone;
+/// an unzipped folder has no such entry. Such a copy updates by running the new installer.
+#[cfg(windows)]
+fn installed_by_msi(exe: &Path) -> bool {
+    use winreg::RegKey;
+    use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ, KEY_WOW64_32KEY, KEY_WOW64_64KEY};
+    [(HKEY_CURRENT_USER, 0), (HKEY_LOCAL_MACHINE, KEY_WOW64_64KEY), (HKEY_LOCAL_MACHINE, KEY_WOW64_32KEY)].into_iter().any(|(hive, view)| {
+        let Ok(key) = RegKey::predef(hive).open_subkey_with_flags(APP_PATHS_KEY, KEY_READ | view) else { return false };
+        key.get_value::<String, _>("").is_ok_and(|value| registered_exe_is(&value, exe))
+    })
+}
+
+#[cfg(not(windows))]
+fn installed_by_msi(_exe: &Path) -> bool {
+    false
+}
+
+/// Whether an `App Paths` value (an exe's path, perhaps in quotes) names `exe` (canonical). Both
+/// are compared canonical, so case and `\\?\` prefixes don't matter; a value naming a missing
+/// file never matches.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn registered_exe_is(value: &str, exe: &Path) -> bool {
+    let value = value.trim().trim_matches('"');
+    !value.is_empty() && Path::new(value).canonicalize().is_ok_and(|p| p == exe)
 }
 
 /// The folder the swap writes in.
@@ -503,6 +539,28 @@ mod tests {
         assert_eq!(mac.program(), PathBuf::from("/Applications/DraftCraft.app"));
         let linux = Install::AppImage(PathBuf::from("/home/me/DraftCraft.AppImage"));
         assert_eq!(linux.asset_name().is_some(), cfg!(target_arch = "x86_64"));
+    }
+
+    #[test]
+    fn an_installer_copy_is_known_by_the_exe_its_registration_names() {
+        let dir = tempdir();
+        let folder = dir.join("Programs/DraftCraft/DraftCraft");
+        std::fs::create_dir_all(&folder).unwrap();
+        let exe = folder.join("draftcraft.exe");
+        std::fs::write(&exe, "").unwrap();
+        let canonical = exe.canonicalize().unwrap();
+        let path = exe.to_str().unwrap();
+        // The installer writes the bare path; App Paths values are sometimes quoted.
+        for value in [path.to_string(), format!("\"{path}\""), format!("  {path}  ")] {
+            assert!(registered_exe_is(&value, &canonical), "{value}");
+        }
+        // Another copy, a missing file, an empty value.
+        let other = dir.join("DraftCraft/DraftCraft.exe");
+        std::fs::create_dir_all(other.parent().unwrap()).unwrap();
+        std::fs::write(&other, "").unwrap();
+        for value in [other.to_str().unwrap(), dir.join("missing.exe").to_str().unwrap(), "", "\"\""] {
+            assert!(!registered_exe_is(value, &canonical), "{value}");
+        }
     }
 
     #[test]
