@@ -118,7 +118,7 @@ fn string(data: &[u8], p: &mut usize, ver: DwgVersion) -> Result<String> {
         // RS length in characters, then UTF-16LE.
         let n = u16::from_le_bytes(fixed::<2>(data, p)?) as usize;
         let bytes = take(data, p, n * 2)?;
-        let units: Vec<u16> = bytes.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
+        let units: Vec<u16> = bytes.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).collect();
         String::from_utf16(&units).map_err(|_| Error::format("group 1000: invalid UTF-16"))
     } else {
         // RC length, RS code page, then that many 8-bit characters.

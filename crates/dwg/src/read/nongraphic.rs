@@ -203,7 +203,7 @@ fn xrecord_items(d: &[u8], ver: V) -> Result<Vec<(u16, XrValue)>> {
             XrType::Str => {
                 if ver.has_string_stream() {
                     let len = u16::from_le_bytes(le(take(&mut p, 2)?)) as usize;
-                    let units: Vec<u16> = take(&mut p, len * 2)?.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
+                    let units: Vec<u16> = take(&mut p, len * 2)?.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).collect();
                     XrValue::Str(String::from_utf16_lossy(&units))
                 } else {
                     let len = take(&mut p, 1)?[0] as usize;
