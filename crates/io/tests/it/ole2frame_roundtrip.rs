@@ -90,7 +90,7 @@ fn dwg_keeps_ole_objects() {
     assert_eq!(ole(&d), 1);
 
     let dwg = draftcraft_io::write(&d, "x.dwg").unwrap();
-    let back = String::from_utf8(draftcraft_dwg::dwg_to_dxf(&dwg).unwrap()).unwrap();
+    let back = String::from_utf8(draftcraft_dwg::acadrust::dwg_to_dxf(&dwg).unwrap()).unwrap();
     let got = frames(&back);
     assert_eq!(got.len(), 1, "{got:?}");
     assert_kept(&got[0]);
@@ -99,14 +99,14 @@ fn dwg_keeps_ole_objects() {
     let again = draftcraft_io::read(&dwg, "x.dwg").unwrap();
     assert_eq!(ole(&again), 1);
     let dwg = draftcraft_io::write(&again, "x.dwg").unwrap();
-    let got = frames(&String::from_utf8(draftcraft_dwg::dwg_to_dxf(&dwg).unwrap()).unwrap());
+    let got = frames(&String::from_utf8(draftcraft_dwg::acadrust::dwg_to_dxf(&dwg).unwrap()).unwrap());
     assert_eq!(got.len(), 1, "{got:?}");
     assert_kept(&got[0]);
 
     // Older DWG versions keep it the same way.
     for version in [draftcraft_io::Version::R2000, draftcraft_io::Version::R2010] {
         let dwg = draftcraft_io::write_with(&d, "x.dwg", &draftcraft_io::SaveOptions { version: Some(version), binary: false }).unwrap();
-        let got = frames(&String::from_utf8(draftcraft_dwg::dwg_to_dxf(&dwg).unwrap()).unwrap());
+        let got = frames(&String::from_utf8(draftcraft_dwg::acadrust::dwg_to_dxf(&dwg).unwrap()).unwrap());
         assert_eq!(got.len(), 1, "{version:?}: {got:?}");
         assert_kept(&got[0]);
     }

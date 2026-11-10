@@ -15,6 +15,8 @@ use draftcraft_geom::{PolyVertex, Spline, Vec2, Vec3};
 use crate::{IoError, Result};
 
 mod common;
+pub(crate) use common::{ocs_n, transparency_440};
+pub(crate) use tables::style_font_of;
 mod dimassoc;
 mod document;
 mod entities;

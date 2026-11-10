@@ -813,7 +813,7 @@ fn viewport_frozen_layers_survive_dwg() {
     let back = read(&dwg, "t.dwg").unwrap();
     assert_eq!(viewport_frozen(&back, 2), vec!["Walls".to_string(), "A B".to_string()]);
     // The DWG holds them in group 331, what AutoCAD reads.
-    let p = pairs(&String::from_utf8(draftcraft_dwg::dwg_to_dxf(&dwg).unwrap()).unwrap());
+    let p = pairs(&String::from_utf8(draftcraft_dwg::acadrust::dwg_to_dxf(&dwg).unwrap()).unwrap());
     assert_eq!(frozen_331(&p), [layer_handle(&p, "Walls"), layer_handle(&p, "A B")]);
 }
 
@@ -955,8 +955,8 @@ fn generated_arrowhead_blocks_are_not_kept_as_user_blocks() {
     for (_, name) in crate::dxf_ext::ARROWS.iter().filter(|(k, _)| *k != draftcraft_render::Arrowhead::ClosedFilled) {
         assert!(dxf.contains(&format!("\r\n{name}\r\n")), "{name} is written");
     }
-    let dwg = draftcraft_dwg::dxf_to_dwg(dxf.as_bytes()).unwrap();
-    let from_dwg = read_dxf(&draftcraft_dwg::dwg_to_dxf(&dwg).unwrap()).unwrap();
+    let dwg = draftcraft_dwg::acadrust::dxf_to_dwg(dxf.as_bytes()).unwrap();
+    let from_dwg = read_dxf(&draftcraft_dwg::acadrust::dwg_to_dxf(&dwg).unwrap()).unwrap();
     for (back, what) in [(read_dxf(dxf.as_bytes()).unwrap(), "DXF"), (from_dwg, "DWG")] {
         assert!(back.blocks.keys().all(|k| !k.starts_with('_')), "{what}: {:?}", back.blocks.keys().collect::<Vec<_>>());
         assert!(roundtrip(&back).blocks.keys().all(|k| !k.starts_with('_')), "{what}: second save");
@@ -987,8 +987,8 @@ fn file_arrowhead_blocks_with_standard_names_are_kept() {
     d.dim_styles.push(DimStyle { name: "Dots".into(), arrow_block1: "_Dot".into(), arrow_block2: "_DotSmall".into(), ..DimStyle::default() });
     let kinds = |d: &Drawing, name: &str| d.block(name).map(|b| b.entities.iter().map(|e| e.kind.clone()).collect::<Vec<_>>()).unwrap_or_default();
     let dxf = write_dxf(&d);
-    let dwg = draftcraft_dwg::dxf_to_dwg(dxf.as_bytes()).unwrap();
-    let from_dwg = read_dxf(&draftcraft_dwg::dwg_to_dxf(&dwg).unwrap()).unwrap();
+    let dwg = draftcraft_dwg::acadrust::dxf_to_dwg(dxf.as_bytes()).unwrap();
+    let from_dwg = read_dxf(&draftcraft_dwg::acadrust::dwg_to_dxf(&dwg).unwrap()).unwrap();
     for (back, what) in [(read_dxf(dxf.as_bytes()).unwrap(), "DXF"), (from_dwg, "DWG")] {
         for name in ["_Dot", "_DotSmall"] {
             assert_eq!(kinds(&back, name), kinds(&d, name), "{what}: {name}");
@@ -1058,7 +1058,7 @@ fn many_entities(n: usize) -> Drawing {
 #[cfg(not(target_arch = "wasm32"))]
 fn ac1024_dwg(n: usize) -> Vec<u8> {
     let dxf = write_dxf(&many_entities(n)).replacen("AC1015", "AC1024", 1);
-    let dwg = draftcraft_dwg::dxf_to_dwg(dxf.as_bytes()).unwrap();
+    let dwg = draftcraft_dwg::acadrust::dxf_to_dwg(dxf.as_bytes()).unwrap();
     assert_eq!(draftcraft_dwg::version(&dwg).as_deref(), Some("AC1024"));
     dwg
 }
@@ -1071,7 +1071,7 @@ fn ac1024_dwg(n: usize) -> Vec<u8> {
 fn ac1024_dwg_with_many_entities_opens() {
     let n = 30_000;
     let dwg = ac1024_dwg(n);
-    let dxf = draftcraft_dwg::dwg_to_dxf(&dwg).unwrap();
+    let dxf = draftcraft_dwg::acadrust::dwg_to_dxf(&dwg).unwrap();
     let tags = draftcraft_dxf::parse(&dxf).unwrap().len();
     assert!(dxf.len() < dwg.len() * 20, "DXF {} bytes from {} DWG bytes", dxf.len(), dwg.len());
     assert!(tags < dwg.len(), "{tags} group codes from {} DWG bytes", dwg.len());
@@ -1088,15 +1088,15 @@ fn ac1024_dwg_with_many_entities_opens() {
 #[test]
 fn oversized_dwg_and_dxf_are_rejected_early() {
     let dwg = ac1024_dwg(3000);
-    let full = draftcraft_dwg::dwg_to_dxf(&dwg).unwrap().len();
+    let full = draftcraft_dwg::acadrust::dwg_to_dxf(&dwg).unwrap().len();
     assert!(full > 400_000, "{full}");
     let limits = draftcraft_dwg::Limits { max_dxf_bytes: 300_000, ..draftcraft_dwg::Limits::DEFAULT };
-    let e = draftcraft_dwg::dwg_to_dxf_with(&dwg, limits).unwrap_err();
+    let e = draftcraft_dwg::acadrust::dwg_to_dxf_with(&dwg, limits).unwrap_err();
     assert!(e.starts_with("DWG: converting this 0."), "{e}");
     assert!(e.contains("MB file produced more than 0.3 MB of drawing data (the limit)"), "{e}");
 
     let limits = draftcraft_dwg::Limits { max_dwg_bytes: 100_000, ..draftcraft_dwg::Limits::DEFAULT };
-    let e = draftcraft_dwg::dwg_to_dxf_with(&dwg, limits).unwrap_err();
+    let e = draftcraft_dwg::acadrust::dwg_to_dxf_with(&dwg, limits).unwrap_err();
     assert!(e.starts_with("DWG: the file is 0.") && e.ends_with("MB, larger than the 0.1 MB DraftCraft opens"), "{e}");
 
     // Lines that aren't even group codes: the size is reported before anything is parsed.
@@ -1929,8 +1929,8 @@ fn arc_length_dimension_keeps_its_kind_and_centre_on_roundtrip() {
         _ => panic!("not a dimension"),
     }
     // And through DWG.
-    let dwg = draftcraft_dwg::dxf_to_dwg(text.as_bytes()).unwrap();
-    let back = read_dxf(&draftcraft_dwg::dwg_to_dxf(&dwg).unwrap()).unwrap();
+    let dwg = draftcraft_dwg::acadrust::dxf_to_dwg(text.as_bytes()).unwrap();
+    let back = read_dxf(&draftcraft_dwg::acadrust::dwg_to_dxf(&dwg).unwrap()).unwrap();
     let dims: Vec<_> = back.model.iter().filter_map(|e| if let EntityKind::Dimension(x) = &e.kind { Some(x.clone()) } else { None }).collect();
     assert_eq!(dims.len(), 1);
     assert!(matches!(dims[0].kind, DimKind::ArcLength), "{:?}", dims[0].kind);
