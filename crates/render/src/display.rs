@@ -113,6 +113,37 @@ pub struct DisplayList {
     /// Plot style end, join and fill style per primitive (parallel to `prims`; missing entries
     /// are "use object"), turned into geometry by [`pen::apply`].
     pub pens: Vec<Pen>,
+    /// Plots: the exact curves (arcs, circles, ellipses, splines, bulged polylines) that some
+    /// polyline primitives tessellate, as Bézier paths in the list's coordinates, in primitive
+    /// order. A writer that draws Béziers (PDF) writes the curve instead of the polyline, so the
+    /// file keeps arcs and splines, not hundreds of short lines. Only primitives drawn whole get
+    /// one: a dashed linetype, a clip or a plot style pen turning the stroke into a fill leaves
+    /// the polyline.
+    pub curves: Vec<DCurve>,
+}
+
+/// An exact curve standing for polyline primitive [`DCurve::prim`] (see [`DisplayList::curves`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct DCurve {
+    pub prim: u32,
+    pub path: draftcraft_geom::BezierPath,
+}
+
+impl DisplayList {
+    /// The curve for primitive `i`, when it has one and is still the polyline it was drawn as.
+    pub fn curve(&self, i: usize) -> Option<&draftcraft_geom::BezierPath> {
+        let prim = self.prims.get(i).filter(|p| p.kind == Kind::Polyline)?;
+        let k = self.curves.binary_search_by_key(&i, |c| c.prim as usize).ok()?;
+        let c = self.curves.get(k)?;
+        let pts = self.points(prim);
+        let (a, b) = (pts.first()?, pts.last()?);
+        (same_point(*a, c.path.start) && same_point(*b, c.path.end())).then_some(&c.path)
+    }
+}
+
+/// Whether two points of one list are the same, up to rounding.
+pub(crate) fn same_point(a: Vec2, b: Vec2) -> bool {
+    a.dist(b) <= 1e-7 * (1.0 + a.len().max(b.len()))
 }
 
 /// A glyph of plotted text: the font glyph and, in world coordinates, where it sits. It is
@@ -205,6 +236,10 @@ pub(crate) fn append(dst: &mut DisplayList, src: DisplayList) {
         t
     }));
     dst.pens.extend(src.pens);
+    dst.curves.extend(src.curves.into_iter().map(|mut c| {
+        c.prim = c.prim.saturating_add(prims);
+        c
+    }));
     dst.bounds = dst.bounds.union(&src.bounds);
     dst.expanded = dst.expanded.saturating_add(src.expanded);
 }

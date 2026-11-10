@@ -1,6 +1,6 @@
 //! Hit testing and window/crossing selection.
 
-use draftcraft_doc::{Drawing, Entity, EntityKind, Handle, Prim, Space, entity_bounds};
+use draftcraft_doc::{Drawing, Entity, EntityKind, Handle, Prim, Space, entity_bounds, text_outline};
 use draftcraft_geom::{Bounds2, Line, Vec2, point_in_polygon};
 
 use crate::spatial::{self, SpatialIndex};
@@ -18,12 +18,19 @@ pub fn hit_polylines(d: &Drawing, e: &Entity, tol: f64) -> Vec<Vec<Vec2>> {
         | EntityKind::Tolerance(_)
         | EntityKind::MLeader(_)
         | EntityKind::Image(_) => {
-            // Text-like objects are hit inside their box.
-            let b = entity_bounds(d, e, 0);
-            if b.is_empty() {
-                return Vec::new();
-            }
-            let c = b.corners();
+            // Text-like objects are hit inside their box: text turned with it, not the (much
+            // larger) axis-aligned bounds of turned text.
+            let c = match text_quad(d, e) {
+                Some(q) => q,
+                None if matches!(e.kind, EntityKind::Text(_) | EntityKind::MText(_) | EntityKind::AttDef(_)) => return Vec::new(),
+                None => {
+                    let b = entity_bounds(d, e, 0);
+                    if b.is_empty() {
+                        return Vec::new();
+                    }
+                    b.corners()
+                }
+            };
             let mut v = vec![vec![c[0], c[1], c[2], c[3], c[0]]];
             if matches!(e.kind, EntityKind::Dimension(_) | EntityKind::Insert(_) | EntityKind::MLeader(_)) {
                 let list = draftcraft_render::build_entities(
@@ -90,7 +97,7 @@ pub fn entity_distance(d: &Drawing, e: &Entity, p: Vec2, tol: f64) -> f64 {
     let mut best = polys.iter().map(|pl| dist_to_polyline(pl, p)).fold(f64::INFINITY, f64::min);
     let filled = matches!(e.kind, EntityKind::Text(_) | EntityKind::MText(_) | EntityKind::AttDef(_) | EntityKind::Table(_))
         || matches!(e.kind, EntityKind::Tolerance(_));
-    if (filled && entity_bounds(d, e, 0).contains(p)) || in_text(d, e, p) {
+    if (filled && in_text_box(d, e, p)) || in_text(d, e, p) {
         best = 0.0;
     }
     // A solid hatch fills its loops with odd parity under its island style, as it is drawn, not
@@ -106,6 +113,42 @@ pub fn entity_distance(d: &Drawing, e: &Entity, p: Vec2, tol: f64) -> f64 {
         best = 0.0;
     }
     best
+}
+
+/// The box around the letters a TEXT, MTEXT or ATTDEF draws, turned with the text: the extents
+/// of its drawn strokes and glyphs along and across its baseline, as AutoCAD's text box. Spaces
+/// and the room above lower-case letters are not in it, which the estimate [`text_outline`]
+/// (the full height, a fixed width per character) took in; that estimate stands in when the text
+/// draws nothing measurable.
+fn text_quad(d: &Drawing, e: &Entity) -> Option<[Vec2; 4]> {
+    let est = text_outline(d, e)?;
+    let (a, b) = (est[0], est[1]);
+    let along = b - a;
+    let angle = if along.len() > 1e-12 { along.y.atan2(along.x) } else { 0.0 };
+    // Fine enough for a box: a few hundred steps along the text's estimated size.
+    let size = Bounds2::from_points(est);
+    let tol = ((size.width() + size.height()) / 400.0).max(1e-9);
+    let list = draftcraft_render::build_entities(
+        d,
+        std::iter::once(e),
+        &draftcraft_render::Options { tolerance: tol, text: true, linetypes: false, ..Default::default() },
+    );
+    let ink =
+        Bounds2::from_points(list.prims.iter().flat_map(|p| list.points(p).iter().copied()).filter(|q| q.is_finite()).map(|q| q.rotate(-angle)));
+    if ink.is_empty() || (ink.width() <= 0.0 && ink.height() <= 0.0) {
+        return Some(est);
+    }
+    let c = ink.corners();
+    Some(c.map(|q| q.rotate(angle)))
+}
+
+/// Whether `p` is inside the box of a text-like object: around its letters, turned with the
+/// text, for TEXT, MTEXT and ATTDEF ([`text_quad`]), the bounds for tables and tolerances.
+fn in_text_box(d: &Drawing, e: &Entity, p: Vec2) -> bool {
+    match text_quad(d, e) {
+        Some(q) => point_in_polygon(&q, p),
+        None => !matches!(e.kind, EntityKind::Text(_) | EntityKind::MText(_) | EntityKind::AttDef(_)) && entity_bounds(d, e, 0).contains(p),
+    }
 }
 
 /// Whether `p` is on the text of a dimension or multileader: inside the box around its words,
@@ -281,7 +324,12 @@ pub(crate) fn in_window(d: &Drawing, e: &Entity, known: Option<Bounds2>, bx: &Bo
         }
     });
     // A crossing box entirely inside a text/block bounding rectangle also selects it.
-    if hit || (eb.contains_box(bx) && matches!(e.kind, EntityKind::Text(_) | EntityKind::MText(_) | EntityKind::Insert(_))) {
+    let inside_text = match &e.kind {
+        EntityKind::Text(_) | EntityKind::MText(_) => text_quad(d, e).is_some_and(|q| bx.corners().iter().all(|c| point_in_polygon(&q, *c))),
+        EntityKind::Insert(_) => eb.contains_box(bx),
+        _ => false,
+    };
+    if hit || inside_text {
         return true;
     }
     // SOLID/TRACE are filled polygons. A crossing window wholly within the

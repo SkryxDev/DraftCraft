@@ -186,6 +186,21 @@ impl<'a> Builder<'a> {
             len: pts.len() as u32,
         });
     }
+    /// Plots: record `path` (in the entity's coordinates) as the exact curve of what the stroke
+    /// since primitive `before` drew, when that is one polyline running from the path's start to
+    /// its end (a dashed linetype draws several, or other ends).
+    fn note_curve(&mut self, ctx: &Ctx, before: usize, path: impl FnOnce() -> Option<draftcraft_geom::BezierPath>) {
+        if !self.plotting || self.list.prims.len() != before + 1 {
+            return;
+        }
+        let Some(path) = path().filter(|p| p.has_curves()).map(|p| p.transformed(&ctx.xf)).filter(|p| p.is_finite()) else { return };
+        let Some(prim) = self.list.prims.get(before).filter(|p| p.kind == Kind::Polyline) else { return };
+        let pts = self.list.points(prim);
+        let ends = pts.first().zip(pts.last()).is_some_and(|(a, b)| display::same_point(*a, path.start) && display::same_point(*b, path.end()));
+        if let (true, Ok(prim)) = (ends, u32::try_from(before)) {
+            self.list.curves.push(DCurve { prim, path });
+        }
+    }
     /// The pixels of image `i` over its rectangle, cut to its clip boundary.
     fn image(&mut self, ctx: &Ctx, color: Ink, i: &draftcraft_doc::Image, raster: &std::sync::Arc<draftcraft_doc::Raster>) {
         // Where the entity puts its picture: the top-left corner, and one of its pixels to the
@@ -386,7 +401,7 @@ mod text_entity;
 mod viewports;
 
 pub use dim_draw::{dim_text, dimension_in};
-pub use display::{DImage, DPrim, DisplayList, Kind, MAX_TRANSPARENCY, NO_LAYER, PlotText, VIEWPORT_CONTENT, alpha};
+pub use display::{DCurve, DImage, DPrim, DisplayList, Kind, MAX_TRANSPARENCY, NO_LAYER, PlotText, VIEWPORT_CONTENT, alpha};
 pub use pipeline::{Options, build, build_entities, build_plot};
 use props::{default_lineweight, resolve_common};
 use text_entity::text_style;

@@ -123,3 +123,55 @@ fn a_dimension_drawn_from_its_block_is_picked_on_the_block_text() {
     assert_eq!(pick(d, &Space::Model, mid, 0.01), Some(dim), "on the block's text");
     assert_eq!(pick(d, &Space::Model, Vec2::new(50.0, 33.0), 0.01), None, "not where the dimension would have set it");
 }
+
+/// The case reported from the field: text turned 40° set just above a diagonal line. The text's
+/// axis-aligned bounds cover the line and a wide empty corner below it; picks there must find the
+/// line (or nothing), not the text, at any pickbox size. Text is hit inside its own turned box.
+#[test]
+fn turned_text_is_picked_inside_its_turned_box_not_its_bounds() {
+    let mut s = Session::new();
+    s.execute("line", &json!({"points": [[0, 0], [100, 84]]})).unwrap();
+    for (kind, params) in [
+        ("text", json!({"at": [20, 22], "height": 5, "text": "dlocd", "rotation": 40})),
+        ("mtext", json!({"at": [20, 22], "height": 5, "text": "dlocd", "rotation": 40, "justify": "BL"})),
+    ] {
+        s.execute(kind, &params).unwrap();
+        let d = s.doc().unwrap();
+        let line = d.model.iter().find(|e| matches!(e.kind, EntityKind::Line(_))).unwrap().handle;
+        let text = d.model.iter().last().unwrap().handle;
+        let a = 40f64.to_radians();
+        let along = |u: f64, v: f64| Vec2::new(20.0, 22.0) + Vec2::new(u, v).rotate(a);
+        for ap in [0.05, 0.5, 1.5] {
+            // On the letters, in the middle of the word: the text.
+            assert_eq!(pick(d, &Space::Model, along(10.0, 2.5), ap), Some(text), "{kind} on its words (aperture {ap})");
+            // On the line where it runs under the text's bounds: the line, not the text.
+            let on_line = Vec2::new(30.0, 25.2);
+            assert!(draftcraft_engine::doc::entity_bounds(d, d.entity(text).unwrap(), 0).contains(on_line), "{kind}: probe in the loose bounds");
+            assert_eq!(pick(d, &Space::Model, on_line, ap), Some(line), "{kind} the line under the text's bounds (aperture {ap})");
+            // The empty bottom-right corner of the text's bounds: nothing.
+            assert!(draftcraft_engine::doc::entity_bounds(d, d.entity(text).unwrap(), 0).contains(Vec2::new(35.0, 23.0)));
+            assert_eq!(pick(d, &Space::Model, Vec2::new(35.0, 23.0), ap), None, "{kind} the empty corner (aperture {ap})");
+        }
+        s.execute("erase", &json!({"handles": [text.0]})).unwrap();
+    }
+}
+
+/// Text is hit around its letters, not around an estimate of the full font height and a fixed
+/// width per character: above lower-case letters and past the end of the word is off the text
+/// (a line drawn there is what the cursor finds).
+#[test]
+fn text_is_picked_around_its_letters_not_a_full_height_estimate() {
+    let mut s = Session::new();
+    for rotation in [0.0, 40.0] {
+        s.execute("text", &json!({"at": [0, 0], "height": 5, "text": "zoom e", "rotation": rotation})).unwrap();
+        let d = s.doc().unwrap();
+        let text = d.model.iter().last().unwrap().handle;
+        let a = f64::to_radians(rotation);
+        let at = |u: f64, v: f64| Vec2::new(u, v).rotate(a);
+        // On the letters.
+        assert_eq!(pick(d, &Space::Model, at(3.0, 1.5), 0.05), Some(text), "on 'z' at {rotation}°");
+        // Inside the old estimate (5 high), above the lower-case letters.
+        assert_eq!(pick(d, &Space::Model, at(8.0, 4.7), 0.05), None, "above the letters at {rotation}°");
+        s.execute("erase", &json!({"handles": [text.0]})).unwrap();
+    }
+}

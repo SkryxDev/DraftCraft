@@ -12,6 +12,12 @@ pub const MAX_BLOCK_DEPTH: usize = 16;
 /// Bounds of a single-line TEXT / ATTDEF / ATTRIB of `len` characters, following its justification
 /// the same way the renderer places it (the stroke font is about 0.88 of the height per character).
 fn text_box(t: &crate::Text, len: usize) -> Bounds2 {
+    Bounds2::from_points(text_quad(t, len))
+}
+
+/// The four corners of the box [`text_box`] bounds, turned with the text (counter-clockwise from
+/// the bottom left of the text).
+fn text_quad(t: &crate::Text, len: usize) -> [Vec2; 4] {
     use crate::{HAlign, VAlign};
     let w = t.height * 0.9 * t.width_factor.abs().max(0.01) * len.max(1) as f64;
     // Justified text (TL, ML and BL too) hangs from its alignment point (DXF group 11).
@@ -29,7 +35,7 @@ fn text_box(t: &crate::Text, len: usize) -> Bounds2 {
         (_, VAlign::Top) => -t.height,
     };
     let local = [Vec2::new(dx, dy), Vec2::new(dx + w, dy), Vec2::new(dx + w, dy + t.height), Vec2::new(dx, dy + t.height)];
-    Bounds2::from_points(local.map(|p| origin + p.rotate(t.rotation)))
+    local.map(|p| origin + p.rotate(t.rotation))
 }
 
 /// Whether an entity inside a block definition shows: its own invisible flag and its layer count,
@@ -65,6 +71,11 @@ fn blank(s: &str) -> bool {
 
 /// Approximate box of an MTEXT, from its attachment point, width and line count.
 fn mtext_box(t: &crate::MText) -> Bounds2 {
+    Bounds2::from_points(mtext_quad(t))
+}
+
+/// The four corners of the box [`mtext_box`] bounds, turned with the text.
+fn mtext_quad(t: &crate::MText) -> [Vec2; 4] {
     let lines = t.contents.split("\\P").count().max(1);
     let longest = t.contents.split("\\P").map(|l| l.chars().count()).max().unwrap_or(1);
     let estimate = t.height * 0.8 * longest as f64;
@@ -87,9 +98,37 @@ fn mtext_box(t: &crate::MText) -> Bounds2 {
         _ => 0.0,
     };
     let o = t.insert.xy();
-    let pts = [Vec2::new(dx, top + dy), Vec2::new(dx + w, top + dy), Vec2::new(dx + w, top - h + dy), Vec2::new(dx, top - h + dy)]
-        .map(|p| o + p.rotate(t.rotation));
-    Bounds2::from_points(pts)
+    [Vec2::new(dx, top + dy), Vec2::new(dx + w, top + dy), Vec2::new(dx + w, top - h + dy), Vec2::new(dx, top - h + dy)]
+        .map(|p| o + p.rotate(t.rotation))
+}
+
+/// The box a TEXT, MTEXT or ATTDEF takes, turned with the text: the four corners of the box whose
+/// axis-aligned bounds [`entity_bounds`] gives. Picking hits text inside this box, not inside its
+/// bounds, which for turned text reach far past the letters (a text at 45° covered a square around
+/// it, taking picks meant for the line beside it). `None` for other objects and for text that
+/// draws nothing (blank, or hidden at the current annotation scale).
+pub fn text_outline(d: &Drawing, e: &Entity) -> Option<[Vec2; 4]> {
+    let scaled;
+    let e = match d.anno_draw(e) {
+        crate::AnnoDraw::Plain => e,
+        crate::AnnoDraw::Hidden => return None,
+        crate::AnnoDraw::Scaled(f) => {
+            scaled = crate::anno_scaled(e, f);
+            &scaled
+        }
+    };
+    let upright = e.common.matches_layout_orientation();
+    let quad = match &e.kind {
+        EntityKind::Text(t) if blank(&t.value) => return None,
+        EntityKind::MText(t) if blank(&t.contents) => return None,
+        EntityKind::Text(t) if upright => text_quad(&crate::Text { rotation: 0.0, ..t.clone() }, t.value.chars().count()),
+        EntityKind::MText(t) if upright => mtext_quad(&crate::MText { rotation: 0.0, ..t.clone() }),
+        EntityKind::Text(t) => text_quad(t, t.value.chars().count()),
+        EntityKind::AttDef(a) => text_quad(&a.text, a.tag.chars().count()),
+        EntityKind::MText(t) => mtext_quad(t),
+        _ => return None,
+    };
+    quad.iter().all(|p| p.is_finite()).then_some(quad)
 }
 
 /// The box of what `e` draws (block contents on layers turned off left out).

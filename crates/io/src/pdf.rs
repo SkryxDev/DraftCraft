@@ -860,6 +860,7 @@ fn marks(s: &mut Surface<'_>, p: &SheetPage, groups: &Groups, fonts: &mut fonts:
         let w = if w.is_finite() && w > 0.0 { w.min(100.0) } else { 0.0 };
         let m = Mark { rgb, t, w };
         match prim.kind {
+            Kind::Polyline if curve(s, &mut batch, p, list.curve(i), m) => {}
             Kind::Polyline | Kind::Infinite { .. } => polyline(s, &mut batch, p, prim, raw, m),
             Kind::Tris | Kind::Mask => {
                 flush(s, &mut batch);
@@ -905,6 +906,52 @@ fn polyline(s: &mut Surface<'_>, batch: &mut Option<(StrokeStyle, PathBuilder)>,
     for run in runs {
         stroke_run(s, batch, &run, style, m);
     }
+}
+
+/// Stroke the exact curve a polyline primitive stands for (an arc, circle, ellipse, spline or
+/// bulged polyline) as Bézier pieces into the open batch, so the file keeps curves rather than
+/// short lines: a reader (DraftCraft's PDFIMPORT among them) gets arcs and splines back. `false`
+/// when there is none or a point is out of range, for the caller to draw the polyline.
+fn curve(
+    s: &mut Surface<'_>,
+    batch: &mut Option<(StrokeStyle, PathBuilder)>,
+    p: &SheetPage,
+    path: Option<&draftcraft_geom::BezierPath>,
+    m: Mark,
+) -> bool {
+    use draftcraft_geom::PathSeg;
+    let Some(path) = path.map(|c| c.mapped(|q| p.map.pt(q))) else { return false };
+    let pt = |q: Vec2| coord(q).filter(|_| p.clip_pt.expand(m.w + 1.0).contains(q));
+    let Some(start) = pt(path.start) else { return false };
+    let mut ops = Vec::with_capacity(path.segs.len());
+    for seg in &path.segs {
+        let op = match *seg {
+            PathSeg::Line(q) => pt(q).map(|q| (None, q)),
+            PathSeg::Cubic(a, b, c) => match (coord(a), coord(b), pt(c)) {
+                (Some(a), Some(b), Some(c)) => Some((Some((a, b)), c)),
+                _ => None,
+            },
+        };
+        let Some(op) = op else { return false };
+        ops.push(op);
+    }
+    // A curve with no extent is drawn as the polyline's dot.
+    if ops.iter().all(|(_, q)| *q == start) {
+        return false;
+    }
+    let style = StrokeStyle { rgb: m.rgb, width: m.w as f32, transparency: m.t };
+    if m.t > 0 || batch.as_ref().is_some_and(|(b, _)| *b != style) {
+        flush(s, batch);
+    }
+    let (_, pb) = batch.get_or_insert_with(|| (style, PathBuilder::new()));
+    pb.move_to(start.0, start.1);
+    for (handles, (x, y)) in ops {
+        match handles {
+            Some(((x1, y1), (x2, y2))) => pb.cubic_to(x1, y1, x2, y2, x, y),
+            None => pb.line_to(x, y),
+        }
+    }
+    true
 }
 
 /// The page points of a polyline, or of an infinite line clipped to the plot area; `None` when

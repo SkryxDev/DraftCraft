@@ -29,7 +29,7 @@ pub use constraint::*;
 pub use draftcraft_color as color;
 pub use draftcraft_geom as geom;
 pub use entity::*;
-pub use extents::{BlockBoundsCache, MAX_BLOCK_DEPTH, entity_bounds, entity_bounds_cached, extent_bounds, extent_bounds_cached};
+pub use extents::{BlockBoundsCache, MAX_BLOCK_DEPTH, entity_bounds, entity_bounds_cached, extent_bounds, extent_bounds_cached, text_outline};
 pub use format::Format;
 pub use gdt::*;
 pub use header::{HVal, Header};

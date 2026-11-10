@@ -7,6 +7,7 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 #![forbid(unsafe_code)]
 
+mod bezier;
 mod bounds;
 mod curve;
 mod fillet;
@@ -18,6 +19,7 @@ mod spline;
 mod spline_fit;
 mod vec;
 
+pub use bezier::{BezierPath, PathSeg};
 pub use bounds::Bounds2;
 pub use curve::{
     Arc, Circle, Ellipse, Line, PolyVertex, Polyline, Segment, arc_to_bulge, bulge_to_arc, point_in_polygon, polygon_centroid, shoelace,
