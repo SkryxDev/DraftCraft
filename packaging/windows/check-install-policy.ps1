@@ -32,6 +32,11 @@ function Set-SessionProperty($Session, [string] $Name, [string] $Value) {
 function Get-SessionProperty($Session, [string] $Name) {
   $Session.GetType().InvokeMember('Property', 'GetProperty', $null, $Session, @($Name))
 }
+# The long name in a Directory table's DefaultDir: "target[:source]", each "short|long" when WiX
+# generated an 8.3 name (as it does for "DraftCraft").
+function Get-LongName([string] $DefaultDir) {
+  (($DefaultDir -split ':')[0] -split '\|')[-1]
+}
 function Get-PackageTemplate($Database) {
   # Summary information property 7 is the platform: "Intel;1033", "x64;1033" or "Arm64;1033".
   $summary = $Database.GetType().InvokeMember('SummaryInformation', 'GetProperty', $null, $Database, @(0))
@@ -55,7 +60,7 @@ try {
     if ($properties['UpgradeCode'].Trim('{}') -ne $policy.upgradeCode) { throw 'Launcher upgrade identity changed.' }
     $dirs = @{}
     foreach ($row in (Read-Rows $database 'SELECT `Directory`, `Directory_Parent`, `DefaultDir` FROM `Directory`' 3)) { $dirs[$row[0]] = @($row[1],$row[2]) }
-    if ($dirs['INSTALLFOLDER'][0] -ne 'CraftSuiteFolder' -or $dirs['CraftSuiteFolder'][1] -ne 'DraftCraft' -or
+    if ($dirs['INSTALLFOLDER'][0] -ne 'CraftSuiteFolder' -or (Get-LongName $dirs['CraftSuiteFolder'][1]) -ne 'DraftCraft' -or
         $dirs['CraftSuiteFolder'][0] -ne 'LocalProgramsFolder' -or $dirs['LocalProgramsFolder'][0] -ne 'LocalAppDataFolder') {
       throw 'Launcher new-install folder must be under the per-user DraftCraft suite root.'
     }
@@ -88,7 +93,9 @@ try {
     $directories[$row[0]] = @($row[1], $row[2])
   }
   if ($directories['INSTALLFOLDER'][0] -ne 'CraftSuiteFolder' -or
-      $directories['CraftSuiteFolder'][1] -ne 'DraftCraft') { throw 'Expected the app under the DraftCraft suite folder.' }
+      (Get-LongName $directories['CraftSuiteFolder'][1]) -ne 'DraftCraft') {
+    throw "Expected the app under the DraftCraft suite folder (INSTALLFOLDER: $($directories['INSTALLFOLDER'] -join ', '); CraftSuiteFolder: $($directories['CraftSuiteFolder'] -join ', '))."
+  }
   $programs = $directories['CraftSuiteFolder'][0]
   if ($programs -eq 'ProgramFiles6432Folder') { $programs = $directories[$programs][0] }
   if ($programs -notin 'ProgramFilesFolder', 'ProgramFiles64Folder') {

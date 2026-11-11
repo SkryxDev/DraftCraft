@@ -1425,6 +1425,7 @@ dependencies = [
  "serde",
  "serde_json",
  "web-time",
+ "winreg",
  "zip",
 ]
 

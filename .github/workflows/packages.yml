@@ -1,0 +1,304 @@
+name: Packages
+
+# Builds every DraftCraft package: macOS (Apple silicon and Intel DMG and CLI zip), Windows (x64
+# and arm64 installer and zip) and Linux (x86_64 and aarch64 AppImage and .deb). Windows arm64 is
+# cross-compiled on an x86_64 runner and macOS Intel on an Apple-silicon one; Linux aarch64 builds
+# on an ARM runner. The files carry no version in their
+# names, so releases/latest/download/<name> always gives the newest.
+#
+# release.yml calls this for a version tag and publishes what it builds. It also runs on pull
+# requests that change the packaging, so a change is seen working before a release: the packages
+# are then only this run's artifacts.
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Git ref to build"
+        required: true
+        type: string
+  pull_request:
+    paths:
+      - "packaging/**"
+      - ".github/workflows/packages.yml"
+      - ".github/workflows/release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: packages-${{ inputs.ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  # Open-licensed (SIL OFL 1.1) interface fonts embedded in the build; their licences ship in the packages.
+  CRAFT_FONTS_REF: b076417b5880bd4154bd22f00695b1d28c6bea83
+
+jobs:
+  linux:
+    name: linux-${{ matrix.arch }}
+    # The oldest supported runners, so the binaries run on any newer glibc (the .deb asks for >= 2.35).
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64, os: ubuntu-22.04, target: x86_64-unknown-linux-gnu, deb: amd64 }
+          - { arch: aarch64, os: ubuntu-22.04-arm, target: aarch64-unknown-linux-gnu, deb: arm64 }
+    env:
+      TARGET: ${{ matrix.target }}
+      ARCH: ${{ matrix.arch }}
+      NFPM_VERSION: 2.48.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - name: Check out craft-fonts
+        uses: actions/checkout@v4
+        with:
+          repository: storytold/craft-fonts
+          ref: ${{ env.CRAFT_FONTS_REF }}
+          path: craft-fonts
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal --target "$TARGET"
+          rustup default stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - name: Install packaging tools
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y desktop-file-utils
+          # nfpm builds the .deb; its release is checked against the published checksums.
+          cd "$RUNNER_TEMP"
+          base="https://github.com/goreleaser/nfpm/releases/download/v$NFPM_VERSION"
+          pkg="nfpm_${NFPM_VERSION}_${{ matrix.deb }}.deb"
+          curl --proto '=https' -fsSLO "$base/$pkg"
+          curl --proto '=https' -fsSLO "$base/checksums.txt"
+          grep " $pkg\$" checksums.txt | sha256sum --check -
+          sudo dpkg -i "$pkg"
+          nfpm --version
+      - name: Build
+        run: |
+          set -euo pipefail
+          export CRAFT_FONTS_DIR="$GITHUB_WORKSPACE/craft-fonts"
+          export DRAFTCRAFT_BUILD_SHA="$(git rev-parse HEAD)"
+          cargo build --release --locked --target "$TARGET" -p draftcraft -p draftcraft-cli
+          # draftcraft-cli's man pages and shell completions for the .deb, in a separate run so the
+          # example's dev-dependencies don't change the binaries (packaging/linux/package.sh).
+          cargo build --release --locked --target "$TARGET" -p draftcraft-cli --example man-and-completions
+      - name: Package
+        run: |
+          set -euo pipefail
+          export CRAFT_FONTS_DIR="$GITHUB_WORKSPACE/craft-fonts"
+          export DRAFTCRAFT_BUILD_SHA="$(git rev-parse HEAD)"
+          mkdir -p dist/upload
+          # ARCH (from the matrix) picks appimagetool and the AppImage runtime for this processor.
+          packaging/linux/appimage.sh "target/$TARGET/release" "dist/upload/draftcraft-linux-$ARCH.AppImage"
+          DIST="$PWD/dist/deb" packaging/linux/package.sh --skip-build --target "$TARGET" --formats deb
+          cp dist/deb/draftcraft-*-linux-"$ARCH".deb "dist/upload/draftcraft-linux-$ARCH.deb"
+          ls -l dist/upload
+      - name: Check the .deb
+        run: |
+          set -euo pipefail
+          deb="dist/upload/draftcraft-linux-$ARCH.deb"
+          dpkg-deb --info "$deb"
+          test "$(dpkg-deb --field "$deb" Architecture)" = "${{ matrix.deb }}"
+          dpkg-deb --contents "$deb"
+          sudo apt-get install -y "./$deb"
+          # The menu entry, its icon, and the file manager's DXF/DWG handler list.
+          test -x /usr/bin/draftcraft
+          desktop-file-validate /usr/share/applications/dev.skryx.draftcraft.desktop
+          test -f /usr/share/icons/hicolor/256x256/apps/dev.skryx.draftcraft.png
+          test -f /usr/share/mime/packages/dev.skryx.draftcraft.xml
+          grep -E '^image/vnd\.dxf=.*dev\.skryx\.draftcraft\.desktop' /usr/share/applications/mimeinfo.cache
+          grep -E '^image/vnd\.dwg=.*dev\.skryx\.draftcraft\.desktop' /usr/share/applications/mimeinfo.cache
+          draftcraft-cli --version
+          sudo apt-get remove -y draftcraft
+          test ! -e /usr/bin/draftcraft
+          if grep -q dev.skryx.draftcraft.desktop /usr/share/applications/mimeinfo.cache; then
+            echo "removing the package left DraftCraft as a DXF/DWG handler" >&2
+            exit 1
+          fi
+          # The AppImage starts its CLI (extracted: CI runners have no FUSE).
+          APPIMAGE_EXTRACT_AND_RUN=1 "dist/upload/draftcraft-linux-$ARCH.AppImage" cli --version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: dist/upload/*
+          if-no-files-found: error
+
+  windows:
+    name: windows-${{ matrix.arch }}
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x64, target: x86_64-pc-windows-msvc }
+          - { arch: arm64, target: aarch64-pc-windows-msvc }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - name: Check out craft-fonts
+        uses: actions/checkout@v4
+        with:
+          repository: storytold/craft-fonts
+          ref: ${{ env.CRAFT_FONTS_REF }}
+          path: craft-fonts
+      - name: Install Rust
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal --target ${{ matrix.target }}
+          rustup default stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - name: Install WiX
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          wix extension add -g WixToolset.UI.wixext/5.0.2
+          wix --version
+      - name: Build, sign and package
+        shell: pwsh
+        env:
+          # Optional: without them sign.ps1 warns and leaves the files unsigned.
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          $env:CRAFT_FONTS_DIR = Join-Path $env:GITHUB_WORKSPACE 'craft-fonts'
+          $env:DRAFTCRAFT_BUILD_SHA = (git rev-parse HEAD)
+          ./packaging/windows/package.ps1 -Arch ${{ matrix.arch }}
+      - name: Name the release files
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(awk '/^\[/{p=($0=="[workspace.package]");next} p&&$1=="version"{gsub(/[" ]/,"",$3);print $3;exit}' Cargo.toml)"
+          stage="target/windows-package/${{ matrix.arch }}"
+          mkdir -p dist/upload
+          cp "dist/release/draftcraft-$version-windows-${{ matrix.arch }}.msi" "dist/upload/draftcraft-windows-${{ matrix.arch }}.msi"
+          # The zip in-app updates of unzipped copies read: a DraftCraft/ folder with DraftCraft.exe
+          # (crates/ui-egui/src/self_update.rs). The same signed binaries as the installer.
+          dir="dist/zip/DraftCraft"
+          mkdir -p "$dir"
+          cp README.md LICENSE-MIT LICENSE-APACHE NOTICE ATTRIBUTION.md "$dir/"
+          for f in craft-fonts/fonts/*/OFL.txt; do cp "$f" "$dir/OFL-$(basename "$(dirname "$f")").txt"; done
+          cp "$stage/draftcraft.exe" "$dir/DraftCraft.exe"
+          cp "$stage/draftcraft-cli.exe" "$dir/draftcraft-cli.exe"
+          (cd dist/zip && 7z a -tzip "../upload/draftcraft-windows-${{ matrix.arch }}.zip" DraftCraft > /dev/null)
+          ls -l dist/upload
+      - name: Install, check and uninstall the installer
+        # A real install on this throwaway runner, for this account (no administrator), as a
+        # double-click with the default choice does. The arm64 package can't run here.
+        if: matrix.arch == 'x64'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $msi = (Resolve-Path 'dist/upload/draftcraft-windows-x64.msi').Path
+          $log = Join-Path $env:RUNNER_TEMP 'install.log'
+          $p = Start-Process msiexec.exe -ArgumentList @('/i', "`"$msi`"", '/qn', '/l*v', "`"$log`"") -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Get-Content $log -Tail 80; throw "install failed: $($p.ExitCode)" }
+          $exe = (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\App Paths\draftcraft.exe').'(default)'
+          if (-not (Test-Path $exe)) { throw "App Paths names a missing exe: $exe" }
+          Write-Output "installed: $exe"
+          $classes = 'HKCU:\Software\Classes'
+          foreach ($ext in '.dxf', '.dwg') {
+            if ((Get-ItemProperty "$classes\$ext\OpenWithProgids").PSObject.Properties.Name -notcontains 'DraftCraft.Drawing') { throw "$ext lacks the DraftCraft.Drawing OpenWithProgids entry" }
+            if ((Get-ItemProperty "$classes\Applications\draftcraft.exe\SupportedTypes").PSObject.Properties.Name -notcontains $ext) { throw "SupportedTypes lacks $ext" }
+            if ((Get-ItemProperty 'HKCU:\Software\DraftCraft\Capabilities\FileAssociations').$ext -ne 'DraftCraft.Drawing') { throw "Capabilities lack $ext" }
+          }
+          $command = (Get-ItemProperty "$classes\DraftCraft.Drawing\shell\open\command").'(default)'
+          if ($command -ne "`"$exe`" `"%1`"") { throw "unexpected open command: $command" }
+          if ((Get-ItemProperty 'HKCU:\Software\RegisteredApplications').DraftCraft -ne 'Software\DraftCraft\Capabilities') { throw 'not in RegisteredApplications' }
+          & (Join-Path (Split-Path $exe) 'draftcraft-cli.exe') --version
+          if ($LASTEXITCODE -ne 0) { throw 'draftcraft-cli --version failed' }
+          $p = Start-Process msiexec.exe -ArgumentList @('/x', "`"$msi`"", '/qn') -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "uninstall failed: $($p.ExitCode)" }
+          if (Test-Path $exe) { throw "uninstall left $exe" }
+          $left = Get-ItemProperty "$classes\DraftCraft.Drawing\shell\open\command" -ErrorAction SilentlyContinue
+          if ($left -and $left.'(default)') { throw 'uninstall left the DraftCraft.Drawing open command' }
+          foreach ($ext in '.dxf', '.dwg') {
+            $left = Get-ItemProperty "$classes\$ext\OpenWithProgids" -ErrorAction SilentlyContinue
+            if ($left -and ($left.PSObject.Properties.Name -contains 'DraftCraft.Drawing')) { throw "uninstall left $ext in DraftCraft's Open with list" }
+          }
+          Write-Output 'installed, registered for .dxf and .dwg, and uninstalled cleanly'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ matrix.arch }}
+          path: dist/upload/*
+          if-no-files-found: error
+
+  macos:
+    name: macos-${{ matrix.arch }}
+    # Xcode 26 compiles the macOS 26+ Icon Composer icon (DraftCraft.icon → Assets.car), so the
+    # Intel build is cross-compiled on this Apple-silicon runner too.
+    runs-on: macos-26
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: arm64, target: aarch64-apple-darwin, package: aarch64 }
+          - { arch: x86_64, target: x86_64-apple-darwin, package: x86_64 }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - name: Check out craft-fonts
+        uses: actions/checkout@v4
+        with:
+          repository: storytold/craft-fonts
+          ref: ${{ env.CRAFT_FONTS_REF }}
+          path: craft-fonts
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal --target ${{ matrix.target }}
+          rustup default stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - name: Import the signing certificate
+        # Optional: without APPLE_CERTIFICATE the script warns, and package.sh signs ad hoc.
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: packaging/macos/import-cert.sh
+      - name: Build and package
+        env:
+          # Notarization runs when all three are set and a Developer ID was imported above.
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          export CRAFT_FONTS_DIR="$GITHUB_WORKSPACE/craft-fonts"
+          export DRAFTCRAFT_BUILD_SHA="$(git rev-parse HEAD)"
+          packaging/macos/package.sh --arch ${{ matrix.package }}
+          version="$(awk '/^\[/{p=($0=="[workspace.package]");next} p&&$1=="version"{gsub(/[" ]/,"",$3);print $3;exit}' Cargo.toml)"
+          mkdir -p dist/upload
+          cp "dist/release/draftcraft-$version-macos-${{ matrix.package }}.dmg" dist/upload/draftcraft-macos-${{ matrix.arch }}.dmg
+          cp "dist/release/draftcraft-cli-$version-macos-${{ matrix.package }}.zip" dist/upload/draftcraft-cli-macos-${{ matrix.arch }}.zip
+          ls -l dist/upload
+      - name: Check the app
+        run: |
+          set -euo pipefail
+          app=target/macos-package/DraftCraft.app
+          # Built for this matrix entry's processor only.
+          test "$(lipo -archs "$app/Contents/MacOS/DraftCraft")" = ${{ matrix.arch }}
+          test "$(lipo -archs "$app/Contents/MacOS/draftcraft-cli")" = ${{ matrix.arch }}
+          # The .dxf and .dwg document types Finder's Open With reads.
+          plist="$app/Contents/Info.plist"
+          for i in 0 1; do
+            plutil -extract "CFBundleDocumentTypes.$i.LSItemContentTypes.0" raw -o - "$plist"
+            plutil -extract "UTImportedTypeDeclarations.$i.UTTypeIdentifier" raw -o - "$plist"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: dist/upload/*
+          if-no-files-found: error

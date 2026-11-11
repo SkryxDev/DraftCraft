@@ -1,9 +1,9 @@
 name: Release
 
-# Builds every DraftCraft package when a version tag is pushed and attaches them to that tag's
-# GitHub release: macOS (Apple silicon DMG and CLI zip), Linux (x86_64 AppImage) and Windows
-# (x64, arm64 zips). Windows arm64 is cross-compiled on an x86_64 runner. The files carry no
-# version in their names, so releases/latest/download/<name> always gives the newest.
+# Builds every DraftCraft package when a version tag is pushed (packages.yml) and attaches them to
+# that tag's GitHub release: macOS (Apple silicon and Intel DMG and CLI zip), Windows (x64 and arm64
+# installer and zip) and Linux (x86_64 and aarch64 AppImage and .deb). The files carry no version in their names, so
+# releases/latest/download/<name> always gives the newest.
 on:
   push:
     tags: ["v*"]
@@ -21,114 +21,16 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
-env:
-  CARGO_TERM_COLOR: always
-  # Open-licensed (SIL OFL 1.1) interface fonts embedded in the build; their licences ship in the archives.
-  CRAFT_FONTS_REF: b076417b5880bd4154bd22f00695b1d28c6bea83
-
 jobs:
-  build:
-    name: ${{ matrix.name }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { name: linux-x86_64, os: ubuntu-22.04, target: x86_64-unknown-linux-gnu }
-          - { name: windows-x64, os: windows-2022, target: x86_64-pc-windows-msvc }
-          - { name: windows-arm64, os: windows-2022, target: aarch64-pc-windows-msvc }
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.tag || github.ref }}
-      - name: Check out craft-fonts
-        uses: actions/checkout@v4
-        with:
-          repository: storytold/craft-fonts
-          ref: ${{ env.CRAFT_FONTS_REF }}
-          path: craft-fonts
-      - name: Install Rust
-        shell: bash
-        run: |
-          rustup toolchain install stable --profile minimal --target ${{ matrix.target }}
-          rustup default stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.target }}
-      - name: Build
-        shell: bash
-        run: |
-          export CRAFT_FONTS_DIR="$GITHUB_WORKSPACE/craft-fonts"
-          export DRAFTCRAFT_BUILD_SHA="$(git rev-parse HEAD)"
-          cargo build --release --locked --target ${{ matrix.target }} -p draftcraft -p draftcraft-cli
-      - name: Package
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Names without the version, so releases/latest/download/<name> always works.
-          bin="target/${{ matrix.target }}/release"
-          mkdir -p dist
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            dir="dist/DraftCraft"
-            mkdir -p "$dir"
-            cp README.md LICENSE-MIT LICENSE-APACHE NOTICE ATTRIBUTION.md "$dir/"
-            for f in craft-fonts/fonts/*/OFL.txt; do cp "$f" "$dir/OFL-$(basename "$(dirname "$f")").txt"; done
-            cp "$bin/draftcraft.exe" "$dir/DraftCraft.exe"
-            cp "$bin/draftcraft-cli.exe" "$dir/draftcraft-cli.exe"
-            (cd dist && 7z a -tzip "draftcraft-${{ matrix.name }}.zip" DraftCraft > /dev/null)
-            echo "ASSET=dist/draftcraft-${{ matrix.name }}.zip" >> "$GITHUB_ENV"
-          else
-            CRAFT_FONTS_DIR="$GITHUB_WORKSPACE/craft-fonts" packaging/linux/appimage.sh "$bin" "dist/draftcraft-${{ matrix.name }}.AppImage"
-            echo "ASSET=dist/draftcraft-${{ matrix.name }}.AppImage" >> "$GITHUB_ENV"
-          fi
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.name }}
-          path: ${{ env.ASSET }}
-          if-no-files-found: error
-
-  macos:
-    name: macos-arm64
-    # Xcode 26 compiles the macOS 26+ Icon Composer icon (DraftCraft.icon → Assets.car).
-    runs-on: macos-26
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.tag || github.ref }}
-      - name: Check out craft-fonts
-        uses: actions/checkout@v4
-        with:
-          repository: storytold/craft-fonts
-          ref: ${{ env.CRAFT_FONTS_REF }}
-          path: craft-fonts
-      - name: Install Rust
-        run: |
-          rustup toolchain install stable --profile minimal --target aarch64-apple-darwin
-          rustup default stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: aarch64-apple-darwin
-      - name: Build and package
-        run: |
-          set -euo pipefail
-          xcodebuild -version
-          export CRAFT_FONTS_DIR="$GITHUB_WORKSPACE/craft-fonts"
-          export DRAFTCRAFT_BUILD_SHA="$(git rev-parse HEAD)"
-          packaging/macos/package.sh --arch aarch64
-          # Names without the version, so releases/latest/download/<name> always works.
-          version="$(awk '/^\[/{p=($0=="[workspace.package]");next} p&&$1=="version"{gsub(/[" ]/,"",$3);print $3;exit}' Cargo.toml)"
-          mkdir -p dist/upload
-          cp "dist/release/draftcraft-$version-macos-aarch64.dmg" dist/upload/draftcraft-macos-arm64.dmg
-          cp "dist/release/draftcraft-cli-$version-macos-aarch64.zip" dist/upload/draftcraft-cli-macos-arm64.zip
-          ls -l dist/upload
-      - uses: actions/upload-artifact@v4
-        with:
-          name: macos-arm64
-          path: dist/upload/*
-          if-no-files-found: error
+  packages:
+    uses: ./.github/workflows/packages.yml
+    with:
+      ref: ${{ inputs.tag || github.ref }}
+    # Signing and notarization use the repository's secrets when they are set (packages.yml).
+    secrets: inherit
 
   release:
-    needs: [build, macos]
+    needs: packages
     runs-on: ubuntu-latest
     permissions:
       contents: write
