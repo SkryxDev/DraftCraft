@@ -887,6 +887,7 @@
 	Specify center of polygon	Navedite središte mnogougla
 	Specify center point for circle	Navedite središnju tačku kruga
 	Specify center point of arc	Navedite središnju tačku luka
+	Specify center point of arc (hold Ctrl to switch direction)	Navedite središnju tačku luka (držite Ctrl za promjenu smjera)
 	Specify center point of array	Navedite središnju tačku niza
 	Specify center point of base	Navedite središnju tačku baze
 	Specify corner of viewport	Navedite ugao prozora prikaza
@@ -925,6 +926,7 @@
 	Specify height	Navedite visinu
 	Specify helix height	Navedite visinu spirale
 	Specify included angle	Navedite obuhvaćeni ugao
+	Specify included angle (hold Ctrl to switch direction)	Navedite obuhvaćeni ugao (držite Ctrl za promjenu smjera)
 	Specify insertion base point	Navedite baznu tačku umetanja
 	Specify insertion point	Navedite tačku umetanja
 	A drawing opened from a file keeps that file's format.	Crtež otvoren iz datoteke zadržava format te datoteke.
@@ -968,6 +970,7 @@
 	Specify leader landing location	Navedite lokaciju police pokazne linije
 	Specify length for rectangles	Navedite dužinu za pravougaonike
 	Specify length of chord	Navedite dužinu tetive
+	Specify length of chord (hold Ctrl to switch direction)	Navedite dužinu tetive (držite Ctrl za promjenu smjera)
 	Specify length of segment	Navedite dužinu segmenta
 	Specify line width for rectangles	Navedite širinu linije za pravougaonike
 	Specify location for new vertex	Navedite lokaciju novog tjemena
@@ -986,6 +989,7 @@
 	Specify point on object for second tangent of circle	Navedite tačku na objektu za drugu tangentu kruga
 	Specify point on side to offset	Navedite tačku na strani za odmak
 	Specify radius of arc	Navedite poluprečnik luka
+	Specify radius of arc (hold Ctrl to switch direction)	Navedite poluprečnik luka (držite Ctrl za promjenu smjera)
 	Specify radius of circle	Navedite poluprečnik kruga
 	Specify rotation angle	Navedite ugao rotacije
 	Specify rotation angle of text	Navedite ugao rotacije teksta

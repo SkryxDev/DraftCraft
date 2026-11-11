@@ -884,6 +884,7 @@
 	Specify center of polygon	다각형 중심 지정
 	Specify center point for circle	원 중심점 지정
 	Specify center point of arc	호 중심점 지정
+	Specify center point of arc (hold Ctrl to switch direction)	호 중심점 지정(Ctrl을 누르면 방향 전환)
 	Specify center point of array	배열 중심점 지정
 	Specify center point of base	밑면 중심점 지정
 	Specify corner of viewport	뷰포트 구석 지정
@@ -922,6 +923,7 @@
 	Specify height	높이 지정
 	Specify helix height	나선 높이 지정
 	Specify included angle	사이각 지정
+	Specify included angle (hold Ctrl to switch direction)	사이각 지정(Ctrl을 누르면 방향 전환)
 	Specify insertion base point	삽입 기준점 지정
 	Specify insertion point	삽입점 지정
 	A drawing opened from a file keeps that file's format.	파일에서 연 도면은 해당 파일의 형식을 유지합니다.
@@ -965,6 +967,7 @@
 	Specify leader landing location	지시선 연결선 위치 지정
 	Specify length for rectangles	직사각형 길이 지정
 	Specify length of chord	현 길이 지정
+	Specify length of chord (hold Ctrl to switch direction)	현 길이 지정(Ctrl을 누르면 방향 전환)
 	Specify length of segment	구간 길이 지정
 	Specify line width for rectangles	직사각형 선 폭 지정
 	Specify location for new vertex	새 정점 위치 지정
@@ -983,6 +986,7 @@
 	Specify point on object for second tangent of circle	원의 두 번째 접선을 위한 객체 위의 점 지정
 	Specify point on side to offset	간격띄우기할 쪽의 점 지정
 	Specify radius of arc	호 반지름 지정
+	Specify radius of arc (hold Ctrl to switch direction)	호 반지름 지정(Ctrl을 누르면 방향 전환)
 	Specify radius of circle	원 반지름 지정
 	Specify rotation angle	회전 각도 지정
 	Specify rotation angle of text	문자 회전 각도 지정

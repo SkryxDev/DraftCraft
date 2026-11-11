@@ -969,6 +969,7 @@
 	Specify center of polygon	Especifique o centro do polígono
 	Specify center point for circle	Especifique o ponto central do círculo
 	Specify center point of arc	Especifique o ponto central do arco
+	Specify center point of arc (hold Ctrl to switch direction)	Especifique o ponto central do arco (segure Ctrl para inverter o sentido)
 	Specify center point of array	Especifique o ponto central da matriz
 	Specify center point of base	Especifique o ponto central da base
 	Specify corner of viewport	Especifique o canto do viewport
@@ -1007,6 +1008,7 @@
 	Specify height	Especifique a altura
 	Specify helix height	Especifique a altura da hélice
 	Specify included angle	Especifique o ângulo incluído
+	Specify included angle (hold Ctrl to switch direction)	Especifique o ângulo incluído (segure Ctrl para inverter o sentido)
 	Specify insertion base point	Especifique o ponto base de inserção
 	Specify insertion point	Especifique o ponto de inserção
 	Specify inside diameter of donut	Especifique o diâmetro interno do anel
@@ -1015,6 +1017,7 @@
 	Specify leader landing location	Especifique a posição do patamar da linha de chamada
 	Specify length for rectangles	Especifique o comprimento para retângulos
 	Specify length of chord	Especifique o comprimento da corda
+	Specify length of chord (hold Ctrl to switch direction)	Especifique o comprimento da corda (segure Ctrl para inverter o sentido)
 	Specify length of segment	Especifique o comprimento do segmento
 	Specify line width for rectangles	Especifique a largura de linha para retângulos
 	Specify location for new vertex	Especifique a posição do novo vértice
@@ -1033,6 +1036,7 @@
 	Specify point on object for second tangent of circle	Especifique o ponto no objeto para a segunda tangente do círculo
 	Specify point on side to offset	Especifique um ponto no lado do offset
 	Specify radius of arc	Especifique o raio do arco
+	Specify radius of arc (hold Ctrl to switch direction)	Especifique o raio do arco (segure Ctrl para inverter o sentido)
 	Specify radius of circle	Especifique o raio do círculo
 	Specify rotation angle	Especifique o ângulo de rotação
 	Specify rotation angle of text	Especifique o ângulo de rotação do texto
