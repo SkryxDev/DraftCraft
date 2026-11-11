@@ -230,3 +230,45 @@ fn dynamic_input_distance_follows_the_drawing_units() {
     let text = painted_text(&mut app, &ctx, at);
     assert!(text.contains(&format!("   {}  <", arch(c.len()))), "no {} in:\n{text}", arch(c.len()));
 }
+
+/// While a selection window is open the canvas highlights what it would select where the cursor
+/// is: a window what is entirely inside, a crossing window what it touches too. The selected
+/// objects keep their own highlight, and the preview goes when the window closes.
+#[test]
+fn selection_window_previews_what_it_would_select() {
+    let mut app = CadApp::new(draftcraft_engine::Session::new(), crate::Services::default());
+    app.session.cmdline("line 0,0 10,0").unwrap();
+    app.session.cmdline("").unwrap();
+    let line = app.session.doc().unwrap().model.last().unwrap().handle;
+    app.session.cmdline("circle 50,50 1").unwrap();
+    let circle = app.session.doc().unwrap().model.last().unwrap().handle;
+    // No window: nothing.
+    update_window_preview(&mut app, true, Some(Vec2::new(51.0, 49.5)));
+    assert!(app.canvas.window_preview.is_empty());
+    // Dragged rightwards: the line entirely inside, not the circle the box cuts.
+    assert!(app.session.begin_window(Vec2::new(-1.0, -1.0)));
+    update_window_preview(&mut app, true, Some(Vec2::new(51.0, 49.5)));
+    assert_eq!(app.canvas.window_preview, vec![line]);
+    // The same box dragged leftwards is a crossing window: both.
+    assert!(app.session.begin_window(Vec2::new(51.0, -1.0)));
+    update_window_preview(&mut app, true, Some(Vec2::new(-1.0, 49.5)));
+    let mut both = app.canvas.window_preview.clone();
+    both.sort();
+    assert_eq!(both, if line < circle { vec![line, circle] } else { vec![circle, line] });
+    // The cursor moving shrinks it again.
+    update_window_preview(&mut app, true, Some(Vec2::new(5.0, 1.0)));
+    assert_eq!(app.canvas.window_preview, vec![line]);
+    // Selected objects keep their own highlight; the object under the cursor comes first.
+    assert_eq!(previewed_objects(None, &[line, circle], &[line]), vec![circle]);
+    assert_eq!(previewed_objects(Some(line), &[circle], &[]), vec![line, circle]);
+    assert!(previewed_objects(Some(line), &[], &[line]).is_empty());
+    // The cursor off the canvas, then the window closing: no preview.
+    update_window_preview(&mut app, false, Some(Vec2::new(5.0, 1.0)));
+    assert!(app.canvas.window_preview.is_empty());
+    update_window_preview(&mut app, true, Some(Vec2::new(5.0, 1.0)));
+    assert_eq!(app.canvas.window_preview, vec![line]);
+    app.session.idle_click(Vec2::new(5.0, 1.0), false).unwrap();
+    update_window_preview(&mut app, true, Some(Vec2::new(5.0, 1.0)));
+    assert!(app.canvas.window_preview.is_empty());
+    assert_eq!(app.session.selection(), vec![line]);
+}

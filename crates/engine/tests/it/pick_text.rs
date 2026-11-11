@@ -123,3 +123,155 @@ fn a_dimension_drawn_from_its_block_is_picked_on_the_block_text() {
     assert_eq!(pick(d, &Space::Model, mid, 0.01), Some(dim), "on the block's text");
     assert_eq!(pick(d, &Space::Model, Vec2::new(50.0, 33.0), 0.01), None, "not where the dimension would have set it");
 }
+
+/// The case reported from the field: text turned 40° set just above a diagonal line. The text's
+/// axis-aligned bounds cover the line and a wide empty corner below it; picks there must find the
+/// line (or nothing), not the text, at any pickbox size. Text is hit inside its own turned box.
+#[test]
+fn turned_text_is_picked_inside_its_turned_box_not_its_bounds() {
+    let mut s = Session::new();
+    s.execute("line", &json!({"points": [[0, 0], [100, 84]]})).unwrap();
+    for (kind, params) in [
+        ("text", json!({"at": [20, 22], "height": 5, "text": "dlocd", "rotation": 40})),
+        ("mtext", json!({"at": [20, 22], "height": 5, "text": "dlocd", "rotation": 40, "justify": "BL"})),
+    ] {
+        s.execute(kind, &params).unwrap();
+        let d = s.doc().unwrap();
+        let line = d.model.iter().find(|e| matches!(e.kind, EntityKind::Line(_))).unwrap().handle;
+        let text = d.model.iter().last().unwrap().handle;
+        let a = 40f64.to_radians();
+        let along = |u: f64, v: f64| Vec2::new(20.0, 22.0) + Vec2::new(u, v).rotate(a);
+        for ap in [0.05, 0.5, 1.5] {
+            // On the letters, in the middle of the word: the text.
+            assert_eq!(pick(d, &Space::Model, along(10.0, 2.5), ap), Some(text), "{kind} on its words (aperture {ap})");
+            // On the line where it runs under the text's bounds: the line, not the text.
+            let on_line = Vec2::new(30.0, 25.2);
+            assert!(draftcraft_engine::doc::entity_bounds(d, d.entity(text).unwrap(), 0).contains(on_line), "{kind}: probe in the loose bounds");
+            assert_eq!(pick(d, &Space::Model, on_line, ap), Some(line), "{kind} the line under the text's bounds (aperture {ap})");
+            // The empty bottom-right corner of the text's bounds: nothing.
+            assert!(draftcraft_engine::doc::entity_bounds(d, d.entity(text).unwrap(), 0).contains(Vec2::new(35.0, 23.0)));
+            assert_eq!(pick(d, &Space::Model, Vec2::new(35.0, 23.0), ap), None, "{kind} the empty corner (aperture {ap})");
+        }
+        s.execute("erase", &json!({"handles": [text.0]})).unwrap();
+    }
+}
+
+/// Text is hit around its letters, not around an estimate of the full font height and a fixed
+/// width per character: above lower-case letters and past the end of the word is off the text
+/// (a line drawn there is what the cursor finds).
+#[test]
+fn text_is_picked_around_its_letters_not_a_full_height_estimate() {
+    let mut s = Session::new();
+    for rotation in [0.0, 40.0] {
+        s.execute("text", &json!({"at": [0, 0], "height": 5, "text": "zoom e", "rotation": rotation})).unwrap();
+        let d = s.doc().unwrap();
+        let text = d.model.iter().last().unwrap().handle;
+        let a = f64::to_radians(rotation);
+        let at = |u: f64, v: f64| Vec2::new(u, v).rotate(a);
+        // On the letters.
+        assert_eq!(pick(d, &Space::Model, at(3.0, 1.5), 0.05), Some(text), "on 'z' at {rotation}°");
+        // Inside the old estimate (5 high), above the lower-case letters.
+        assert_eq!(pick(d, &Space::Model, at(8.0, 4.7), 0.05), None, "above the letters at {rotation}°");
+        s.execute("erase", &json!({"handles": [text.0]})).unwrap();
+    }
+}
+
+/// The case reported from the field: a dimension was found with the cursor well away from its
+/// lines and not with the cursor near them. It was hit on the outline of its axis-aligned bounds,
+/// whose edges run through empty space (through the defining points). Now it is hit on what it
+/// draws and inside the box around its words, by picks and by crossing windows alike.
+#[test]
+fn a_dimension_is_picked_on_its_lines_not_its_bounds_outline() {
+    let mut s = Session::new();
+    // Defining points well apart from the dimension line, as on a drawn part.
+    s.execute("dimlinear", &json!({"p1": [0, 0], "p2": [100, 0], "at": [50, 30]})).unwrap();
+    s.execute("dimlinear", &json!({"p1": [200, 0], "p2": [200, 80], "at": [170, 40]})).unwrap();
+    let d = s.doc().unwrap();
+    let dims: Vec<_> = d.model.iter().filter(|e| matches!(e.kind, EntityKind::Dimension(_))).collect();
+    let (h, v) = (dims[0].handle, dims[1].handle);
+    let ap = 0.5;
+    let bounds = |dim| draftcraft_engine::doc::entity_bounds(d, d.entity(dim).unwrap(), 0);
+    let (bh, bv) = (bounds(h), bounds(v));
+    for (dim, probes_off, probes_on) in [
+        // Horizontal: the bounds' bottom edge runs by the defining points, between them; the
+        // extension lines and the dimension line are hit.
+        (h, [Vec2::new(50.0, bh.min.y), Vec2::new(30.0, bh.min.y)], [Vec2::new(0.2, 15.0), Vec2::new(70.0, 30.2)]),
+        // Vertical (as the 5.00 one at the left of the sample): the bounds' right edge.
+        (v, [Vec2::new(bv.max.x, 20.0), Vec2::new(bv.max.x, 60.0)], [Vec2::new(185.0, 0.2), Vec2::new(169.8, 20.0)]),
+    ] {
+        for p in probes_off {
+            assert_eq!(pick(d, &Space::Model, p, ap), None, "empty space on the bounds' outline at {p:?}");
+            // A crossing window touching only that outline doesn't take it either.
+            let bx = Bounds2::new(p - Vec2::new(1.0, 1.0), p + Vec2::new(1.0, 1.0));
+            assert!(!draftcraft_engine::select::select_window(d, &Space::Model, bx, true).contains(&dim), "crossing at {p:?}");
+        }
+        for p in probes_on {
+            assert_eq!(pick(d, &Space::Model, p, ap), Some(dim), "near its lines at {p:?}");
+        }
+    }
+    // Its words are still hit anywhere inside their box, and a crossing window across the edge
+    // of that box (touching no line) takes it.
+    let d = s.doc().unwrap();
+    let words = |dim| {
+        let e = d.entity(dim).unwrap();
+        let EntityKind::Dimension(dm) = &e.kind else { unreachable!() };
+        let g = render::dimension_in(d, dm);
+        Bounds2::from_points(g.text.iter().flatten().chain(g.text_glyphs.iter().flatten().flatten()).copied())
+    };
+    // Level words: their box is axis-aligned.
+    let tb = words(h);
+    assert_eq!(pick(d, &Space::Model, tb.center(), 0.01), Some(h), "between the letters");
+    let mid_y = tb.center().y;
+    let bx = Bounds2::new(Vec2::new(tb.min.x - 0.5, mid_y - 0.05), Vec2::new(tb.min.x + 0.5, mid_y + 0.05));
+    assert_eq!(draftcraft_engine::select::select_window(d, &Space::Model, bx, true), vec![h], "crossing the words' box");
+}
+
+/// Blocks were hit on the outline of their axis-aligned bounds too, as dimensions were: the cursor
+/// found a block in empty space along that outline, and a crossing window anywhere inside the
+/// bounds took it. Now a block is hit on what it draws and inside the boxes around its words (its
+/// text and attributes, placed, turned and scaled as the insert draws them).
+#[test]
+fn a_block_is_picked_on_its_lines_and_words_not_its_bounds() {
+    use draftcraft_engine::doc::entity_bounds;
+    use draftcraft_engine::select::select_window;
+    let mut s = Session::new();
+    // A 10×10 square, a label up and to the right of it, an attribute below it.
+    s.execute("line", &json!({"points": [[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]})).unwrap();
+    s.execute("text", &json!({"at": [20, 20], "height": 2.5, "text": "LABEL"})).unwrap();
+    s.execute("attdef", &json!({"tag": "TAG", "at": [0, -5], "default": "D", "height": 2})).unwrap();
+    let parts: Vec<String> = s.doc().unwrap().model.iter().map(|e| e.handle.hex()).collect();
+    s.execute("block", &json!({"name": "B", "base": [0, 0], "handles": parts, "keep": "delete"})).unwrap();
+    s.execute("insert", &json!({"name": "B", "at": [100, 0], "attribs": {"TAG": "hello"}})).unwrap();
+    s.execute("insert", &json!({"name": "B", "at": [300, 0], "rotation": 90, "scale": [2, 1], "attribs": {"TAG": "hello"}})).unwrap();
+    let d = s.doc().unwrap();
+    let inserts: Vec<_> = d.model.iter().filter(|e| matches!(e.kind, EntityKind::Insert(_))).collect();
+    assert_eq!(inserts.len(), 2);
+    for (i, e) in inserts.iter().enumerate() {
+        let h = e.handle;
+        let EntityKind::Insert(ins) = &e.kind else { unreachable!() };
+        let m = ins.transform(Vec2::ZERO);
+        let at = |x: f64, y: f64| m.apply(Vec2::new(x, y));
+        let b = entity_bounds(d, e, 0);
+        // A corner of the bounds and a point along their edge, both in empty space: the
+        // straight insert's top left (above the square, left of the label), the turned one's
+        // bottom left.
+        let (corner, edge) = if i == 0 {
+            (Vec2::new(b.min.x, b.max.y), Vec2::new(b.min.x + 10.0, b.max.y))
+        } else {
+            (Vec2::new(b.min.x, b.min.y), Vec2::new(b.min.x + 5.0, b.min.y))
+        };
+        for p in [corner, edge, at(5.0, 16.0)] {
+            assert_eq!(pick(d, &Space::Model, p, 0.5), None, "insert {i}: empty space at {p:?}");
+            let bx = Bounds2::new(p - Vec2::new(0.3, 0.3), p + Vec2::new(0.3, 0.3));
+            assert!(!select_window(d, &Space::Model, bx, true).contains(&h), "insert {i}: crossing in empty space at {p:?}");
+        }
+        // Near its lines, on its label, on its attribute.
+        for (what, p) in [("line", at(5.0, 0.1)), ("label", at(22.0, 21.0)), ("attribute", at(2.0, -4.0))] {
+            assert_eq!(pick(d, &Space::Model, p, 0.5), Some(h), "insert {i}: on its {what} at {p:?}");
+        }
+        // A crossing window inside the label's box, touching no stroke, takes it.
+        let q = at(22.0, 21.0);
+        let bx = Bounds2::new(q - Vec2::new(0.05, 0.05), q + Vec2::new(0.05, 0.05));
+        assert!(select_window(d, &Space::Model, bx, true).contains(&h), "insert {i}: crossing inside its label");
+    }
+}

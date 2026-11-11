@@ -1271,6 +1271,78 @@ fn press_and_drag_selection_window() {
 }
 
 #[test]
+fn selection_window_previews_what_it_would_select() {
+    let mut s = Session::new();
+    s.cmdline("line 0,0 10,0").unwrap();
+    s.cmdline("").unwrap();
+    let line = s.doc().unwrap().model.last().unwrap().handle;
+    s.cmdline("circle 50,50 1").unwrap();
+    let circle = s.doc().unwrap().model.last().unwrap().handle;
+    // No window open: nothing to preview.
+    assert!(s.window_preview(Vec2::new(11.0, 1.0)).is_empty());
+    // A window (dragged rightwards) previews only what is entirely inside it…
+    assert!(s.begin_window(Vec2::new(-1.0, -1.0)));
+    assert_eq!(s.window_preview(Vec2::new(11.0, 1.0)), vec![line]);
+    assert!(s.window_preview(Vec2::new(5.0, 1.0)).is_empty());
+    // …and the preview is what the click then selects.
+    let preview = s.window_preview(Vec2::new(11.0, 1.0));
+    s.idle_click(Vec2::new(11.0, 1.0), false).unwrap();
+    assert_eq!(s.selection(), preview);
+    // A crossing window (dragged leftwards) also previews what it touches.
+    s.set_selection(Vec::new());
+    assert!(s.begin_window(Vec2::new(60.0, 60.0)));
+    assert_eq!(s.window_preview(Vec2::new(50.0, 40.0)), vec![circle]);
+    // The same box dragged the other way: the window takes the line inside it, the crossing
+    // window also the circle it cuts.
+    assert!(s.begin_window(Vec2::new(-1.0, -1.0)));
+    assert_eq!(s.window_preview(Vec2::new(51.0, 49.5)), vec![line]);
+    assert!(s.begin_window(Vec2::new(51.0, -1.0)));
+    let mut both = s.window_preview(Vec2::new(-1.0, 49.5));
+    both.sort();
+    assert_eq!(both, {
+        let mut v = vec![line, circle];
+        v.sort();
+        v
+    });
+    // A hostile point previews nothing.
+    assert!(s.window_preview(Vec2::new(f64::NAN, 0.0)).is_empty());
+    assert!(s.window_preview(Vec2::new(f64::INFINITY, 0.0)).is_empty());
+    // SELECTIONPREVIEW bit 1 (no command) off: no preview at the idle cursor.
+    s.settings.selectionpreview = 2;
+    assert!(s.window_preview(Vec2::new(-1.0, 49.5)).is_empty());
+    s.pending_window = None;
+    // During a command at "Select objects" it is bit 2 that counts.
+    s.cmdline("erase").unwrap();
+    assert!(s.begin_window(Vec2::new(-1.0, -1.0)));
+    assert_eq!(s.window_preview(Vec2::new(11.0, 1.0)), vec![line]);
+    s.settings.selectionpreview = 1;
+    assert!(s.window_preview(Vec2::new(11.0, 1.0)).is_empty());
+    s.settings.selectionpreview = 3;
+    // The opposite corner a command takes after a click on empty space previews too.
+    s.pending_window = None;
+    s.input(Input::Point(Vec2::new(70.0, 70.0))).unwrap();
+    assert!(s.pending_window.is_some_and(|pw| pw.during_command));
+    assert_eq!(s.window_preview(Vec2::new(49.5, 49.5)), vec![circle]);
+    s.cancel();
+    assert!(s.window_preview(Vec2::new(49.5, 49.5)).is_empty());
+}
+
+#[test]
+fn selection_window_preview_leaves_out_filtered_objects() {
+    let mut s = Session::new();
+    s.cmdline("line 0,0 10,0").unwrap();
+    s.cmdline("").unwrap();
+    // PREVIEWFILTER 1 (the default has it): objects on locked layers aren't previewed.
+    s.cmdline("-layer lo 0").unwrap();
+    s.cmdline("").unwrap();
+    assert!(s.begin_window(Vec2::new(-1.0, -1.0)));
+    assert!(s.window_preview(Vec2::new(11.0, 1.0)).is_empty());
+    s.settings.previewfilter = 0;
+    let selects = select::select_window(s.doc().unwrap(), &s.space(), Bounds2::new(Vec2::new(-1.0, -1.0), Vec2::new(11.0, 1.0)), false);
+    assert_eq!(s.window_preview(Vec2::new(11.0, 1.0)), selects);
+}
+
+#[test]
 fn block_rotation_property_turns_attribute_text() {
     let mut s = Session::new();
     s.execute("attdef", &json!({"tag": "TAG", "at": [10, 0], "default": "D", "height": 2.5})).unwrap();

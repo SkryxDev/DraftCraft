@@ -1,7 +1,9 @@
 //! Blocks: BLOCK, INSERT, ATTDEF, ATTEDIT (programmatic), WBLOCK, BASE, PURGE, block listing, the
 //! Block Editor.
 
+mod bauthor;
 pub(crate) mod bedit;
+pub mod designcenter;
 pub(in crate::cmd) mod purge;
 
 use std::sync::Arc;
@@ -95,6 +97,8 @@ pub fn specs() -> Vec<CommandSpec> {
     .chain(refedit::specs())
     .chain(xclip::specs())
     .chain(bedit::specs())
+    .chain(bauthor::specs())
+    .chain([designcenter::spec()])
     .collect()
 }
 
@@ -600,7 +604,7 @@ impl BlockM {
     }
 }
 
-mod insert_file;
+pub(crate) mod insert_file;
 pub(crate) mod xref;
 
 /// Where the command-line INSERT is in its prompt sequence.

@@ -69,6 +69,7 @@ pub fn entity_codec() -> Option<&'static EntityCodec> {
 
 /// COMPARE (drawing comparison).
 pub mod compare;
+pub(crate) mod transmit;
 
 /// Decode a raster image file (PNG, JPEG, BMP, TIFF) to pixels: installed by the app with the
 /// image reader, a lower layer.
@@ -81,6 +82,27 @@ pub fn set_image_decoder(h: ImageHook) {
 }
 pub fn image_decoder() -> Option<ImageHook> {
     IMAGE.get().copied()
+}
+
+/// The PDF reader (PDF underlays and PDFIMPORT): installed by the app with the reader, a lower
+/// layer.
+pub struct PdfHooks {
+    /// Each page's width and height in points.
+    pub pages: fn(&[u8]) -> std::result::Result<Vec<(f64, f64)>, String>,
+    /// Page (from 0) as pixels on white paper at up to this many dots per inch.
+    pub rasterize: fn(&[u8], usize, f64) -> std::result::Result<draftcraft_doc::Raster, String>,
+    /// Page (from 0) as objects in points (lower-left corner at the origin, y up), reading
+    /// vectors, fills, text; plus how many images were left out and whether content was cut.
+    pub import: fn(&[u8], usize, bool, bool, bool) -> std::result::Result<(Vec<draftcraft_doc::ImportedShape>, usize, bool), String>,
+}
+
+static PDF: OnceLock<PdfHooks> = OnceLock::new();
+
+pub fn set_pdf_hooks(h: PdfHooks) {
+    let _ = PDF.set(h);
+}
+pub fn pdf_hooks() -> Option<&'static PdfHooks> {
+    PDF.get()
 }
 
 /// Hand finished file bytes to the user where there is no file system (the browser: a download).
@@ -325,6 +347,7 @@ pub fn finish_open(s: &mut Session, f: ReadFile) -> Result<Value> {
     let i = add_read(s, drawing, binary_dxf, &name, path);
     super::blocks::xref::after_open(s, i);
     super::image::after_open(s, i);
+    super::underlay::after_open(s, i);
     Ok(opened(s, i, true))
 }
 
@@ -384,6 +407,8 @@ fn run_open(s: &mut Session, p: &Value) -> Result<Value> {
             let i = open_bytes(s, &bytes, path, Some(path.to_string()))?;
             super::blocks::xref::after_open(s, i);
             super::image::after_open(s, i);
+            super::underlay::after_open(s, i);
+            super::underlay::after_open(s, i);
             return Ok(opened(s, i, true));
         }
         #[cfg(target_arch = "wasm32")]
@@ -395,6 +420,7 @@ fn run_open(s: &mut Session, p: &Value) -> Result<Value> {
     let i = open_bytes(s, &bytes, name, None)?;
     super::blocks::xref::after_open(s, i);
     super::image::after_open(s, i);
+    super::underlay::after_open(s, i);
     Ok(opened(s, i, false))
 }
 

@@ -27,6 +27,10 @@ rstar = { version = "0.13", default-features = false }
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# ETRANSMIT's .zip packages; the same version and features the UI's updater uses.
+zip = { version = "9", default-features = false, features = ["deflate"] }
+
 [dev-dependencies]
 # Real DXF files for the external reference tests (io is a lower layer).
 draftcraft-io = { workspace = true }

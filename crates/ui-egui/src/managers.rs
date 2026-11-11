@@ -17,6 +17,8 @@ use crate::theme::Tokens;
 
 /// The Block Attribute Manager (BATTMAN).
 mod battman;
+/// Layer Translator, Layer Walk and Geographic Location.
+mod layertools;
 /// Named Viewports (View > Viewports > Named Viewports...).
 mod named_vports;
 
@@ -36,6 +38,9 @@ pub fn route(app: &mut CadApp, id: &str, params: &Value) -> Option<Result<Value,
         "pagesetup" => "pagesetup",
         "constraintsettings" | "csettings" => "csettings",
         "vports.named" => "namedvports",
+        "laytrans" => "laytrans",
+        "laywalk" => "laywalk",
+        "geographiclocation" | "geo" => "geo",
         "plot" | "print" => {
             PLOT_GEN.fetch_add(1, Ordering::Relaxed);
             "plot"
@@ -58,6 +63,9 @@ pub fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &mut bool
         "pagesetup" => page_setup(app, ctx, open),
         "csettings" => constraint_settings(app, ctx, open),
         "namedvports" => named_vports::dialog(app, ctx, open),
+        "laytrans" => layertools::laytrans(app, ctx, open),
+        "laywalk" => layertools::laywalk(app, ctx, open),
+        "geo" => layertools::geo(app, ctx, open),
         "plot" => plot(app, ctx, open),
         _ => {
             *open = false;

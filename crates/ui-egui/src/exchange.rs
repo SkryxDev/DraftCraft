@@ -1,4 +1,4 @@
-//! EXPORT, IMPORT, PUBLISH and PREVIEW from a menu, the tool bar or the command line: the first
+//! EXPORT, IMPORT, PUBLISH, ETRANSMIT, POINTCLOUDATTACH and PREVIEW from a menu, the tool bar or the command line: the first
 //! three ask for a file, PREVIEW shows the plot in a window. Calls with parameters (scripts, the
 //! control channel, MCP) never get here and never open a dialog: they run the engine commands.
 
@@ -23,6 +23,38 @@ pub fn route(app: &mut CadApp, id: &str) -> Result<Value, String> {
             app.ui.dialog = Some("preview".into());
             Ok(Value::Null)
         }
+        "attach" | "imageattach" | "iat" | "pdfattach" | "pdfat" | "pdfimport" => {
+            let (label, exts, cmd): (&str, &[&str], &str) = match id {
+                "imageattach" | "iat" => ("Images (PNG, JPEG, BMP, TIFF)", &["png", "jpg", "jpeg", "bmp", "tif", "tiff"], "imageattach"),
+                "pdfattach" | "pdfat" => ("PDF files", &["pdf"], "pdfattach"),
+                "pdfimport" => ("PDF files", &["pdf"], "pdfimport"),
+                _ => ("Images and PDF files", &["pdf", "png", "jpg", "jpeg", "bmp", "tif", "tiff"], "attach"),
+            };
+            if cmd == "pdfimport"
+                && let Some(h) = selected_underlay(app)
+            {
+                return app.run("pdfimport", json!({ "handle": h }));
+            }
+            let Some(pick) = app.services.pick_file.as_ref() else { return no_picker(app, &cmd.to_ascii_uppercase(), r#"{"path": "plan.pdf"}"#) };
+            match pick(label, exts) {
+                Some(path) => app.run(cmd, json!({ "path": path })),
+                None => Ok(Value::Null),
+            }
+        }
+        "pointcloudattach" | "pcattach" | "pointcloud" => {
+            let Some(pick) = app.services.pick_file.as_ref() else { return no_picker(app, "POINTCLOUDATTACH", r#"{"path": "scan.las"}"#) };
+            match pick("Point clouds (XYZ, LAS)", &["xyz", "pts", "csv", "txt", "las"]) {
+                Some(path) => app.run("pointcloudattach", json!({ "path": path })),
+                None => Ok(Value::Null),
+            }
+        }
+        "etransmit" => {
+            let Some(pick) = app.services.pick_save.as_ref() else { return no_picker(app, "ETRANSMIT", r#"{"path": "package.zip"}"#) };
+            match pick(&format!("{stem}.zip")) {
+                Some(path) => app.run("etransmit", json!({ "path": path })),
+                None => Ok(Value::Null),
+            }
+        }
         "import" | "imp" => {
             let Some(pick) = app.services.pick_open.as_ref() else { return no_picker(app, "IMPORT", r#"import {"path": "parts.dxf"}"#) };
             match pick() {
@@ -44,6 +76,17 @@ pub fn route(app: &mut CadApp, id: &str) -> Result<Value, String> {
                 None => Ok(Value::Null),
             }
         }
+    }
+}
+
+/// The one PDF underlay selected, if that is the selection: PDFIMPORT from the ribbon imports it.
+fn selected_underlay(app: &CadApp) -> Option<String> {
+    let st = app.session.state().ok()?;
+    let [h] = st.selection.as_slice() else { return None };
+    let store = st.doc.space(&app.session.space())?;
+    match &store.get(*h)?.kind {
+        draftcraft_engine::doc::EntityKind::Image(i) if i.underlay.is_some() => Some(h.hex()),
+        _ => None,
     }
 }
 
@@ -179,6 +222,33 @@ mod tests {
             ..Services::default()
         };
         (CadApp::new(Session::new(), services), asked)
+    }
+
+    #[test]
+    fn attach_and_pdf_commands_pick_a_file_of_their_kind() {
+        let asked = Rc::new(RefCell::new(Vec::new()));
+        let a = asked.clone();
+        let services = Services {
+            pick_file: Some(Box::new(move |label: &str, exts: &[&str]| {
+                a.borrow_mut().push(format!("{label}: {}", exts.join(" ")));
+                None
+            })),
+            ..Services::default()
+        };
+        let mut app = CadApp::new(Session::new(), services);
+        app.start("pdfattach");
+        app.cmdline("PDFIMPORT");
+        app.start("imageattach");
+        app.start("attach");
+        let asked = asked.borrow();
+        assert_eq!(asked.len(), 4, "{asked:?}");
+        assert_eq!((asked[0].as_str(), asked[1].as_str()), ("PDF files: pdf", "PDF files: pdf"));
+        assert!(asked[2].starts_with("Images (") && !asked[2].contains("pdf"), "{}", asked[2]);
+        assert!(asked[3].contains("pdf") && asked[3].contains("png"), "{}", asked[3]);
+        // A cancelled pick changes nothing, and a JSON call never asks.
+        assert!(app.session.doc().is_ok_and(|d| d.model.is_empty()));
+        assert!(app.run("pdfattach", json!({ "path": "missing.pdf" })).is_err());
+        assert_eq!(asked.len(), 4);
     }
 
     #[test]

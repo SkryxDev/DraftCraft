@@ -23,6 +23,35 @@ impl Session {
         (p - corner).rotate(twist).x < 0.0
     }
 
+    /// The most objects a selection window previews: past it the highlight would cost more
+    /// than it tells, so none is shown (the click still selects them all).
+    pub const WINDOW_PREVIEW_LIMIT: usize = 10_000;
+
+    /// The objects the open selection window would select if it closed at `p` (a window takes
+    /// what is entirely inside, a crossing window also what it touches): what the canvas
+    /// highlights while the box is dragged. Empty with no window open, when SELECTIONPREVIEW is
+    /// off for this case (bit 1 with no command, bit 2 during a command), for a hostile point,
+    /// or past [`Self::WINDOW_PREVIEW_LIMIT`] objects. PREVIEWFILTER keeps its objects out, as it
+    /// does for the object under the cursor.
+    pub fn window_preview(&self, p: Vec2) -> Vec<Handle> {
+        let Some(pw) = self.pending_window else { return Vec::new() };
+        let bit = if pw.during_command { 2 } else { 1 };
+        if self.settings.selectionpreview & bit == 0 || !p.is_finite() {
+            return Vec::new();
+        }
+        let Ok(d) = self.doc() else { return Vec::new() };
+        let crossing = self.window_is_crossing(pw.corner, p);
+        // The same test the closing click runs (`idle_click`, the "Select objects" input).
+        let hs = select::select_window(d, &self.space(), Bounds2::new(pw.corner, p), crossing);
+        let mut hs = cmd::groups::expand(self, hs);
+        if hs.len() > Self::WINDOW_PREVIEW_LIMIT {
+            return Vec::new();
+        }
+        let filter = self.settings.previewfilter;
+        hs.retain(|h| d.entity(*h).is_none_or(|e| !select::preview_filtered(d, e, filter)));
+        hs
+    }
+
     /// A click with no command running: pick/toggle objects or start a selection window.
     ///
     /// PICKADD on (the default): picks add to the selection and Shift removes. PICKADD off: each pick

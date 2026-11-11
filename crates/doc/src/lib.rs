@@ -29,13 +29,16 @@ pub use constraint::*;
 pub use draftcraft_color as color;
 pub use draftcraft_geom as geom;
 pub use entity::*;
-pub use extents::{BlockBoundsCache, MAX_BLOCK_DEPTH, entity_bounds, entity_bounds_cached, extent_bounds, extent_bounds_cached};
+pub use extents::{
+    BlockBoundsCache, MAX_BLOCK_DEPTH, MAX_INSERT_TEXT_BOXES, entity_bounds, entity_bounds_cached, extent_bounds, extent_bounds_cached,
+    insert_text_outlines, text_outline,
+};
 pub use format::Format;
 pub use gdt::*;
 pub use header::{HVal, Header};
 pub use plotstyle::*;
 pub use plotter::*;
-pub use raster::{Raster, Rasters};
+pub use raster::{ImportedShape, Raster, Rasters, ShapeClass};
 pub use refedit::{RefEdit, WorkItem};
 pub use store::EntityStore;
 pub use tables::*;

@@ -144,7 +144,7 @@ DraftCraft is young and moving fast. [ROADMAP.md](ROADMAP.md) has what is missin
 | Annotation | DIM commands with dimension styles and associative dimensions, multileaders, tables, TrueType and SHX fonts, right-to-left text |
 | Hatches and blocks | Pattern, solid and gradient fills; blocks, attributes, the Block Editor, in-place editing, external references |
 | Parametric | Geometric and dimensional constraints, AUTOCONSTRAIN, parameters with expressions |
-| Layouts and output | Paper-space layouts, viewports, page setups, plot styles, PLOT and EXPORTPDF, SVG and PNG export |
+| Layouts and output | Paper-space layouts, viewports, page setups, plot styles, PLOT and EXPORTPDF (arcs, circles and splines kept as true curves), SVG and PNG export |
 | Files | DWG and DXF reading and writing at a chosen version, AUDIT and RECOVER, autosave and drawing recovery. Objects DraftCraft doesn't model yet can be lost on save |
 | Automation | MCP server, JSON control channel, `draftcraft-cli`, AutoLISP, scripts and alias files |
 

@@ -52,6 +52,7 @@ mod multiline_attributes;
 mod ole2frame_roundtrip;
 mod paperview_marker;
 mod passthrough_image_roundtrip;
+mod pdf_curves;
 mod pdf_followups;
 mod pdf_layers;
 #[path = "../support/pdf_read.rs"]

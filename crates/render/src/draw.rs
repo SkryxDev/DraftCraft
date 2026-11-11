@@ -174,12 +174,16 @@ fn entity_parts(b: &mut Builder, ctx: &Ctx, e: &Entity) {
         EntityKind::LwPolyline(p) => {
             let pl = Polyline { vertices: p.vertices.clone(), closed: p.closed };
             if !b.opts.linetypes || p.plinegen || lt.is_none() {
+                let before = b.list.prims.len();
                 stroke(b, &pl.tessellate(tol));
+                b.note_curve(ctx, before, || pl.bezier());
             } else {
                 for s in pl.segments() {
                     let mut pts = Vec::new();
                     s.tessellate(tol, &mut pts);
+                    let before = b.list.prims.len();
                     stroke(b, &pts);
+                    b.note_curve(ctx, before, || s.bezier());
                 }
             }
         }
@@ -233,19 +237,29 @@ fn entity_parts(b: &mut Builder, ctx: &Ctx, e: &Entity) {
                     Prim::Seg(s) => {
                         let mut pts = Vec::new();
                         s.tessellate(tol, &mut pts);
+                        let before = b.list.prims.len();
                         stroke(b, &pts);
+                        b.note_curve(ctx, before, || s.bezier());
                     }
                     Prim::Circle(c) => {
                         let mut pts = Vec::new();
                         c.tessellate(tol, &mut pts);
+                        let before = b.list.prims.len();
                         stroke(b, &pts);
+                        b.note_curve(ctx, before, || c.bezier());
                     }
                     Prim::Ellipse(el) => {
                         let mut pts = Vec::new();
                         el.tessellate(tol, &mut pts);
+                        let before = b.list.prims.len();
                         stroke(b, &pts);
+                        b.note_curve(ctx, before, || el.bezier());
                     }
-                    Prim::Spline(s) => stroke(b, &s.tessellate(tol)),
+                    Prim::Spline(s) => {
+                        let before = b.list.prims.len();
+                        stroke(b, &s.tessellate(tol));
+                        b.note_curve(ctx, before, || s.bezier());
+                    }
                     Prim::Point(p) => b.point(ctx, rgb, p),
                     Prim::Infinite { base, dir, ray } => b.infinite(ctx, rgb, base, dir, ray),
                     Prim::Fill(pts) => {
@@ -288,7 +302,7 @@ fn draw_image(b: &mut Builder, ctx: &Ctx, i: &draftcraft_doc::Image, rgb: Ink, l
     let v = i.v.xy() * i.size.y;
     // Display flag 1: show the image. Without pixels (file not found, not loaded yet, hidden)
     // the rectangle is crossed out.
-    let raster = if i.display & 1 != 0 { ctx.d.rasters.get(&i.path) } else { None };
+    let raster = if i.display & 1 != 0 { ctx.d.rasters.get(&i.raster_key()) } else { None };
     if let Some(r) = raster {
         b.image(ctx, rgb, i, r);
     }

@@ -72,6 +72,7 @@ pub mod viewcube;
 pub mod vpscale;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod window_frame;
+pub mod workspaces;
 
 pub mod exchange;
 
@@ -141,6 +142,14 @@ pub struct UiState {
     pub recent_files: Vec<String>,
     /// The folder the last APPLOAD file came from: the next pick starts there.
     pub last_lisp_dir: Option<String>,
+    /// The Quick Access Toolbar's commands (CUI); `None`: the standard ones.
+    pub qat: Option<Vec<String>>,
+    /// Ribbon tabs the user hid (CUI).
+    pub hidden_tabs: Vec<String>,
+    /// Saved workspaces (WORKSPACE); the built-in "2D Drafting" isn't among them.
+    pub workspaces: Vec<workspaces::SavedWorkspace>,
+    /// The current workspace's name; empty: the built-in one.
+    pub current_workspace: String,
 }
 
 /// A DXF/DWG file version (2000 … 2018).
@@ -223,6 +232,10 @@ impl Default for UiState {
             save_version: SaveVersion::default().year().to_string(),
             recent_files: Vec::new(),
             last_lisp_dir: None,
+            qat: None,
+            hidden_tabs: Vec::new(),
+            workspaces: Vec::new(),
+            current_workspace: String::new(),
         }
     }
 }
@@ -236,6 +249,9 @@ pub struct Services {
     /// `None` where there is no native file dialog: the desktop without one asks for the name,
     /// and the web (no file system) says to drop the file (`no_file_system`).
     pub pick_lisp: Option<Box<dyn Fn(&str) -> Option<String>>>,
+    /// Pick a file to read of the given kind: a filter label and its extensions (ATTACH,
+    /// PDFATTACH, PDFIMPORT, IMAGEATTACH). `None` where there is no native file dialog.
+    pub pick_file: Option<Box<dyn Fn(&str, &[&str]) -> Option<String>>>,
     /// The host has no file system to read a path from (the browser): a dropped file's contents
     /// are what it loads, and APPLOAD says so instead of asking for a name it cannot read.
     pub no_file_system: bool,
@@ -258,6 +274,8 @@ pub struct CadApp {
     pub spacemouse: spacemouse::State,
     /// Calculator data shared by its floating and docked views; durable fields live in prefs.
     pub(crate) quickcalc: palettes::quickcalc::State,
+    /// DesignCenter, Tool Palettes and the Sheet Set Manager; the tool palettes live in prefs.
+    pub(crate) side_palettes: palettes::SidePalettes,
     pub cmd: cmdline::CmdLine,
     pub status: Option<(String, f64)>,
     /// Drawings being read on worker threads ([`opening`]).
@@ -334,6 +352,8 @@ pub struct CadApp {
     pub hatch_dlg: Option<hatchdlg::HatchDlgState>,
     /// The Edit Block Definition dialog ([`bedit`]).
     pub bedit: bedit::State,
+    /// The contextual ribbon tab shown and the tab before it ([`ribbon::context`]).
+    pub(crate) ribbon_context: ribbon::context::State,
     /// The startup update check and its prompt (desktop; [`updates_ui`]).
     #[cfg(not(target_arch = "wasm32"))]
     pub updates_rt: updates_ui::Runtime,
@@ -353,6 +373,7 @@ impl CadApp {
             canvas: canvas::CanvasState::default(),
             spacemouse: spacemouse::State::default(),
             quickcalc: palettes::quickcalc::State::default(),
+            side_palettes: palettes::SidePalettes::default(),
             cmd: cmdline::CmdLine::default(),
             status: None,
             opening: opening::Opening::default(),
@@ -393,6 +414,7 @@ impl CadApp {
             alias_dlg: None,
             hatch_dlg: None,
             bedit: bedit::State::default(),
+            ribbon_context: ribbon::context::State::default(),
             #[cfg(not(target_arch = "wasm32"))]
             updates_rt: updates_ui::Runtime::default(),
         }
@@ -495,6 +517,7 @@ impl CadApp {
             "saveFormat": self.ui.save_format.as_str(),
             "saveVersion": self.ui.save_version,
             "quickcalc": self.quickcalc.prefs(),
+            "toolPalettes": self.side_palettes.tool_palettes.prefs(),
         });
         if self.spacemouse.settings != spacemouse::Settings::default() {
             prefs["spacemouse"] = json!(self.spacemouse.settings);
@@ -513,6 +536,9 @@ impl CadApp {
         let Ok(v) = serde_json::from_str::<Value>(json) else { return };
         if let Some(calculator) = v.get("quickcalc") {
             self.quickcalc.load_prefs(calculator);
+        }
+        if let Some(tp) = v.get("toolPalettes") {
+            self.side_palettes.tool_palettes.load_prefs(tp);
         }
         if let Some(prefs) = v.get("spacemouse") {
             let _ = self.spacemouse.load_settings(prefs);

@@ -12,7 +12,7 @@ use super::{CommandSpec, bad, bool_or, ok, str_param, targets};
 use crate::{Result, Session};
 
 pub fn specs() -> Vec<CommandSpec> {
-    vec![
+    let mut v = vec![
         CommandSpec::new("layer", "Layers", run_list)
             .menu(&["Format", "Layers"])
             .alias(&["la", "layers", "-layer"])
@@ -68,7 +68,9 @@ pub fn specs() -> Vec<CommandSpec> {
             .menu(&["Format", "Layer Tools", "Layer Delete"])
             .params("{names: [...]} (deletes the layers and every object on them)")
             .interactive(|_| Ok(Box::new(merge::LayerRemove::delete()))),
-    ]
+    ];
+    v.extend(tools::specs());
+    v
 }
 
 fn layer_json(l: &Layer, current: bool) -> Value {
@@ -466,6 +468,8 @@ fn run_state_rename(s: &mut Session, p: &Value) -> Result<Value> {
 
 // LAYMRG and LAYDEL.
 mod merge;
+// LAYTRANS and LAYWALK.
+mod tools;
 
 #[cfg(test)]
 mod tests {

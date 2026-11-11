@@ -19,6 +19,9 @@ pub enum Panel {
     Properties,
     #[serde(rename = "externalReferences")]
     ExternalRefs,
+    DesignCenter,
+    ToolPalettes,
+    SheetSet,
 }
 
 impl Panel {
@@ -31,6 +34,9 @@ impl Panel {
             Self::Layers => "layers",
             Self::Properties => "properties",
             Self::ExternalRefs => "externalReferences",
+            Self::DesignCenter => "designCenter",
+            Self::ToolPalettes => "toolPalettes",
+            Self::SheetSet => "sheetSet",
         }
     }
     fn label(self) -> &'static str {
@@ -41,6 +47,9 @@ impl Panel {
             Self::Layers => "Layers",
             Self::Properties => "Properties",
             Self::ExternalRefs => "External References",
+            Self::DesignCenter => "DesignCenter",
+            Self::ToolPalettes => "Tool Palettes",
+            Self::SheetSet => "Sheet Set Manager",
         }
     }
     /// The icon a palette shows in a column collapsed to icons.
@@ -53,10 +62,13 @@ impl Panel {
             Self::Layers => Some(Icon::Layers),
             Self::Properties => Some(Icon::Properties),
             Self::ExternalRefs => Some(Icon::Attach),
+            Self::DesignCenter => Some(Icon::DesignCenter),
+            Self::ToolPalettes => Some(Icon::ToolPalette),
+            Self::SheetSet => Some(Icon::SheetSet),
         }
     }
     /// Palettes outside the default arrangement, opened on request (QUICKCALC).
-    pub const ON_DEMAND: &[Self] = &[Self::QuickCalc];
+    pub const ON_DEMAND: &[Self] = &[Self::QuickCalc, Self::DesignCenter, Self::ToolPalettes, Self::SheetSet];
 }
 
 /// The drawing view never moves, floats, closes or takes tabs; palettes dock beside it.
@@ -148,7 +160,9 @@ fn home_anchor(layout: &Layout<Panel>, panel: Panel) -> Option<(Panel, bool)> {
         Panel::Layers => &[(Panel::Properties, false), (Panel::ExternalRefs, false)],
         Panel::Properties => &[(Panel::Layers, true), (Panel::ExternalRefs, false)],
         Panel::ExternalRefs => &[(Panel::Properties, true), (Panel::Layers, true)],
-        Panel::QuickCalc => &[(Panel::ExternalRefs, true), (Panel::Properties, true), (Panel::Layers, true)],
+        Panel::QuickCalc | Panel::DesignCenter | Panel::ToolPalettes | Panel::SheetSet => {
+            &[(Panel::ExternalRefs, true), (Panel::Properties, true), (Panel::Layers, true)]
+        }
     };
     if let Some(found) = neighbours.iter().copied().find(|(neighbour, _)| docked(layout, *neighbour)) {
         return Some(found);
@@ -414,6 +428,9 @@ impl DockContent<Panel> for Panels<'_> {
             Panel::ExternalRefs => {
                 egui::ScrollArea::both().id_salt("dock-xrefs").auto_shrink([false, false]).show(ui, |ui| crate::xrefs::section(app, ui));
             }
+            Panel::DesignCenter => crate::palettes::designcenter::show(app, ui),
+            Panel::ToolPalettes => crate::palettes::toolpalettes::show(app, ui),
+            Panel::SheetSet => crate::palettes::sheetset::show(app, ui),
         }
     }
     fn logical_label(&self, panel: &Panel) -> String {
@@ -442,6 +459,31 @@ fn panel_limits(panel: &Panel) -> PanelLimits {
         Panel::QuickCalc => (egui::vec2(240.0, 160.0), 600.0),
         Panel::ToolSets => (egui::vec2(220.0, 150.0), 480.0),
         Panel::Layers | Panel::Properties | Panel::ExternalRefs => (egui::vec2(220.0, 100.0), 720.0),
+        Panel::DesignCenter | Panel::ToolPalettes | Panel::SheetSet => (egui::vec2(220.0, 160.0), 900.0),
     };
     PanelLimits { min, max: egui::vec2(max_width, 1_000_000.0) }
+}
+
+/// Open an on-demand palette (QuickCalc, DesignCenter, Tool Palettes, Sheet Set Manager). The
+/// first time it floats by the right edge of the drawing, `width` wide; afterwards it returns
+/// where it was closed.
+pub(crate) fn open_on_demand(app: &mut crate::CadApp, panel: Panel, width: f32) -> Result<Value, String> {
+    let first = !app.ui.docking.layout.contains(&panel) && !app.ui.docking.hidden.iter().any(|(p, _)| *p == panel);
+    let r = command(app, false, &json!({ "operation": "open", "panel": panel.id() }))?;
+    if !first {
+        return Ok(r);
+    }
+    let area = app.canvas.rect.unwrap_or(egui::Rect::from_min_size(egui::pos2(220.0, 80.0), egui::vec2(1000.0, 800.0)));
+    let h = (area.height() - 40.0).clamp(200.0, 560.0);
+    let rect = [area.right() - width - 16.0, area.top() + 24.0, width, h];
+    command(app, false, &json!({ "operation": "float", "panel": panel.id(), "rect": rect }))
+}
+
+/// Close an open palette, or open it.
+pub(crate) fn toggle_on_demand(app: &mut crate::CadApp, panel: Panel, width: f32) -> Result<Value, String> {
+    if app.ui.docking.layout.contains(&panel) {
+        command(app, false, &json!({ "operation": "close", "panel": panel.id() }))
+    } else {
+        open_on_demand(app, panel, width)
+    }
 }
