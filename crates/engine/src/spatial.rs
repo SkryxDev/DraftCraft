@@ -37,6 +37,8 @@ struct ChunkIx {
     key: usize,
     ents: Vec<Arc<Entity>>,
     bounds: Vec<Bounds2>,
+    /// How far each entity can draw ([`crate::select::reach`]): the boxes in the tree.
+    reach: Vec<Bounds2>,
     /// Local indices of xlines and rays (unbounded; always candidates for pick and crossing).
     infinite: Vec<u32>,
 }
@@ -46,7 +48,7 @@ impl ChunkIx {
         let mut infinite = Vec::new();
         // One block-bounds cache for the chunk: references to the same block measure it once.
         let mut cache = BlockBoundsCache::default();
-        let bounds = items
+        let bounds: Vec<Bounds2> = items
             .iter()
             .enumerate()
             .map(|(i, e)| {
@@ -56,11 +58,14 @@ impl ChunkIx {
                 entity_bounds_cached(d, e, 0, &mut cache)
             })
             .collect();
+        // The tree holds how far each object can draw ([`select::reach`]), so a pick on the last
+        // letter of a word or on a dimension's words finds it; the bounds stay for window tests.
+        let reach = items.iter().zip(&bounds).map(|(e, b)| crate::select::reach(d, e, *b)).collect();
         let serial = NEXT_SERIAL.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        ChunkIx { serial, key, ents: items.to_vec(), bounds, infinite }
+        ChunkIx { serial, key, ents: items.to_vec(), bounds, reach, infinite }
     }
     fn items(&self) -> impl Iterator<Item = Item> + '_ {
-        self.bounds.iter().enumerate().filter(|(_, b)| !b.is_empty()).map(|(i, b)| {
+        self.reach.iter().enumerate().filter(|(_, b)| !b.is_empty()).map(|(i, b)| {
             GeomWithData::new(Rectangle::from_corners([b.min.x, b.min.y], [b.max.x, b.max.y]), (self.serial, u32::try_from(i).unwrap_or(u32::MAX)))
         })
     }
