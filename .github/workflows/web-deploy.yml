@@ -1,6 +1,6 @@
 # Builds DraftCraft's browser version (apps/draftcraft-web, wasm via Trunk) from `main` and publishes it to
 # GitHub Pages at https://app.draftcraft.dev/ (Settings › Pages › Source: GitHub Actions) on every push to
-# `main`, so the site is always the live main. Only in withshalom/draftcraft (WithShalom Studios' fork of
+# `main`, so the site is always the live main. Only in withshalom/draftcraft-app (WithShalom Studios' fork of
 # SkryxDev/DraftCraft); any other branch or repository builds nothing. This file is the fork's own: it is
 # not part of the pull requests sent upstream.
 name: web-deploy
@@ -27,8 +27,8 @@ env:
 
 jobs:
   build:
-    # Only in withshalom/draftcraft, only from main.
-    if: github.repository == 'withshalom/draftcraft' && github.ref == 'refs/heads/main'
+    # Only in withshalom/draftcraft-app, only from main.
+    if: github.repository == 'withshalom/draftcraft-app' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
@@ -80,7 +80,7 @@ jobs:
           path: dist/web
 
   deploy:
-    if: github.repository == 'withshalom/draftcraft' && github.ref == 'refs/heads/main'
+    if: github.repository == 'withshalom/draftcraft-app' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     environment:
