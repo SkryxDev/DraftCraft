@@ -1508,3 +1508,117 @@ menu	View	视图
 	Xref	外部参照
 	Xref Clip Frame	外部参照剪裁边框
 	Ribbon	功能区
+	PDF Underlay...	PDF 参考底图...
+	PDF Import	PDF 输入
+	PDF Underlay	PDF 参考底图
+	Underlay Layers	参考底图图层
+	Adjust...	调整...
+	Close Text Editor	关闭文字编辑器
+	Image Adjust	图像调整
+	Image Clip	图像剪裁
+	PDF Adjust	PDF 调整
+	PDF Clip	PDF 剪裁
+	Image	图像
+	Action	动作
+	Parameter	参数
+	DesignCenter	设计中心
+	Tool Palettes	工具选项板
+	Sheet Set Manager	图纸集管理器
+	Type the drawing's path, then press Enter.	输入图形的路径，然后按 Enter。
+	Drawing file	图形文件
+	Folder	文件夹
+	Linetypes	线型
+	Text Styles	文字样式
+	Dimension Styles	标注样式
+	Table Styles	表格样式
+	Multileader Styles	多重引线样式
+	Multiline Styles	多线样式
+	Add to Drawing	添加到图形
+	Create Tool Palette	创建工具选项板
+	Nothing of this kind in the file.	文件中没有此类内容。
+	Open a drawing to see its blocks, layers and styles.	打开图形以查看其块、图层和样式。
+	Annotate	注释
+	Delete Palette	删除选项板
+	New Palette	新建选项板
+	No tool palettes.	没有工具选项板。
+	This palette is empty: add a command below, or make a palette from DesignCenter.	此选项板为空：在下方添加命令，或从设计中心创建选项板。
+	Delete Tool	删除工具
+	Add Command	添加命令
+	New Sheet Set...	新建图纸集...
+	Open Sheet Set...	打开图纸集...
+	Sheet sets (DCSS)	图纸集 (DCSS)
+	Sheet set file	图纸集文件
+	Make or open a sheet set to list its sheets.	新建或打开图纸集以列出其图纸。
+	Add Drawing...	添加图形...
+	Publish to PDF...	发布为 PDF...
+	No sheets yet: add a drawing's layouts.	尚无图纸：请添加图形的布局。
+	Number	编号
+	Title	标题
+	Move Up	上移
+	Move Down	下移
+	Sheet Set (DCSS)	图纸集 (DCSS)
+	Close Tool Palettes	关闭工具选项板
+	Close DesignCenter	关闭设计中心
+	Close Sheet Set Manager	关闭图纸集管理器
+	Manage Tool Palettes	管理工具选项板
+	Palettes	选项板
+menu	Palettes	选项板
+	2D Drafting	二维草图与注释
+	2D Wireframe	二维线框
+	Top	俯视
+	CAD Standards	CAD 标准
+	Commands	命令
+	Edit Aliases	编辑别名
+	Edit Aliases...	编辑别名...
+	Changes apply at once; Save Current As keeps them in a workspace.	更改立即生效；“将当前另存为”会把它们保存在工作空间中。
+	Click layers to show only them; Ctrl or Shift adds to the choice.	单击图层只显示这些图层；按住 Ctrl 或 Shift 可加入选择。
+	Current Workspace	当前工作空间
+	Customize Interface	自定义界面
+	Customize User Interface	自定义用户界面
+	Customize...	自定义...
+	Force object color and linetype to ByLayer	强制对象颜色和线型为随层
+	Geographic Location	地理位置
+	Geographic Location...	地理位置...
+	Latitude	纬度
+	Longitude	经度
+	North direction	北向
+	Layer Translation Mappings	图层转换映射
+	Layer Translator	图层转换器
+	Layer Translator...	图层转换器...
+	Layer Walk	图层漫游
+	Layer Walk...	图层漫游...
+	Location	位置
+	Set Location	设置位置
+	Remove Location	删除位置
+	The drawing's origin is at this place (WGS 84 degrees).	图形原点位于此处（WGS 84 度）。
+	Map	映射
+	New layer name	新图层名
+	No mappings yet: pick layers on the left, a name on the right, then Map.	尚无映射：在左侧选择图层，在右侧选择名称，然后单击“映射”。
+	Translate	转换
+	Translate From	转换自
+	Translate To	转换为
+	Restore on exit	退出时恢复
+	Point Cloud	点云
+	Point Cloud...	点云...
+	Point clouds (XYZ, LAS)	点云 (XYZ, LAS)
+	ZIP archive	ZIP 压缩文件
+	eTransmit	电子传递
+	eTransmit...	电子传递...
+	Quick Access Toolbar	快速访问工具栏
+	Rename	重命名
+	Reset to Standard	重置为标准
+	Ribbon Tabs	功能区选项卡
+	Save Current As	将当前另存为
+	Save Current As...	将当前另存为...
+	Save Workspace	保存工作空间
+	User Interface	用户界面
+	Workspace	工作空间
+	Workspace Settings	工作空间设置
+	Workspace Settings...	工作空间设置...
+	Workspace name	工作空间名称
+	Workspace:	工作空间：
+	Workspaces	工作空间
+	Interface...	界面...
+menu	Customize	自定义
+menu	Workspaces	工作空间
+menu	CAD Standards	CAD 标准

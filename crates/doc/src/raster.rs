@@ -91,3 +91,26 @@ impl std::fmt::Debug for Rasters {
         write!(f, "Rasters({})", self.0.len())
     }
 }
+
+/// An object an importer (PDFIMPORT) read from another file format, before it is placed: its
+/// geometry in the source's own units, and what it looked like there.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ImportedShape {
+    pub kind: crate::EntityKind,
+    /// Its colour in the source; `None` when it had none of its own (a pattern, a shading).
+    pub color: Option<draftcraft_color::Rgb>,
+    /// Its stroke width in the source's units (0 for fills and text).
+    pub width: f64,
+    pub class: ShapeClass,
+}
+
+/// What an [`ImportedShape`] was in the source.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ShapeClass {
+    /// A stroked line or curve.
+    Vector,
+    /// A filled area.
+    Fill,
+    /// Text.
+    Text,
+}

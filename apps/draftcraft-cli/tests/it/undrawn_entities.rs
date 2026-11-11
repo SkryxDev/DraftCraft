@@ -7,12 +7,13 @@ fn cli(args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_draftcraft-cli")).args(args).output().unwrap()
 }
 
-/// A line, two foreign REGIONs and a PDF underlay: the last three are kept as unknown entities.
+/// A line, two foreign REGIONs and a DWF underlay: the last three are kept as unknown entities
+/// (PDF underlays are drawn; DWF ones are not available yet).
 const PROXIES: &str = "0\nSECTION\n2\nENTITIES\n\
 0\nLINE\n8\n0\n10\n0\n20\n0\n11\n5\n21\n5\n\
 0\nREGION\n8\n0\n70\n1\n1\nabc\n\
 0\nREGION\n8\n0\n70\n1\n1\ndef\n\
-0\nPDFUNDERLAY\n8\n0\n10\n0\n20\n0\n41\n1\n42\n1\n43\n1\n\
+0\nDWFUNDERLAY\n8\n0\n10\n0\n20\n0\n41\n1\n42\n1\n43\n1\n\
 0\nENDSEC\n0\nEOF\n";
 
 #[test]
@@ -34,7 +35,7 @@ fn convert_to_an_image_warns_about_entities_it_cannot_draw() {
         let err = String::from_utf8_lossy(&out.stderr);
         let warnings: Vec<&str> = err.lines().filter(|l| l.contains("not drawn")).collect();
         assert_eq!(warnings.len(), 1, "{ext}: {err}");
-        assert_eq!(warnings[0], format!("{input}: 3 entities not drawn (PDFUNDERLAY: 1, REGION: 2)"), "{ext}");
+        assert_eq!(warnings[0], format!("{input}: 3 entities not drawn (DWFUNDERLAY: 1, REGION: 2)"), "{ext}");
     }
 
     // A DXF copy keeps them, so there is nothing to warn about.

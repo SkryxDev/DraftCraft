@@ -176,6 +176,11 @@ pub struct CanvasState {
     pub build_ms: f64,
     pub draw_ms: f64,
     hover_at: Option<Pos2>,
+    /// The objects the open selection window would select where the cursor is, highlighted like
+    /// the object under the cursor ([`draftcraft_engine::Session::window_preview`]), and what they
+    /// were worked out for (see [`update_window_preview`]).
+    window_preview: Vec<Handle>,
+    window_preview_key: Option<u64>,
     /// Constraint glyphs for the parametric overlay (cached per drawing revision).
     pub param: crate::parametric::Cache,
     /// A selection window opened by a press-and-drag, to close where the button is let go.
@@ -392,6 +397,9 @@ fn paint_content_highlights(frame: &mut CanvasPaint<'_>, bg: Rgb, sel: &[Handle]
     let active_vp = &frame.active_vp;
     let active_clip = &frame.active_clip;
     let scale = frame.xf.scale;
+    // Highlighted as the cursor previews them: the object under it, or what the open selection
+    // window would select; the selected ones keep their own highlight.
+    let previewed = previewed_objects(app.canvas.hover, &app.canvas.window_preview, sel);
     // The active viewport's contents, drawn apart from the layout's list, under its own objects.
     // `masked`: its outline is in the stencil buffer this frame.
     let mut masked = false;
@@ -450,10 +458,8 @@ fn paint_content_highlights(frame: &mut CanvasPaint<'_>, bg: Rgb, sel: &[Handle]
             });
             let clipped = painter.with_clip_rect(bounds.intersect(rect));
             let c = &mut app.canvas;
-            if let Some(h) = c.hover
-                && !sel.contains(&h)
-            {
-                c.vp_hover.update(st, &[h], scale);
+            if !previewed.is_empty() {
+                c.vp_hover.update(st, &previewed, scale);
                 let list = &c.vp_hover.list;
                 draw_highlight(&clipped, &xf, list, &(0..list.prims.len()).collect::<Vec<_>>(), t.hover, preview_look);
             }
@@ -476,11 +482,9 @@ fn paint_content_highlights(frame: &mut CanvasPaint<'_>, bg: Rgb, sel: &[Handle]
                 }
             }
         }
-    } else if let CanvasState { list: Some(list), list_gen, prim_index, hover, gpu, hl_key, hl_slot, hl_origin, hl_infinite, .. } = &mut app.canvas {
-        if let Some(h) = *hover
-            && !sel.contains(&h)
-        {
-            draw_highlight(painter, &xf, list, &prim_index.prims(*list_gen, list, &[h]), t.hover, preview_look);
+    } else if let CanvasState { list: Some(list), list_gen, prim_index, gpu, hl_key, hl_slot, hl_origin, hl_infinite, .. } = &mut app.canvas {
+        if !previewed.is_empty() {
+            draw_highlight(painter, &xf, list, &prim_index.prims(*list_gen, list, &previewed), t.hover, preview_look);
         }
         if let Some(look) = selection_look {
             if gpu.is_some() && !sel.is_empty() {
@@ -691,6 +695,43 @@ fn update_canvas_cursor(
     (raw_world, dyn_frame)
 }
 
+/// The objects highlighted as the cursor previews them: the object under it, then what the open
+/// selection window would select, leaving out the selected ones (which keep their own highlight).
+pub(crate) fn previewed_objects(hover: Option<Handle>, window: &[Handle], sel: &[Handle]) -> Vec<Handle> {
+    let mut out: Vec<Handle> = hover.into_iter().chain(window.iter().copied()).collect();
+    if !sel.is_empty() && !out.is_empty() {
+        let sel: std::collections::HashSet<Handle> = sel.iter().copied().collect();
+        out.retain(|h| !sel.contains(h));
+    }
+    out
+}
+
+/// Work out again what the open selection window would select when the cursor, the window, the
+/// drawing or the settings that say what it previews have changed since the last time (a
+/// window over many objects isn't worked out again every frame the cursor rests).
+fn update_window_preview(app: &mut CadApp, inside: bool, raw_world: Option<Vec2>) {
+    let (Some(pw), Some(w), true) = (app.session.pending_window, raw_world, inside) else {
+        app.canvas.window_preview.clear();
+        app.canvas.window_preview_key = None;
+        return;
+    };
+    let key = {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        let s = &app.session.settings;
+        [w.x, w.y, pw.corner.x, pw.corner.y].map(f64::to_bits).hash(&mut h);
+        (pw.during_command, s.selectionpreview, s.previewfilter, s.pickstyle).hash(&mut h);
+        if let Ok(st) = app.session.state() {
+            (st.uid, st.revision, std::sync::Arc::as_ptr(&st.doc) as usize, st.view().twist.to_bits()).hash(&mut h);
+        }
+        h.finish()
+    };
+    if app.canvas.window_preview_key != Some(key) {
+        app.canvas.window_preview = app.session.window_preview(w);
+        app.canvas.window_preview_key = Some(key);
+    }
+}
+
 fn update_hover(app: &mut CadApp, ui: &egui::Ui, inside: bool, hover_pos: Option<Pos2>, raw_world: Option<Vec2>, scale: f64) {
     // The cursor picks objects (pick box, rollover highlight): "Select objects" and single-object
     // prompts, or no command with PICKFIRST on; SELECTIONPREVIEW says in which of those it shows.
@@ -708,6 +749,7 @@ fn update_hover(app: &mut CadApp, ui: &egui::Ui, inside: bool, hover_pos: Option
         app.canvas.hover = None;
         app.canvas.hover_at = None;
     }
+    update_window_preview(app, inside, raw_world);
     // The open selection cycling list highlights the object of the row under the pointer.
     if app.canvas.cycle.is_some() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
         app.canvas.cycle = None;

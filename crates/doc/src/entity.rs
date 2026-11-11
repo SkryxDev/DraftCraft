@@ -51,7 +51,7 @@ pub use common::{Common, Handle, Lineweight, RawTag, Transparency};
 pub use curves::{Arc, Circle, Ellipse, Face3d, Line, LwPolyline, Point, PolyfaceMesh, Polyline3d, RayLine, Solid};
 pub use dim::{AssocSnap, DimAssoc, DimBreak, DimKind, DimMarks, Dimension, Inspection, JoggedRadius, Leader, MLeader};
 pub use fill::{Gradient, Hatch, HatchLoop};
-pub use layout::{Image, Table, TableCell, Viewport};
+pub use layout::{Image, POINTS_PER_INCH, Table, TableCell, Underlay, UnderlayKind, Viewport};
 pub use text::{HAlign, MText, MTextColumnType, MTextColumns, Text, VAlign};
 pub use wipeout::Wipeout;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -144,6 +144,7 @@ impl EntityKind {
             EntityKind::PolyfaceMesh(_) => "Polyface Mesh",
             EntityKind::Region(_) => "Region",
             EntityKind::Viewport(_) => "Viewport",
+            EntityKind::Image(i) if i.underlay.is_some() => "PDF Underlay",
             EntityKind::Image(_) => "Raster Image",
             EntityKind::Wipeout(_) => "Wipeout",
             EntityKind::Table(_) => "Table",
@@ -180,6 +181,7 @@ impl EntityKind {
             EntityKind::PolyfaceMesh(_) => "POLYLINE",
             EntityKind::Region(_) => "REGION",
             EntityKind::Viewport(_) => "VIEWPORT",
+            EntityKind::Image(i) if i.underlay.is_some() => "PDFUNDERLAY",
             EntityKind::Image(_) => "IMAGE",
             EntityKind::Wipeout(_) => "WIPEOUT",
             EntityKind::Table(_) => "ACAD_TABLE",

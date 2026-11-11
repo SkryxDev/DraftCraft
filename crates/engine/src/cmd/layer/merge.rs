@@ -13,11 +13,11 @@ use super::super::{bad, find_command, str_param};
 use crate::{Accept, EngineError, Input, Interactive, Prompt, Result, Session, Step};
 
 /// Layers whose names carry `|` belong to an attached xref and are managed by it.
-fn xref_layer(name: &str) -> bool {
+pub(super) fn xref_layer(name: &str) -> bool {
     name.contains('|')
 }
 
-fn protected(name: &str) -> bool {
+pub(super) fn protected(name: &str) -> bool {
     name == "0" || name.eq_ignore_ascii_case("Defpoints")
 }
 
@@ -71,7 +71,7 @@ fn resolve_sources(d: &Drawing, cmd: &str, names: &[String], delete: bool) -> Re
 /// Every entity store whose objects belong to this drawing: model space, layouts and the block
 /// definitions (an attached xref's blocks are left alone; they come from its file).
 /// `f` gets each store with objects on the `set` layers and returns how many it changed.
-fn for_each_store(d: &mut Drawing, set: &HashSet<String>, mut f: impl FnMut(&mut EntityStore) -> usize) -> usize {
+pub(super) fn for_each_store(d: &mut Drawing, set: &HashSet<String>, mut f: impl FnMut(&mut EntityStore) -> usize) -> usize {
     let mut n = f(&mut d.model);
     for layout in &mut d.layouts {
         n += f(&mut layout.entities);
@@ -85,7 +85,7 @@ fn for_each_store(d: &mut Drawing, set: &HashSet<String>, mut f: impl FnMut(&mut
     n
 }
 
-fn on_layers<'a>(store: &'a EntityStore, set: &'a HashSet<String>) -> impl Iterator<Item = Handle> + 'a {
+pub(super) fn on_layers<'a>(store: &'a EntityStore, set: &'a HashSet<String>) -> impl Iterator<Item = Handle> + 'a {
     store.iter().filter(|e| set.contains(&e.common.layer.to_ascii_lowercase())).map(|e| e.handle)
 }
 

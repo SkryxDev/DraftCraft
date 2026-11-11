@@ -57,9 +57,10 @@ pub fn specs() -> Vec<CommandSpec> {
             .noundo(),
         CommandSpec::new("attach", "Attach", |s, p| match str_param(p, "path").map(extension) {
             Some(e) if super::image::is_image_ext(&e) => super::image::run_imageattach(s, p),
-            _ => Err(EngineError::Other("ATTACH is not available yet for this file: only raster images (PNG, JPEG, BMP, TIFF; see IMAGEATTACH) can be attached, PDF/DWF/DGN underlays can't be shown yet".into())),
+            Some(e) if super::underlay::is_pdf_ext(&e) => super::underlay::run_pdfattach(s, p),
+            _ => Err(EngineError::Other("ATTACH is not available yet for this file: raster images (PNG, JPEG, BMP, TIFF; see IMAGEATTACH) and PDF files (see PDFATTACH) can be attached, DWF/DGN underlays can't be shown yet".into())),
         })
-        .params("{path: image file, …} as IMAGEATTACH; other file types are not available yet"),
+        .params("{path: image or PDF file, …} as IMAGEATTACH or PDFATTACH; other file types are not available yet"),
         CommandSpec::new("share", "Share", |_, _| {
             Err(EngineError::Other("SHARE is not available yet: there is no online service to share through; EXPORT or PUBLISH the drawing and send the file".into()))
         })
