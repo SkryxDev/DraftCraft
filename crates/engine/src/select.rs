@@ -71,6 +71,10 @@ pub fn hit_polylines(d: &Drawing, e: &Entity, tol: f64) -> Vec<Vec<Vec2>> {
                 }
                 out.push(pts);
             }
+            // A polyline with width (a donut, a tapered arrow) is also hit on the edges of its band.
+            if let Some(t) = wide_fill(e, tol) {
+                out.extend(t.as_chunks::<3>().0.iter().map(|[a, b, c]| vec![*a, *b, *c, *a]));
+            }
             // A pattern hatch is also picked on its drawn pattern strokes, not only its boundary.
             if let EntityKind::Hatch(h) = kind
                 && !h.solid
@@ -87,6 +91,55 @@ pub fn hit_polylines(d: &Drawing, e: &Entity, tol: f64) -> Vec<Vec<Vec2>> {
             out
         }
     }
+}
+
+/// The triangles that fill a polyline drawn with width (constant or tapered), as the renderer
+/// fills it; `None` for any other object.
+fn wide_fill(e: &Entity, tol: f64) -> Option<Vec<Vec2>> {
+    match &e.kind {
+        EntityKind::LwPolyline(p) if p.const_width > 0.0 || p.vertices.iter().any(|v| v.start_width > 0.0 || v.end_width > 0.0) => {
+            Some(draftcraft_render::wide_polyline(p, tol))
+        }
+        _ => None,
+    }
+}
+
+/// Whether `p` lies in one of the triangles `tris` (three points each).
+fn in_triangles(tris: &[Vec2], p: Vec2) -> bool {
+    tris.as_chunks::<3>().0.iter().any(|t| point_in_polygon(t, p))
+}
+
+/// How far past `b`, the bounds the drawing gives `e`, what it draws can reach: a box picking
+/// and crossing selection look for it in. Those bounds are estimates for words (a fixed width per
+/// letter, which wide letters outgrow) and for dimensions (their defining points, which the words
+/// of a radius placed outside the circle outgrow), so an object found by its bounds alone could not
+/// be picked on its last letter or its words. Cheap on purpose: the spatial index measures every
+/// object with it; the exact test runs on the few objects it lets through.
+pub(crate) fn reach(d: &Drawing, e: &Entity, b: Bounds2) -> Bounds2 {
+    if b.is_empty() {
+        return b;
+    }
+    let pad = match &e.kind {
+        EntityKind::Text(_) | EntityKind::MText(_) | EntityKind::AttDef(_) | EntityKind::MLeader(_) => 0.3 * b.width().max(b.height()),
+        EntityKind::Dimension(dm) => {
+            let th = d
+                .dim_style(&dm.style)
+                .map(|s| {
+                    let s = s.with_overrides(&dm.overrides);
+                    s.text_height * s.effective_scale(d.header.f64("DIMSCALE", 1.0))
+                })
+                .unwrap_or(0.18 * d.header.f64("DIMSCALE", 1.0));
+            let f = match d.anno_draw(e) {
+                draftcraft_doc::AnnoDraw::Scaled(f) => f,
+                _ => 1.0,
+            };
+            // Room for the words (a measurement or the text written over it), arrows and gaps.
+            let letters = dm.text.chars().count().clamp(12, 256) as f64;
+            th.abs() * f.abs() * (4.0 + letters)
+        }
+        _ => 0.0,
+    };
+    if pad > 0.0 && pad.is_finite() { b.expand(pad) } else { b }
 }
 
 fn dist_to_polyline(pts: &[Vec2], p: Vec2) -> f64 {
@@ -111,6 +164,10 @@ pub fn entity_distance(d: &Drawing, e: &Entity, p: Vec2, tol: f64) -> f64 {
         && h.solid
         && draftcraft_render::hatch_fill_loops(h, tol).iter().filter(|l| point_in_polygon(l, p)).count() % 2 == 1
     {
+        best = 0.0;
+    }
+    // A polyline with width is picked anywhere in its band, not only on its centre line.
+    if best > 0.0 && wide_fill(e, tol).is_some_and(|t| in_triangles(&t, p)) {
         best = 0.0;
     }
     // A SOLID fills its polygon, not its bounding rectangle (half of which is empty for a triangle).
@@ -287,7 +344,7 @@ pub(crate) fn pick_with(d: &Drawing, space: &Space, ix: &Option<std::sync::Arc<S
             continue;
         }
         let infinite = is_infinite(e);
-        if !infinite && !bounds_of(d, e, known).expand(aperture).intersects(&probe) {
+        if !infinite && !reach(d, e, bounds_of(d, e, known)).expand(aperture).intersects(&probe) {
             continue;
         }
         if entity_distance(d, e, p, aperture / 4.0) <= aperture {
@@ -304,7 +361,7 @@ pub fn pick_all(d: &Drawing, space: &Space, p: Vec2, aperture: f64) -> Vec<Handl
     let probe = Bounds2::new(p, p).expand(aperture);
     let Some(cands) = candidates(d, space, &ix, &probe.expand(aperture), true, true) else { return Vec::new() };
     cands
-        .filter(|(e, known)| selectable(d, e) && (is_infinite(e) || bounds_of(d, e, *known).expand(aperture).intersects(&probe)))
+        .filter(|(e, known)| selectable(d, e) && (is_infinite(e) || reach(d, e, bounds_of(d, e, *known)).expand(aperture).intersects(&probe)))
         .filter(|(e, _)| entity_distance(d, e, p, aperture / 4.0) <= aperture)
         .map(|(e, _)| e.handle)
         .collect()
@@ -355,7 +412,7 @@ pub(crate) fn in_window(d: &Drawing, e: &Entity, known: Option<Bounds2>, bx: &Bo
     if !infinite && bx.contains_box(&eb) {
         return true;
     }
-    if !crossing || (!infinite && !eb.intersects(bx)) {
+    if !crossing || (!infinite && !reach(d, e, eb).intersects(bx)) {
         return false;
     }
     let polys = hit_polylines(d, e, tol);
@@ -375,6 +432,12 @@ pub(crate) fn in_window(d: &Drawing, e: &Entity, known: Option<Bounds2>, bx: &Bo
         _ => false,
     };
     if hit || inside_text {
+        return true;
+    }
+    // A crossing box inside the band of a polyline with width touches what it draws.
+    if let Some(t) = wide_fill(e, tol)
+        && bx.corners().iter().any(|c| in_triangles(&t, *c))
+    {
         return true;
     }
     // SOLID/TRACE are filled polygons. A crossing window wholly within the
@@ -404,7 +467,7 @@ pub(crate) fn select_fence_with(d: &Drawing, space: &Space, ix: &Option<std::syn
     let mut out = Vec::new();
     for (e, known) in cands {
         // Infinite objects have no useful bounds; like window selection, test their geometry directly.
-        if !selectable(d, e) || (!is_infinite(e) && !bounds_of(d, e, known).intersects(&probe)) {
+        if !selectable(d, e) || (!is_infinite(e) && !reach(d, e, bounds_of(d, e, known)).intersects(&probe)) {
             continue;
         }
         let polys = hit_polylines(d, e, tol);
@@ -439,7 +502,7 @@ pub fn select_polygon(d: &Drawing, space: &Space, poly: &[Vec2], crossing: bool)
             continue;
         }
         let eb = bounds_of(d, e, known);
-        if !infinite && if crossing { !eb.intersects(&pb) } else { !pb.contains_box(&eb) } {
+        if !infinite && if crossing { !reach(d, e, eb).intersects(&pb) } else { !pb.contains_box(&eb) } {
             continue;
         }
         let polys = hit_polylines(d, e, tol);
@@ -665,6 +728,26 @@ mod solid_interior_tests {
         let d = if triangular { c } else { Vec2::new(10.0, 10.0).to3(0.0) };
         let solid = draftcraft_doc::Solid { corners: [a, b, c, d] };
         Entity::new(Handle(256), if kind { EntityKind::Solid(solid) } else { EntityKind::Trace(solid) })
+    }
+
+    #[test]
+    fn a_wide_polyline_is_picked_and_crossed_inside_its_band() {
+        let v = |x: f64, y: f64| draftcraft_geom::PolyVertex { p: Vec2::new(x, y), ..Default::default() };
+        let pl = draftcraft_doc::LwPolyline {
+            vertices: vec![v(0.0, 0.0), v(30.0, 0.0)],
+            closed: false,
+            const_width: 4.0,
+            elevation: 0.0,
+            plinegen: false,
+        };
+        let mut d = Drawing::default();
+        d.model.push(Entity::new(Handle(256), EntityKind::LwPolyline(pl)));
+        // 1.6 off the centre line, inside the 4-wide band: well past a 0.25 aperture.
+        assert_eq!(pick(&d, &Space::Model, Vec2::new(15.0, 1.6), 0.25), Some(Handle(256)));
+        assert_eq!(pick(&d, &Space::Model, Vec2::new(15.0, 2.6), 0.25), None);
+        let inside = Bounds2::new(Vec2::new(10.0, 0.5), Vec2::new(11.0, 1.5));
+        assert_eq!(select_window(&d, &Space::Model, inside, true), vec![Handle(256)]);
+        assert!(select_window(&d, &Space::Model, inside, false).is_empty());
     }
 
     #[test]

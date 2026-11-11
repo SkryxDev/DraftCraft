@@ -103,6 +103,7 @@ mod overkill;
 mod parallel_display_list;
 mod pedit_multiple;
 mod pedit_splinedit;
+mod pick_audit;
 mod pick_text;
 mod pickdrag;
 mod pline_arc_xline_options;

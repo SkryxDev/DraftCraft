@@ -197,6 +197,24 @@ fn insert_texts(d: &Drawing, ins: &crate::Insert, outer: Mat3, depth: usize, out
     }
 }
 
+/// The ends of a linear or aligned dimension's line. It runs through the definition point between
+/// the feet of the two extension lines' origins: a dimension measured on a slant, or with its line
+/// moved away, reaches there past its three points (the definition point is not always at one end:
+/// DIMALIGNED keeps the point it was placed through). None for other kinds.
+fn dim_line_ends(dm: &crate::Dimension) -> Vec<Vec2> {
+    let dir = match dm.kind {
+        crate::DimKind::Linear { rotation } => Some(Vec2::new(rotation.cos(), rotation.sin())),
+        crate::DimKind::Aligned => Some(dm.p14.xy() - dm.p13.xy()).filter(|v| v.len() > 1e-12).map(|v| v.normalized()),
+        _ => None,
+    };
+    let Some(u) = dir.filter(|u| u.x.is_finite() && u.y.is_finite()) else { return Vec::new() };
+    [dm.p13.xy(), dm.p14.xy()]
+        .into_iter()
+        .map(|origin| dm.defpt.xy() + u * (origin - dm.defpt.xy()).dot(u))
+        .filter(|f| f.x.is_finite() && f.y.is_finite())
+        .collect()
+}
+
 /// The box of what `e` draws (block contents on layers turned off left out).
 pub fn entity_bounds(d: &Drawing, e: &Entity, depth: usize) -> Bounds2 {
     bounds_of(d, e, depth, false, &mut HashMap::new())
@@ -322,6 +340,9 @@ fn bounds_in<'a>(d: &'a Drawing, e: &Entity, depth: usize, blocks: &mut HashMap<
                 crate::DimKind::Ordinate { .. } => vec![dm.p13.xy(), dm.p14.xy()],
             };
             let mut b = Bounds2::from_points(pts);
+            for foot in dim_line_ends(dm) {
+                b.add(foot);
+            }
             if dm.user_text_pos {
                 b.add(dm.text_mid.xy());
             }
