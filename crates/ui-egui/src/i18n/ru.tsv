@@ -764,6 +764,7 @@
 	Specify center of polygon	Укажите центр многоугольника
 	Specify center point for circle	Укажите центр круга
 	Specify center point of arc	Укажите центр дуги
+	Specify center point of arc (hold Ctrl to switch direction)	Укажите центр дуги (удерживайте Ctrl для смены направления)
 	Specify center point of array	Укажите центр массива
 	Specify center point of base	Укажите центр основания
 	Specify corner of viewport	Укажите угол видового экрана
@@ -802,6 +803,7 @@
 	Specify height	Укажите высоту
 	Specify helix height	Укажите высоту спирали
 	Specify included angle	Укажите угол между сторонами
+	Specify included angle (hold Ctrl to switch direction)	Укажите угол между сторонами (удерживайте Ctrl для смены направления)
 	Specify insertion base point	Укажите базовую точку вставки
 	Specify insertion point	Укажите точку вставки
 	Specify inside diameter of donut	Укажите внутренний диаметр кольца
@@ -810,6 +812,7 @@
 	Specify leader landing location	Укажите положение полки выноски
 	Specify length for rectangles	Укажите длину прямоугольников
 	Specify length of chord	Укажите длину хорды
+	Specify length of chord (hold Ctrl to switch direction)	Укажите длину хорды (удерживайте Ctrl для смены направления)
 	Specify length of segment	Укажите длину сегмента
 	Specify line width for rectangles	Укажите ширину линий прямоугольников
 	Specify location for new vertex	Укажите положение новой вершины
@@ -828,6 +831,7 @@
 	Specify point on object for second tangent of circle	Укажите точку на объекте для второй касательной круга
 	Specify point on side to offset	Укажите точку со стороны смещения
 	Specify radius of arc	Укажите радиус дуги
+	Specify radius of arc (hold Ctrl to switch direction)	Укажите радиус дуги (удерживайте Ctrl для смены направления)
 	Specify radius of circle	Укажите радиус круга
 	Specify rotation angle	Укажите угол поворота
 	Specify rotation angle of text	Укажите угол поворота текста

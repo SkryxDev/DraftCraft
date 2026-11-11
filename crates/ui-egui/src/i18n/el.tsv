@@ -1039,6 +1039,7 @@
 	Specify center of polygon	Καθορίστε κέντρο πολυγώνου
 	Specify center point for circle	Καθορίστε κεντρικό σημείο κύκλου
 	Specify center point of arc	Καθορίστε κεντρικό σημείο τόξου
+	Specify center point of arc (hold Ctrl to switch direction)	Καθορίστε κεντρικό σημείο τόξου (κρατήστε Ctrl για αλλαγή κατεύθυνσης)
 	Specify center point of array	Καθορίστε κεντρικό σημείο διάταξης
 	Specify center point of base	Καθορίστε κεντρικό σημείο βάσης
 	Specify corner of viewport	Καθορίστε γωνία παραθύρου προβολής
@@ -1077,6 +1078,7 @@
 	Specify height	Καθορίστε ύψος
 	Specify helix height	Καθορίστε ύψος έλικας
 	Specify included angle	Καθορίστε περιεχόμενη γωνία
+	Specify included angle (hold Ctrl to switch direction)	Καθορίστε περιεχόμενη γωνία (κρατήστε Ctrl για αλλαγή κατεύθυνσης)
 	Specify insertion base point	Καθορίστε σημείο βάσης εισαγωγής
 	Specify insertion point	Καθορίστε σημείο εισαγωγής
 	Specify inside diameter of donut	Καθορίστε εσωτερική διάμετρο δακτυλίου
@@ -1085,6 +1087,7 @@
 	Specify leader landing location	Καθορίστε θέση οριζόντιου τμήματος γραμμής υπόδειξης
 	Specify length for rectangles	Καθορίστε μήκος ορθογωνίων
 	Specify length of chord	Καθορίστε μήκος χορδής
+	Specify length of chord (hold Ctrl to switch direction)	Καθορίστε μήκος χορδής (κρατήστε Ctrl για αλλαγή κατεύθυνσης)
 	Specify length of segment	Καθορίστε μήκος τμήματος
 	Specify line width for rectangles	Καθορίστε πλάτος γραμμής για ορθογώνια
 	Specify location for new vertex	Καθορίστε θέση νέας κορυφής
@@ -1103,6 +1106,7 @@
 	Specify point on object for second tangent of circle	Καθορίστε σημείο του αντικειμένου για τη δεύτερη εφαπτομένη κύκλου
 	Specify point on side to offset	Καθορίστε σημείο στην πλευρά της παράλληλης μετατόπισης
 	Specify radius of arc	Καθορίστε ακτίνα τόξου
+	Specify radius of arc (hold Ctrl to switch direction)	Καθορίστε ακτίνα τόξου (κρατήστε Ctrl για αλλαγή κατεύθυνσης)
 	Specify radius of circle	Καθορίστε ακτίνα κύκλου
 	Specify rotation angle	Καθορίστε γωνία περιστροφής
 	Specify rotation angle of text	Καθορίστε γωνία περιστροφής κειμένου

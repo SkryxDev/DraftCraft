@@ -909,6 +909,7 @@
 	Specify center of polygon	Укажіть центр багатокутника
 	Specify center point for circle	Укажіть центр кола
 	Specify center point of arc	Укажіть центр дуги
+	Specify center point of arc (hold Ctrl to switch direction)	Укажіть центр дуги (утримуйте Ctrl для зміни напрямку)
 	Specify center point of array	Укажіть центр масиву
 	Specify center point of base	Укажіть центр основи
 	Specify corner of viewport	Укажіть кут видового екрана
@@ -947,6 +948,7 @@
 	Specify height	Укажіть висоту
 	Specify helix height	Укажіть висоту спіралі
 	Specify included angle	Укажіть кут між сторонами
+	Specify included angle (hold Ctrl to switch direction)	Укажіть кут між сторонами (утримуйте Ctrl для зміни напрямку)
 	Specify insertion base point	Укажіть базову точку вставлення
 	Specify insertion point	Укажіть точку вставлення
 # Options dialog (OPTIONS).
@@ -1020,6 +1022,7 @@
 	Specify leader landing location	Укажіть розташування полиці виноски
 	Specify length for rectangles	Укажіть довжину прямокутників
 	Specify length of chord	Укажіть довжину хорди
+	Specify length of chord (hold Ctrl to switch direction)	Укажіть довжину хорди (утримуйте Ctrl для зміни напрямку)
 	Specify length of segment	Укажіть довжину сегмента
 	Specify line width for rectangles	Укажіть ширину ліній прямокутників
 	Specify location for new vertex	Укажіть розташування нової вершини
@@ -1038,6 +1041,7 @@
 	Specify point on object for second tangent of circle	Укажіть точку на об'єкті для другої дотичної кола
 	Specify point on side to offset	Укажіть точку з боку зміщення
 	Specify radius of arc	Укажіть радіус дуги
+	Specify radius of arc (hold Ctrl to switch direction)	Укажіть радіус дуги (утримуйте Ctrl для зміни напрямку)
 	Specify radius of circle	Укажіть радіус кола
 	Specify rotation angle	Укажіть кут повороту
 	Specify rotation angle of text	Укажіть кут повороту тексту

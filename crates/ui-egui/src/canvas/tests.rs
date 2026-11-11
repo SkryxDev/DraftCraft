@@ -272,3 +272,32 @@ fn selection_window_previews_what_it_would_select() {
     assert!(app.canvas.window_preview.is_empty());
     assert_eq!(app.session.selection(), vec![line]);
 }
+
+/// ARC's "hold Ctrl to switch direction" reads `Session::ctrl_down`, which the canvas writes
+/// every frame: Ctrl does it everywhere, and Cmd (egui's `command`) does too, which is how it
+/// is held on macOS, where a Ctrl-click can turn into a right click.
+#[test]
+fn ctrl_or_cmd_held_reaches_the_session() {
+    let mut app = CadApp::new(draftcraft_engine::Session::new(), crate::Services::default());
+    let ctx = egui::Context::default();
+    let frame = |app: &mut CadApp, modifiers: egui::Modifiers| {
+        let raw = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1400.0, 900.0))),
+            events: vec![egui::Event::ModifiersChanged(modifiers), egui::Event::PointerMoved(pos2(700.0, 450.0))],
+            ..Default::default()
+        };
+        ctx.run_ui(raw, |ui| {
+            app.logic(ui.ctx());
+            app.ui(ui);
+        })
+        .textures_delta
+        .clear();
+        app.session.ctrl_down
+    };
+    assert!(!frame(&mut app, egui::Modifiers::NONE));
+    assert!(frame(&mut app, egui::Modifiers::CTRL), "Ctrl");
+    assert!(!frame(&mut app, egui::Modifiers::NONE), "released");
+    assert!(frame(&mut app, egui::Modifiers::MAC_CMD), "Cmd on macOS");
+    assert!(frame(&mut app, egui::Modifiers::COMMAND), "Command");
+    assert!(!frame(&mut app, egui::Modifiers::SHIFT), "Shift alone");
+}

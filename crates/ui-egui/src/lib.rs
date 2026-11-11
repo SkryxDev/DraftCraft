@@ -305,6 +305,9 @@ pub struct CadApp {
     pub raise_panel: Option<docking::Panel>,
     /// One synthetic batch has been put into `RawInput` and is waiting for a real `App::ui` call.
     synthetic_injected: bool,
+    /// Modifiers the control channel holds down (`ui.modifiers`): a synthetic move goes back to
+    /// these instead of letting go of everything.
+    pub(crate) synthetic_held: egui::Modifiers,
     /// Counts settled UI passes (one per painted frame; never hidden logic-only ticks or
     /// discarded passes).
     pub ui_frames: u64,
@@ -390,6 +393,7 @@ impl CadApp {
             restore_modifiers: None,
             raise_panel: None,
             synthetic_injected: false,
+            synthetic_held: egui::Modifiers::NONE,
             ui_frames: 0,
             #[cfg(not(target_arch = "wasm32"))]
             frame_cap: None,
@@ -814,10 +818,11 @@ impl CadApp {
         if let Some(egui::Event::PointerMoved(p) | egui::Event::PointerButton { pos: p, .. }) = self.synthetic.first() {
             raw.events.push(egui::Event::PointerMoved(*p));
         }
-        // A synthetic click holds its Shift/Ctrl (Shift+click a grip); the next move lets go.
+        // A synthetic click holds its Shift/Ctrl (Shift+click a grip); the next move lets go,
+        // back to what `ui.modifiers` holds down.
         match self.synthetic.first() {
-            Some(egui::Event::PointerButton { modifiers, .. }) => raw.events.push(egui::Event::ModifiersChanged(*modifiers)),
-            Some(egui::Event::PointerMoved(_)) => raw.events.push(egui::Event::ModifiersChanged(egui::Modifiers::default())),
+            Some(egui::Event::PointerButton { modifiers, .. }) => raw.events.push(egui::Event::ModifiersChanged(*modifiers | self.synthetic_held)),
+            Some(egui::Event::PointerMoved(_)) => raw.events.push(egui::Event::ModifiersChanged(self.synthetic_held)),
             _ => {}
         }
         let n = n.min(self.synthetic.len());

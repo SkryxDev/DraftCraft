@@ -959,6 +959,7 @@
 	Specify center of polygon	حدد مركز المضلع
 	Specify center point for circle	حدد نقطة المركز للدائرة
 	Specify center point of arc	حدد نقطة مركز القوس
+	Specify center point of arc (hold Ctrl to switch direction)	حدد نقطة مركز القوس (استمر في الضغط على Ctrl لتبديل الاتجاه)
 	Specify center point of array	حدد نقطة مركز المصفوفة
 	Specify center point of base	حدد نقطة مركز الأساس
 	Specify corner of viewport	حدد زاوية إطار العرض
@@ -997,6 +998,7 @@
 	Specify height	حدد الارتفاع
 	Specify helix height	حدد ارتفاع الحلزون
 	Specify included angle	حدد الزاوية المحصورة
+	Specify included angle (hold Ctrl to switch direction)	حدد الزاوية المحصورة (استمر في الضغط على Ctrl لتبديل الاتجاه)
 	Specify insertion base point	حدد نقطة الأساس للإدراج
 	Specify insertion point	حدد نقطة الإدراج
 	Specify inside diameter of donut	حدد القطر الداخلي للحلقة
@@ -1005,6 +1007,7 @@
 	Specify leader landing location	حدد موضع هبوط خط الإشارة
 	Specify length for rectangles	حدد طولاً للمستطيلات
 	Specify length of chord	حدد طول الوتر
+	Specify length of chord (hold Ctrl to switch direction)	حدد طول الوتر (استمر في الضغط على Ctrl لتبديل الاتجاه)
 	Specify length of segment	حدد طول المقطع
 	Specify line width for rectangles	حدد عرض الخط للمستطيلات
 	Specify location for new vertex	حدد موضعاً لرأس جديد
@@ -1023,6 +1026,7 @@
 	Specify point on object for second tangent of circle	حدد نقطة على كائن لثاني مماس للدائرة
 	Specify point on side to offset	حدد نقطة على الجانب المراد إزاحته
 	Specify radius of arc	حدد نصف قطر القوس
+	Specify radius of arc (hold Ctrl to switch direction)	حدد نصف قطر القوس (استمر في الضغط على Ctrl لتبديل الاتجاه)
 	Specify radius of circle	حدد نصف قطر الدائرة
 	Specify rotation angle	حدد زاوية التدوير
 	Specify rotation angle of text	حدد زاوية تدوير النص

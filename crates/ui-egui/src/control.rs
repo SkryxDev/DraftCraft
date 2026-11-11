@@ -14,6 +14,7 @@
 //! - `ui.pointer {x, y, space?: "world"|"screen", button?: left|right, action?: click|move}`
 //! - `ui.click {x, y, shift?, ctrl?}`, `ui.move {x, y}`: real egui pointer input in screen points
 //! - `ui.key {key, cmd?, shift?, alt?}`, `ui.text {text}`: synthetic keyboard input
+//! - `ui.modifiers {ctrl?, cmd?, shift?, alt?}`: hold these modifier keys (all false releases them)
 //! - `ui.set {...UiState fields}`, `ui.resize {width, height}`
 //! - `ui.screenshot {path?}`: PNG of the window; `ui.render {path?, width?, height?, fit?, window?,
 //!   background?, plot_style?}`: headless render of the drawing (no window needed; fits the drawing
@@ -209,6 +210,7 @@ const METHODS: &[(&str, &str, &str)] = &[
     ("ui.move", "{x, y}", "Real egui pointer move in screen points."),
     ("ui.drag", "{x, y, to: [x, y], button?}", "Real press, move and release."),
     ("ui.key", "{key, cmd?, shift?, alt?}", "Synthetic key press."),
+    ("ui.modifiers", "{ctrl?, cmd?, shift?, alt?}", "Hold modifier keys until the next call (e.g. ARC's hold Ctrl to switch direction)."),
     ("ui.text", "{text}", "Synthetic text input."),
     ("ui.set", "UiState fields", "Change UI state: palettes, toolbars, command line, theme…"),
     ("ui.resize", "{width, height}", "Resize the window."),
@@ -443,6 +445,20 @@ pub fn handle(app: &mut CadApp, ctx: &egui::Context, req: &ControlRequest) -> Ou
             };
             app.synthetic.push(egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers });
             app.synthetic.push(egui::Event::Key { key, physical_key: None, pressed: false, repeat: false, modifiers });
+            ok(Value::Null)
+        }
+        // Holds modifiers like a real key held down: egui keeps them until the next change.
+        "ui.modifiers" => {
+            let b = |k: &str| p.get(k).and_then(Value::as_bool).unwrap_or(false);
+            let modifiers = egui::Modifiers {
+                alt: b("alt"),
+                shift: b("shift"),
+                command: b("cmd") || (b("ctrl") && !cfg!(target_os = "macos")),
+                mac_cmd: b("cmd") && cfg!(target_os = "macos"),
+                ctrl: b("ctrl") || (b("cmd") && !cfg!(target_os = "macos")),
+            };
+            app.synthetic_held = modifiers;
+            app.synthetic.push(egui::Event::ModifiersChanged(modifiers));
             ok(Value::Null)
         }
         "ui.text" => {
