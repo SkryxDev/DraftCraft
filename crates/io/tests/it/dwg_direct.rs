@@ -42,16 +42,25 @@ fn every_object_of_every_version_is_accounted_for() {
         assert!(file.object_count() > 100, "{name}: {} objects", file.object_count());
         let (d, unread) = dwg::read(bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
         assert_eq!(d.header.str("ACADVER", ""), *code, "{name}");
-        // Nothing is read yet, so every object must be counted as unread: none dropped silently.
-        let objects: usize = unread.by_type.iter().filter(|(k, _)| !k.starts_with("header")).map(|(_, n)| n).sum();
-        assert_eq!(objects, file.object_count(), "{name}: {}", unread.summary());
-        // Every object's type is known by name.
+        // Every object is in the drawing or counted as unread: the categories read so far leave
+        // none of their own behind, and nothing else is dropped.
+        // A key with a space is a part of an object that waits for a later category (a header
+        // variable's name, a layer's plot style), not an object.
+        let objects: usize = unread.by_type.iter().filter(|(k, _)| !k.contains(' ')).map(|(_, n)| n).sum();
+        let tables = file.objects().filter(|o| READ_SO_FAR.contains(&o.type_name.as_str())).count();
+        assert_eq!(objects + tables, file.object_count(), "{name}: {}", unread.summary());
         assert!(!unread.by_type.contains_key("?"), "{name}: {}", unread.summary());
-        for t in ["LINE", "CIRCLE", "ARC", "TEXT", "DIMENSION_LINEAR", "LAYER", "BLOCK_HEADER", "DICTIONARY"] {
+        for t in READ_SO_FAR {
+            assert!(!unread.by_type.keys().any(|k| k == t || *k == format!("{t} (not decoded)")), "{name}: {t} left unread: {}", unread.summary());
+        }
+        for t in ["LINE", "CIRCLE", "ARC", "TEXT", "DIMENSION_LINEAR", "BLOCK_HEADER", "DICTIONARY"] {
             assert!(unread.by_type.contains_key(t), "{name}: no {t} among {}", unread.summary());
         }
     }
 }
+
+/// The object types the reader puts in the drawing so far.
+const READ_SO_FAR: &[&str] = &["APPID", "STYLE", "LTYPE", "LAYER"];
 
 #[test]
 fn the_2007_container_is_refused_by_name() {
@@ -195,5 +204,23 @@ fn header_variables_match_autocads_dxf() {
         }
         assert!(wrong.is_empty(), "{name}: {} of {compared} header variables differ:\n{}", wrong.len(), wrong.join("\n"));
         assert!(compared > 60, "{name}: only {compared} variables compared");
+    }
+}
+
+#[test]
+fn layers_linetypes_and_text_styles_match_autocads_dxf() {
+    for (name, dwg_bytes, dxf_bytes) in pairs() {
+        let (d, _) = dwg::read(dwg_bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let reference = draftcraft_io::read(dxf_bytes, "reference.dxf").unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert!(reference.layers.len() >= 2 && reference.linetypes.len() >= 3 && !reference.text_styles.is_empty(), "{name}");
+        assert_eq!(d.layers, reference.layers, "{name}: layers");
+        assert_eq!(d.linetypes, reference.linetypes, "{name}: linetypes");
+        assert_eq!(d.text_styles, reference.text_styles, "{name}: text styles");
+        for var in ["CLAYER", "CELTYPE", "TEXTSTYLE", "DIMTXSTY"] {
+            // The R12 DXF, R14's reference, has no $DIMTXSTY.
+            if let Some(want) = reference.header.get(var) {
+                assert_eq!(d.header.get(var), Some(want), "{name}: ${var}");
+            }
+        }
     }
 }
