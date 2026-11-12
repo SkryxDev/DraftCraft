@@ -137,8 +137,8 @@ pub fn start_card(v: &mut Viewer, ctx: &egui::Context) {
                     if ui.add_sized(big, egui::Button::new(v.w.sample)).clicked() {
                         v.open_sample();
                     }
-                    ui.add_space(6.0);
-                    if ui.link(RichText::new(v.w.full_app).color(DIM)).clicked() {
+                    let full = egui::Button::new(RichText::new(v.w.full_app).color(Color32::BLACK)).fill(Color32::WHITE);
+                    if ui.add_sized(big, full).clicked() {
                         v.open_full_app();
                     }
                 });
