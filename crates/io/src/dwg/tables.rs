@@ -225,13 +225,8 @@ fn linetype(r: &mut ObjectReader, styles: &HashMap<u64, String>) -> DwgResult<Li
         }
     } else if has_text && let Ok(area) = r.bytes(512) {
         for (el, _, at) in elements.iter_mut().filter(|(_, f, _)| f & 2 != 0) {
-            let units: Vec<u16> = area
-                .get(usize::from(*at)..)
-                .unwrap_or(&[])
-                .chunks_exact(2)
-                .map(|c| u16::from_le_bytes([c[0], c[1]]))
-                .take_while(|&u| u != 0)
-                .collect();
+            let from = area.get(usize::from(*at)..).unwrap_or(&[]);
+            let units: Vec<u16> = from.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).take_while(|&u| u != 0).collect();
             el.text = Some(String::from_utf16_lossy(&units));
         }
     }
