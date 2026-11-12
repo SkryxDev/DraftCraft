@@ -9,7 +9,7 @@
 use std::collections::HashMap;
 
 use crate::read::header::Val;
-use crate::read::model::{ClassDef, Color, Diagnostic, XDataApp, XValue};
+use crate::read::model::{ClassDef, Color, Diagnostic, LinetypeRef, Space, XDataApp, XValue};
 use crate::read::{self, object};
 use crate::records::Result;
 
@@ -136,6 +136,55 @@ pub struct CommonRefs {
     pub xdictionary: u64,
 }
 
+/// Where an entity lives, as the entity itself says.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EntitySpace {
+    Model,
+    Paper,
+    /// In the block that owns it ([`EntityRefs::owner`]).
+    Owned,
+}
+
+/// An entity's linetype.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EntityLinetype {
+    ByLayer,
+    ByBlock,
+    Continuous,
+    /// A linetype table record, by handle.
+    Record(u64),
+}
+
+/// The properties every entity has, as stored.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EntityHead {
+    pub space: EntitySpace,
+    pub color: ColorValue,
+    /// The transparency word (DXF group 440), when the entity has one.
+    pub transparency: Option<u32>,
+    pub linetype_scale: f64,
+    /// The lineweight, as the index DWG stores (29 ByLayer, 30 ByBlock, 31 Default).
+    pub lineweight: u8,
+    pub invisible: bool,
+}
+
+/// The references every entity starts with.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EntityRefs {
+    /// The block record that owns the entity, 0 when [`EntityHead::space`] says model or paper.
+    pub owner: u64,
+    pub reactors: Vec<u64>,
+    pub xdictionary: u64,
+    pub layer: u64,
+    pub linetype: EntityLinetype,
+    pub material: u64,
+    pub plotstyle: u64,
+    /// The next entity of the block's chain when the entity stores it (up to AutoCAD 2000);
+    /// `None` when the next object of the file follows, or from AutoCAD 2004 on, where the block
+    /// lists its entities.
+    pub next: Option<u64>,
+}
+
 /// One object opened for reading: its fields are read in the order the format stores them, by
 /// the reader that knows the object's type. Every read is bounds-checked and returns an error at
 /// the end of the object's data.
@@ -190,6 +239,44 @@ impl ObjectReader<'_> {
             })
             .collect()
     }
+    /// The properties every entity has; `None` for an object that is not an entity.
+    pub fn entity(&self) -> Option<EntityHead> {
+        let c = self.o.common.as_ref()?;
+        Some(EntityHead {
+            space: match c.space {
+                Space::Model => EntitySpace::Model,
+                Space::Paper => EntitySpace::Paper,
+                Space::Owned => EntitySpace::Owned,
+            },
+            color: color_value(c.color),
+            transparency: c.transparency,
+            linetype_scale: c.linetype_scale,
+            lineweight: c.lineweight,
+            invisible: c.invisible,
+        })
+    }
+    /// An entity's owner, reactors, extension dictionary, layer, linetype, material and plot
+    /// style. They come first among its references, so this is called before any
+    /// [`ObjectReader::reference`].
+    pub fn entity_refs(&mut self) -> Result<EntityRefs> {
+        let (owner, reactors, xdictionary) = object::common_handles(&mut self.o)?;
+        let c = self.o.common.as_ref().ok_or_else(|| crate::records::Error::format("not an entity"))?;
+        Ok(EntityRefs {
+            owner,
+            reactors: reactors.into_iter().map(|h| h.0).collect(),
+            xdictionary,
+            layer: c.layer.0,
+            linetype: match c.linetype {
+                LinetypeRef::ByLayer => EntityLinetype::ByLayer,
+                LinetypeRef::ByBlock => EntityLinetype::ByBlock,
+                LinetypeRef::Continuous => EntityLinetype::Continuous,
+                LinetypeRef::Handle(h) => EntityLinetype::Record(h.0),
+            },
+            material: c.material.0,
+            plotstyle: c.plotstyle.0,
+            next: self.o.next_entity,
+        })
+    }
     /// The owner, reactors and extension dictionary. They come first among the object's
     /// references, so this is called before any [`ObjectReader::reference`].
     pub fn common_refs(&mut self) -> Result<CommonRefs> {
@@ -228,6 +315,25 @@ impl ObjectReader<'_> {
     /// Three bit-coded doubles.
     pub fn bd3(&mut self) -> Result<[f64; 3]> {
         self.o.s.dat.bd3()
+    }
+    /// A double stored against a default (the previous coordinate, or 1).
+    pub fn dd(&mut self, default: f64) -> Result<f64> {
+        self.o.s.dat.dd(default)
+    }
+    /// A thickness.
+    pub fn thickness(&mut self) -> Result<f64> {
+        let v = self.o.s.ver;
+        self.o.s.dat.bt(v)
+    }
+    /// An extrusion direction.
+    pub fn extrusion(&mut self) -> Result<[f64; 3]> {
+        let v = self.o.s.ver;
+        self.o.s.dat.be(v)
+    }
+    /// A count of items that each take at least `min_bits` bits, refused when the object's
+    /// data is too short to hold that many.
+    pub fn count(&mut self, n: u32, min_bits: usize, what: &str) -> Result<usize> {
+        self.o.s.check_count(n, min_bits, what)
     }
     /// A byte.
     pub fn rc(&mut self) -> Result<u8> {
