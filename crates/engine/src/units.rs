@@ -426,6 +426,72 @@ impl crate::Session {
 
 pub const DEG: f64 = PI / 180.0;
 
+/// The drawing's unit formats: LUNITS, LUPREC, AUNITS and AUPREC.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DrawingUnits {
+    pub lunits: i64,
+    pub luprec: i64,
+    pub aunits: i64,
+    pub auprec: i64,
+}
+
+impl DrawingUnits {
+    pub fn of(d: &draftcraft_doc::Drawing) -> Self {
+        let h = &d.header;
+        Self { lunits: h.i64("LUNITS", 2), luprec: h.i64("LUPREC", 4), aunits: h.i64("AUNITS", 0), auprec: h.i64("AUPREC", 0) }
+    }
+}
+
+/// After the drawing's units changed from `before`, carry the change into the dimension styles
+/// that showed the old units: a style whose format (DIMLUNIT, DIMAUNIT) or precision (DIMDEC,
+/// DIMADEC) was the drawing's own takes the new one, so the dimensions read the way the drawing
+/// now does; a style set to something else on purpose keeps it. Returns the styles changed.
+pub fn dim_styles_follow_units(d: &mut draftcraft_doc::Drawing, before: DrawingUnits) -> Vec<String> {
+    let now = DrawingUnits::of(d);
+    if now == before {
+        return Vec::new();
+    }
+    let byte = |v: i64| u8::try_from(v).ok();
+    let mut changed = Vec::new();
+    for st in &mut d.dim_styles {
+        let mut touched = false;
+        // DIMLUNIT 1..5 are LUNITS 1..5.
+        if now.lunits != before.lunits
+            && i64::from(st.linear_unit) == before.lunits
+            && let Some(v) = byte(now.lunits).filter(|v| (1..=5).contains(v))
+        {
+            st.linear_unit = v;
+            touched = true;
+        }
+        if now.luprec != before.luprec
+            && i64::from(st.decimals) == before.luprec
+            && let Some(v) = byte(now.luprec).filter(|v| *v <= 8)
+        {
+            st.decimals = v;
+            touched = true;
+        }
+        // DIMAUNIT 0..3 are AUNITS 0..3; surveyor's units (AUNITS 4) have no dimension format.
+        if now.aunits != before.aunits
+            && i64::from(st.angular_unit) == before.aunits
+            && let Some(v) = byte(now.aunits).filter(|v| *v <= 3)
+        {
+            st.angular_unit = v;
+            touched = true;
+        }
+        if now.auprec != before.auprec
+            && i64::from(st.angular_decimals) == before.auprec
+            && let Some(v) = byte(now.auprec).filter(|v| *v <= 8)
+        {
+            st.angular_decimals = v;
+            touched = true;
+        }
+        if touched {
+            changed.push(st.name.clone());
+        }
+    }
+    changed
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
