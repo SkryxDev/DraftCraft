@@ -419,3 +419,155 @@ fn simple_entities_match_autocads_dxf() {
         }
     }
 }
+
+/// A drawing with attributes in every mode: block TAG with five definitions (plain, invisible,
+/// constant, every other mode, and a centred one with a prompt), and two references to it, one
+/// plain and one mirrored, scaled and rotated, whose attributes carry their own layer, colour,
+/// linetype and lineweight.
+fn attributes_drawing() -> draftcraft_doc::Drawing {
+    use draftcraft_doc::*;
+    use draftcraft_geom::Vec3;
+    let text = |value: &str, x: f64, halign: HAlign| Text {
+        insert: Vec3::new(x, 2.0, 0.0),
+        align_pt: (halign != HAlign::Left).then(|| Vec3::new(x + 3.0, 2.0, 0.0)),
+        height: 0.25,
+        value: value.into(),
+        rotation: 0.0,
+        width_factor: 1.0,
+        oblique: 0.0,
+        style: "Standard".into(),
+        halign,
+        valign: VAlign::Baseline,
+    };
+    let attrib = |tag: &str, x: f64| Attrib {
+        tag: tag.into(),
+        text: text(tag, x, HAlign::Left),
+        invisible: false,
+        constant: false,
+        prompt: String::new(),
+        props: AttribProps::default(),
+        multiline: None,
+        modes: AttribModes::default(),
+    };
+    let defs = vec![
+        attrib("PLAIN", 0.0),
+        Attrib { invisible: true, ..attrib("HIDDEN", 1.0) },
+        Attrib { constant: true, ..attrib("FIXED", 2.0) },
+        Attrib { modes: AttribModes { verify: true, preset: true, lock_position: true }, ..attrib("MODES", 3.0) },
+        Attrib { prompt: "Drawing number?".into(), text: text("NUMBER", 4.0, HAlign::Center), ..attrib("NUMBER", 4.0) },
+    ];
+    let mut d = Drawing::new_imperial();
+    d.ensure_layer("TITLE");
+    d.ensure_layer("NOTES");
+    let mut b = Block::new("TAG");
+    for a in &defs {
+        let h = d.new_handle();
+        b.entities.push(Entity::new(h, EntityKind::AttDef(a.clone())));
+    }
+    d.blocks.insert("TAG".into(), std::sync::Arc::new(b));
+    let values = |own: bool| -> Vec<Attrib> {
+        defs.iter()
+            .filter(|a| !a.constant)
+            .map(|a| Attrib {
+                prompt: String::new(),
+                text: Text { value: format!("{} value", a.tag), ..a.text.clone() },
+                props: if own {
+                    AttribProps {
+                        layer: Some("NOTES".into()),
+                        color: Some(draftcraft_color::Color::Index(1)),
+                        linetype: Some("Continuous".into()),
+                        lineweight: Some(Lineweight::from_dxf(35)),
+                    }
+                } else {
+                    AttribProps::default()
+                },
+                ..a.clone()
+            })
+            .collect()
+    };
+    for (at, own, scale, rotation) in [(Vec3::new(10.0, 10.0, 0.0), false, 1.0, 0.0), (Vec3::new(30.0, 5.0, 0.0), true, 2.0, 0.5)] {
+        let ins = Insert {
+            block: "TAG".into(),
+            insert: at,
+            scale: Vec3::new(scale, scale, 1.0),
+            rotation,
+            attribs: values(own),
+            cols: 1,
+            rows: 1,
+            col_spacing: 0.0,
+            row_spacing: 0.0,
+            clip: None,
+        };
+        let common = Common { layer: "TITLE".into(), ..Common::default() };
+        d.add(&Space::Model, common, EntityKind::Insert(ins)).expect("add");
+    }
+    d
+}
+
+/// The attribute definitions of every block and the attributes of every block reference, with
+/// their places, for comparing two readings.
+fn attributes_of(d: &draftcraft_doc::Drawing) -> Vec<(String, serde_json::Value)> {
+    use draftcraft_doc::EntityKind;
+    placed(d)
+        .into_iter()
+        .filter_map(|(place, e)| match &e.kind {
+            EntityKind::AttDef(a) => Some((place, serde_json::to_value(a).unwrap())),
+            EntityKind::Insert(i) if !i.attribs.is_empty() => {
+                Some((place, serde_json::json!({ "block": i.block, "common": e.common, "attribs": i.attribs })))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn attributes_read_as_the_acadrust_reader_reads_them() {
+    use draftcraft_io::{DwgReader, SaveOptions, Version, read_dwg_with, write_with};
+    let source = attributes_drawing();
+    // The 2007 container is not read yet.
+    for version in [Version::R2000, Version::R2004, Version::R2010, Version::R2013, Version::R2018] {
+        let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
+        let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
+        let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
+        let want = attributes_of(&reference);
+        assert_eq!(want.len(), 7, "{version:?}: the reference has the five definitions and the two references: {want:#?}");
+        let got = attributes_of(&d);
+        assert_eq!(got.len(), want.len(), "{version:?}: unread {}", unread.summary());
+        for ((gp, g), (wp, w)) in got.iter().zip(&want) {
+            assert_eq!(gp, wp, "{version:?}");
+            assert!(close(g, w, false), "{version:?}: {wp}\nread      {g}\nreference {w}");
+        }
+        for t in ["ATTRIB", "ATTDEF", "SEQEND", "INSERT"] {
+            assert!(!unread.by_type.keys().any(|k| k.starts_with(t)), "{version:?}: {t} left unread: {}", unread.summary());
+        }
+    }
+}
+
+/// The multiline attributes fixture of `multiline_attributes.rs` (a block with a multiline
+/// definition, and a reference with its own multiline text), as DXF.
+fn multiline_fixture() -> String {
+    let src = include_str!("multiline_attributes.rs");
+    let start = src.find("const FIXTURE: &str = \"").map(|i| i + "const FIXTURE: &str = \"".len()).unwrap();
+    let end = start + src[start..].find("\";").unwrap();
+    let mut dxf = String::new();
+    for line in src[start..end].lines().map(str::trim).filter(|l| !l.is_empty()) {
+        let (code, value) = line.split_once(' ').unwrap_or((line, ""));
+        dxf.push_str(&format!("{code}\n{value}\n"));
+    }
+    dxf
+}
+
+/// Multiline attributes (AutoCAD 2018 DWG) embed MTEXT fields whose layout no AutoCAD-saved file
+/// here confirms, so the reader does not decode them yet. It must count them, and leave out the
+/// block reference that owns one whole, rather than lose any part silently.
+#[test]
+fn multiline_attributes_are_counted_not_dropped() {
+    use draftcraft_io::{SaveOptions, Version, write_with};
+    let d = draftcraft_io::read(multiline_fixture().as_bytes(), "m.dxf").unwrap();
+    let bytes = write_with(&d, "t.dwg", &SaveOptions { version: Some(Version::R2018), binary: false }).unwrap();
+    let (read, unread) = dwg::read(&bytes).unwrap();
+    assert!(attributes_of(&read).is_empty(), "nothing of a multiline attribute's block or reference is read in part");
+    for what in ["ATTDEF (not decoded)", "ATTRIB (not decoded)", "INSERT whose attributes were not all read"] {
+        assert_eq!(unread.by_type.get(what), Some(&1), "{what}: {}", unread.summary());
+    }
+}

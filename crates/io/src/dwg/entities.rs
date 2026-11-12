@@ -6,8 +6,8 @@
 use std::collections::{HashMap, HashSet};
 
 use draftcraft_doc::{
-    Arc, Circle, Common, Drawing, Ellipse, Entity, EntityKind, Face3d, HAlign, Handle, Insert, Line, Lineweight, LwPolyline, MText, Point, RawTag,
-    RayLine, Solid, Text, VAlign,
+    Arc, Attrib, AttribModes, AttribProps, Circle, Common, Drawing, Ellipse, Entity, EntityKind, Face3d, HAlign, Handle, Insert, Line, Lineweight,
+    LwPolyline, MText, Point, RawTag, RayLine, Solid, Text, VAlign,
 };
 use draftcraft_dwg::DwgVersion as V;
 use draftcraft_dwg::file::{DwgFile, EntityLinetype, EntityRefs, EntitySpace, ObjectReader, ObjectRef, XDataBlock, XDataItem};
@@ -37,7 +37,19 @@ struct Place {
 /// What reading one entity gave: the entity, when its type is read, and what of it was not.
 struct Decoded {
     entity: Option<Entity>,
+    /// An attribute of a block reference, with its own properties, waiting for its reference.
+    attrib: Option<(Attrib, Common)>,
+    /// A block reference's attributes: listed (2004 and later) or its first and last (up to
+    /// 2000), and the SEQEND that ends them.
+    attribs: Option<Attribs>,
     partial: Vec<&'static str>,
+}
+
+/// The attributes a block reference names.
+struct Attribs {
+    listed: Vec<u64>,
+    chain: Option<(u64, u64)>,
+    seqend: u64,
 }
 
 fn v3(p: [f64; 3]) -> Vec3 {
@@ -79,6 +91,18 @@ fn common(r: &ObjectReader, refs: &EntityRefs, n: &Names, partial: &mut Vec<&'st
     }
     c.xdata = xdata(&r.xdata(), n, partial);
     c
+}
+
+/// The properties an attribute carries itself, as a DXF holds them: those it doesn't take from
+/// its layer. Its layer counts only when it differs from its block reference's (an attribute
+/// defined on layer 0 goes on the reference's layer, as it is drawn anyway).
+fn attrib_props(c: &Common, insert_layer: &str) -> AttribProps {
+    AttribProps {
+        layer: (!c.layer.is_empty() && !c.layer.eq_ignore_ascii_case(insert_layer)).then(|| c.layer.clone()),
+        color: (c.color != draftcraft_color::Color::ByLayer).then_some(c.color),
+        linetype: (!c.linetype.eq_ignore_ascii_case("ByLayer")).then(|| c.linetype.clone()),
+        lineweight: (c.lineweight != Lineweight::ByLayer).then_some(c.lineweight),
+    }
 }
 
 /// Other applications' extended data as the groups the drawing keeps with the entity, by the DXF
@@ -156,6 +180,8 @@ fn reads(type_name: &str) -> bool {
             | "3DFACE"
             | "XLINE"
             | "RAY"
+            | "ATTRIB"
+            | "ATTDEF"
     )
 }
 
@@ -165,8 +191,11 @@ enum Body {
     /// A text, with its alignment and insertion points in its own coordinate system.
     Text(Box<Text>, Option<Vec3>, Vec3),
     MText(Box<MText>),
-    /// A block reference, and whether it has attributes.
-    Insert(Box<Insert>, bool),
+    /// A block reference, whether it has attributes, and how many it lists (2004 and later).
+    Insert(Box<Insert>, bool, u32),
+    /// An attribute (of a block reference) or an attribute definition, with its alignment and
+    /// insertion points in its own coordinate system.
+    Attrib(Box<Attrib>, Option<Vec3>, Vec3, bool),
 }
 
 /// What an entity type's fields give: the body, and the thickness and extrusion of the types that
@@ -308,9 +337,24 @@ fn lwpolyline(r: &mut ObjectReader) -> DwgResult<Shape> {
     Ok(ready(EntityKind::LwPolyline(p), thickness, normal))
 }
 
-/// TEXT (§20.4.3). From AutoCAD 2000 on a flag byte says which fields have their default and are
-/// left out.
+/// The fields of a text, which attributes and attribute definitions start with too.
+struct TextFields {
+    text: Text,
+    align: Vec3,
+    insert: Vec3,
+    thickness: f64,
+    normal: Vec3,
+}
+
+/// TEXT (§20.4.3).
 fn text(r: &mut ObjectReader) -> DwgResult<Shape> {
+    let f = text_fields(r)?;
+    Ok(Shape { body: Body::Text(Box::new(f.text), Some(f.align), f.insert), thickness: f.thickness, normal: f.normal })
+}
+
+/// The fields of a TEXT. From AutoCAD 2000 on a flag byte says which fields have their default
+/// and are left out.
+fn text_fields(r: &mut ObjectReader) -> DwgResult<TextFields> {
     let (mut elevation, mut oblique, mut rotation, mut width_factor) = (0.0, 0.0, 0.0, 1.0);
     let (mut h_align, mut v_align) = (0u16, 0u16);
     let (insertion, alignment, height, value, normal, thickness);
@@ -386,7 +430,46 @@ fn text(r: &mut ObjectReader) -> DwgResult<Shape> {
         halign,
         valign,
     };
-    Ok(Shape { body: Body::Text(Box::new(t), Some(at(alignment)), at(insertion)), thickness, normal })
+    Ok(TextFields { text: t, align: at(alignment), insert: at(insertion), thickness, normal })
+}
+
+/// ATTRIB and ATTDEF (§20.4.4, §20.4.5): a text's fields, then the attribute's own.
+fn attribute(r: &mut ObjectReader, definition: bool) -> DwgResult<Shape> {
+    let ver = r.version();
+    let f = text_fields(r)?;
+    if ver >= V::R2010 {
+        let _version = r.rc()?;
+    }
+    if ver >= V::R2018 {
+        // 1 a single line; 2 a multiline attribute, 4 a multiline definition, whose text is an
+        // embedded MTEXT this reader does not decode yet.
+        let kind = r.rc()?;
+        if kind > 1 {
+            return Err(draftcraft_dwg::records::Error::format("multiline attribute"));
+        }
+    }
+    let tag = r.text()?;
+    let _field_length = r.bs()?;
+    let flags = r.rc()?;
+    let lock_position = if ver >= V::R2007 { r.b()? } else { false };
+    let mut prompt = String::new();
+    if definition {
+        if ver >= V::R2010 {
+            let _version = r.rc()?;
+        }
+        prompt = mtext_dxf::decode_line(&r.text()?);
+    }
+    let a = Attrib {
+        tag,
+        text: f.text,
+        invisible: flags & 1 != 0,
+        constant: flags & 2 != 0,
+        prompt,
+        props: AttribProps::default(),
+        multiline: None,
+        modes: AttribModes { verify: flags & 4 != 0, preset: flags & 8 != 0, lock_position },
+    };
+    Ok(Shape { body: Body::Attrib(Box::new(a), Some(f.align), f.insert, definition), thickness: f.thickness, normal: f.normal })
 }
 
 /// MTEXT (§20.4.46).
@@ -470,9 +553,7 @@ fn insert(r: &mut ObjectReader, minsert: bool) -> DwgResult<Shape> {
     let mut rotation = r.bd()?;
     let normal = v3(r.bd3()?);
     let has_attributes = r.b()?;
-    if ver >= V::R2004 && has_attributes {
-        let _owned = r.bl()?;
-    }
+    let owned = if ver >= V::R2004 && has_attributes { r.bl()? } else { 0 };
     let (mut cols, mut rows, mut col_spacing, mut row_spacing) = (1u32, 1u32, 0.0, 0.0);
     if minsert {
         cols = u32::from(r.bs()?);
@@ -500,7 +581,7 @@ fn insert(r: &mut ObjectReader, minsert: bool) -> DwgResult<Shape> {
         row_spacing,
         clip: None,
     };
-    Ok(Shape { body: Body::Insert(Box::new(i), has_attributes), thickness: 0.0, normal })
+    Ok(Shape { body: Body::Insert(Box::new(i), has_attributes, owned), thickness: 0.0, normal })
 }
 
 /// SOLID and TRACE (§20.4.31, §20.4.32): four corners in the object coordinate system.
@@ -565,6 +646,8 @@ fn shape(r: &mut ObjectReader, type_name: &str, partial: &mut Vec<&'static str>)
         "TEXT" => text(r)?,
         "MTEXT" => mtext(r, partial)?,
         "INSERT" => insert(r, false)?,
+        "ATTRIB" => attribute(r, false)?,
+        "ATTDEF" => attribute(r, true)?,
         "MINSERT" => insert(r, true)?,
         "SOLID" => solid(r, false)?,
         "TRACE" => solid(r, true)?,
@@ -581,13 +664,14 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
     let Some(Shape { body, thickness, normal }) = shape(r, &o.type_name, &mut partial)? else {
         // A type read in a later step: only its place is known.
         let refs = r.entity_refs()?;
-        return Ok((Decoded { entity: None, partial }, refs));
+        return Ok((Decoded { entity: None, attrib: None, attribs: None, partial }, refs));
     };
     let refs = r.entity_refs()?;
     let style = |r: &mut ObjectReader| -> DwgResult<String> {
         let h = r.reference()?;
         Ok(n.tables.styles.get(&h).cloned().unwrap_or_else(|| "Standard".into()))
     };
+    let (mut attrib, mut attribs) = (None, None);
     let kind = match body {
         Body::Ready(k) => Some(*k),
         Body::Text(mut t, align, insert) => {
@@ -601,15 +685,39 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
             t.style = style(r)?;
             Some(EntityKind::MText(*t))
         }
-        Body::Insert(mut i, has_attributes) => {
+        Body::Insert(mut i, has_attributes, owned) => {
             let block = r.reference()?;
-            match n.blocks.get(&block) {
-                // The attributes of a block reference are read with the attributes.
-                Some(name) if !has_attributes => {
-                    i.block.clone_from(name);
-                    Some(EntityKind::Insert(*i))
+            if has_attributes {
+                let (mut listed, mut chain) = (Vec::new(), None);
+                if r.version() <= V::R2000 {
+                    chain = Some((r.reference()?, r.reference()?));
+                } else {
+                    // The handles are in their own stream: each read fails at its end, so the count
+                    // only needs a bound.
+                    for _ in 0..usize::try_from(owned).unwrap_or(MAX_ENTITIES).min(MAX_ENTITIES) {
+                        listed.push(r.reference()?);
+                    }
                 }
-                _ => None,
+                attribs = Some(Attribs { listed, chain, seqend: r.reference()? });
+            }
+            n.blocks.get(&block).map(|name| {
+                i.block.clone_from(name);
+                EntityKind::Insert(*i)
+            })
+        }
+        Body::Attrib(mut a, align, insert, definition) => {
+            a.text.style = style(r)?;
+            if normal.z < 0.0 {
+                mirror_text(&mut a.text, align.map(|p| ocs_n(normal, p)), ocs_n(normal, insert));
+            }
+            if definition {
+                Some(EntityKind::AttDef(*a))
+            } else {
+                let mut c = common(r, &refs, n, &mut partial);
+                c.thickness = thickness;
+                c.extrusion = normal;
+                attrib = Some((*a, c));
+                None
             }
         }
     };
@@ -621,7 +729,7 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
         e.common = c;
         e
     });
-    Ok((Decoded { entity, partial }, refs))
+    Ok((Decoded { entity, attrib, attribs, partial }, refs))
 }
 
 /// Read the entities into `d`, each into the space or block that owns it, in the block's order.
@@ -631,6 +739,8 @@ pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], tables: &Tables, block
     let mut read = HashSet::new();
     let mut decoded: HashMap<u64, Entity> = HashMap::new();
     let mut places: HashMap<u64, Place> = HashMap::new();
+    let mut attribs: HashMap<u64, (Attrib, Common)> = HashMap::new();
+    let mut lists: Vec<(u64, Attribs)> = Vec::new();
     // The object after each one in the file, for a chain that leaves the next entity unsaid.
     let mut following: HashMap<u64, u64> = HashMap::new();
     let entities: Vec<&ObjectRef> = objects.iter().filter(|o| o.is_entity && !blocks.read.contains(&o.handle)).take(MAX_ENTITIES).collect();
@@ -655,13 +765,53 @@ pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], tables: &Tables, block
         for what in dec.partial {
             unread.count(what);
         }
+        if let Some(a) = dec.attrib {
+            attribs.insert(o.handle, a);
+        }
+        if let Some(list) = dec.attribs {
+            lists.push((o.handle, list));
+        }
         match dec.entity {
             Some(e) => {
                 decoded.insert(o.handle, e);
             }
-            None if reads(&o.type_name) => unread.count(&format!("{} with attributes or an unknown block", o.type_name)),
+            None if reads(&o.type_name) && o.type_name != "ATTRIB" => unread.count(&format!("{} of an unknown block", o.type_name)),
             None => {}
         }
+    }
+    // Each block reference's attributes: the ones it lists (2004 and later) or the chain from its
+    // first to its last (up to 2000). A reference whose attributes are not all read is left out
+    // whole, so it never loses one silently.
+    for (h, list) in lists {
+        let mut handles = list.listed;
+        if let Some((first, last)) = list.chain {
+            let mut at = first;
+            while at != 0 && handles.len() < MAX_ENTITIES {
+                handles.push(at);
+                if at == last {
+                    break;
+                }
+                at = places.get(&at).and_then(|p| p.next).or_else(|| following.get(&at).copied()).unwrap_or(0);
+            }
+        }
+        let Some(e) = decoded.get_mut(&h) else { continue };
+        let Some(found) = handles.iter().map(|a| attribs.remove(a)).collect::<Option<Vec<_>>>() else {
+            decoded.remove(&h);
+            unread.count("INSERT whose attributes were not all read");
+            continue;
+        };
+        let layer = e.common.layer.clone();
+        if let EntityKind::Insert(i) = &mut e.kind {
+            for (mut a, c) in found {
+                a.props = attrib_props(&c, &layer);
+                i.attribs.push(a);
+            }
+        }
+        read.extend(handles);
+        read.insert(list.seqend);
+    }
+    for _ in attribs.keys() {
+        unread.count("ATTRIB of no block reference");
     }
     // Each block's entities in its own order: the list it stores (AutoCAD 2004 and later) or the
     // chain from its first entity; then any entity that names the block as its owner and was in
