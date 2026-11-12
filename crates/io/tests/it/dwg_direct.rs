@@ -53,7 +53,7 @@ fn every_object_of_every_version_is_accounted_for() {
         for t in READ_SO_FAR {
             assert!(!unread.by_type.keys().any(|k| k == t || *k == format!("{t} (not decoded)")), "{name}: {t} left unread: {}", unread.summary());
         }
-        for t in ["LINE", "CIRCLE", "ARC", "TEXT", "DIMENSION_LINEAR", "DICTIONARY"] {
+        for t in ["DIMENSION_LINEAR", "DICTIONARY"] {
             assert!(unread.by_type.contains_key(t), "{name}: no {t} among {}", unread.summary());
         }
     }
@@ -61,6 +61,19 @@ fn every_object_of_every_version_is_accounted_for() {
 
 /// The object types the reader puts in the drawing so far.
 const READ_SO_FAR: &[&str] = &[
+    "LINE",
+    "CIRCLE",
+    "ARC",
+    "TEXT",
+    "POINT",
+    "SOLID",
+    "MTEXT",
+    "ELLIPSE",
+    "LWPOLYLINE",
+    "TRACE",
+    "3DFACE",
+    "XLINE",
+    "RAY",
     "APPID",
     "STYLE",
     "LTYPE",
@@ -313,6 +326,96 @@ fn blocks_and_layouts_match_autocads_dxf() {
                 (b.base, b.description.clone(), b.anonymous, b.xref_path.clone(), b.xref_overlay, b.explodable, b.units, b.annotative)
             };
             assert_eq!(props(got), props(want), "{name}: block {block}");
+        }
+    }
+}
+
+/// The entity types the reader puts in the drawing so far.
+fn read_so_far(k: &draftcraft_doc::EntityKind) -> bool {
+    use draftcraft_doc::EntityKind::*;
+    match k {
+        Line(_) | Point(_) | Circle(_) | Arc(_) | Ellipse(_) | LwPolyline(_) | Text(_) | MText(_) | Solid(_) | Trace(_) | Face3d(_) | XLine(_)
+        | Ray(_) => true,
+        Insert(i) => i.attribs.is_empty(),
+        _ => false,
+    }
+}
+
+/// Every entity with where it lives, in order: `model`, `layout NAME` or `block NAME`.
+fn placed(d: &draftcraft_doc::Drawing) -> Vec<(String, std::sync::Arc<draftcraft_doc::Entity>)> {
+    let mut v: Vec<_> = d.model.iter().map(|e| ("model".to_string(), e.clone())).collect();
+    for l in &d.layouts {
+        v.extend(l.entities.iter().map(|e| (format!("layout {}", l.name), e.clone())));
+    }
+    for (n, b) in &d.blocks {
+        v.extend(b.entities.iter().map(|e| (format!("block {n}"), e.clone())));
+    }
+    v
+}
+
+/// Two values equal but for the last digits of their numbers: a DXF holds a number as text of
+/// 16 digits, a DWG holds the exact double. With `any_case`, names are compared without case too
+/// (an R12 DXF leaves out a text's style when it is the standard one, which then reads as
+/// `Standard`).
+fn close(a: &serde_json::Value, b: &serde_json::Value, any_case: bool) -> bool {
+    use serde_json::Value::*;
+    match (a, b) {
+        (Number(x), Number(y)) => match (x.as_f64(), y.as_f64()) {
+            (Some(x), Some(y)) => (x - y).abs() <= 1e-9 * (1.0 + y.abs()),
+            _ => x == y,
+        },
+        (String(x), String(y)) if any_case => x.eq_ignore_ascii_case(y),
+        (Array(x), Array(y)) => x.len() == y.len() && x.iter().zip(y).all(|(p, q)| close(p, q, any_case)),
+        (Object(x), Object(y)) => x.len() == y.len() && x.iter().all(|(k, v)| y.get(k).is_some_and(|w| close(v, w, any_case))),
+        _ => a == b,
+    }
+}
+
+#[test]
+fn simple_entities_match_autocads_dxf() {
+    for (name, dwg_bytes, dxf_bytes) in pairs() {
+        // R14's reference is an R12 DXF, where AutoCAD turned what R12 cannot hold into other
+        // entities; and the two DWGs made from DXFs have other handles. Those are compared by
+        // content and order, the others by handle too.
+        let by_handle = !name.contains("r14") && !name.contains("-from-");
+        let (d, _) = dwg::read(dwg_bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let reference = draftcraft_io::read(dxf_bytes, "reference.dxf").unwrap_or_else(|e| panic!("{name}: {e}"));
+        let r14 = name.contains("r14");
+        // R12 has no MTEXT: AutoCAD wrote each one into the R12 DXF as an anonymous block (*U2,
+        // *U3) and an insert of it. For R14 the MTEXTs read and those inserts are set aside.
+        let converted = |e: &draftcraft_doc::Entity| matches!(&e.kind, draftcraft_doc::EntityKind::Insert(i) if i.block.starts_with("*U"));
+        let is_mtext = |e: &draftcraft_doc::Entity| matches!(e.kind, draftcraft_doc::EntityKind::MText(_));
+        let got: Vec<_> = placed(&d).into_iter().filter(|(_, e)| !(r14 && is_mtext(e))).collect();
+        let want: Vec<_> = placed(&reference)
+            .into_iter()
+            .filter(|(place, e)| read_so_far(&e.kind) && !place.starts_with("block $") && !place.starts_with("block *U") && !(r14 && converted(e)))
+            .collect();
+        if r14 {
+            let mtexts = placed(&d).iter().filter(|(_, e)| is_mtext(e)).count();
+            let inserts = placed(&reference).iter().filter(|(_, e)| converted(e)).count();
+            assert_eq!(mtexts, inserts, "{name}: one MTEXT for each converted block");
+        }
+        assert!(want.len() >= 30, "{name}: {} reference entities", want.len());
+        let show = |v: &[(String, std::sync::Arc<draftcraft_doc::Entity>)]| {
+            v.iter().map(|(p, e)| format!("{p} {:X} {}", e.handle.0, e.kind.type_name())).collect::<Vec<_>>()
+        };
+        assert_eq!(got.len(), want.len(), "{name}:\nread {:?}\nreference {:?}", show(&got), show(&want));
+        for ((gp, g), (wp, w)) in got.iter().zip(&want) {
+            assert_eq!(gp, wp, "{name}: place of {:X}", w.handle.0);
+            if by_handle {
+                assert_eq!(g.handle, w.handle, "{name}: handle in {wp}");
+            }
+            let (mut g, w) = (serde_json::to_value(g.as_ref()).unwrap(), serde_json::to_value(w.as_ref()).unwrap());
+            // The R14 DWG also carries extended data that R12 has no place for (AutoCAD keeps an
+            // R14 entity's lineweight there): compared without it.
+            if r14
+                && w["common"].get("xdata").is_none()
+                && let Some(c) = g["common"].as_object_mut()
+            {
+                c.remove("xdata");
+            }
+            assert!(close(&g["kind"], &w["kind"], r14), "{name}: {wp}\nread {}\nreference {}", g["kind"], w["kind"]);
+            assert!(close(&g["common"], &w["common"], r14), "{name}: properties in {wp}\nread {}\nreference {}", g["common"], w["common"]);
         }
     }
 }

@@ -200,6 +200,9 @@ pub(crate) struct Opened<'a> {
     pub num_reactors: u32,
     pub xdic_missing: bool,
     pub xdata: Vec<XData>,
+    /// The entity that follows this one in its block's chain (up to AutoCAD 2000), when the
+    /// entity stores it; `None` when the next object of the file follows.
+    pub next_entity: Option<u64>,
     pub s: Streams<'a>,
 }
 
@@ -349,6 +352,7 @@ pub(crate) fn open<'a>(ctx: &DecodeCtx, data: &'a [u8], offset: usize) -> Result
         num_reactors,
         xdic_missing,
         xdata,
+        next_entity: None,
         s: Streams { ver, codepage: ctx.codepage, dat, strs, hdl: Some(hdl) },
     })
 }
@@ -363,6 +367,7 @@ pub(crate) fn common_handles(o: &mut Opened) -> Result<(u64, Vec<Handle>, u64)> 
     let mut owner = 0u64;
     let mut reactors = Vec::new();
     let mut xdictionary = 0u64;
+    let mut next_entity = None;
     if o.is_entity {
         let Some(ent) = o.common.as_mut() else {
             return Err(Error::format("entity without its common data"));
@@ -385,7 +390,7 @@ pub(crate) fn common_handles(o: &mut Opened) -> Result<(u64, Vec<Handle>, u64)> 
         }
         if ver <= V::R2000 && !flags.no_links {
             let _prev = s.h()?;
-            let _next = s.h()?;
+            next_entity = Some(s.h_abs(handle)?);
         }
         if ver >= V::R2004 && flags.color_handle {
             let _color_book = s.h()?;
@@ -419,6 +424,7 @@ pub(crate) fn common_handles(o: &mut Opened) -> Result<(u64, Vec<Handle>, u64)> 
             xdictionary = s.h_abs(handle)?;
         }
     }
+    o.next_entity = next_entity;
     Ok((owner, reactors, xdictionary))
 }
 

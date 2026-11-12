@@ -17,11 +17,39 @@ use super::tables::Tables;
 /// Most blocks, layouts or owned entities that are read: more than any real drawing has.
 const MAX: usize = 1 << 22;
 
+/// Where the entities of one block record go.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum Space {
+    Model,
+    /// A paper space block, with the name of its layout.
+    Layout(String),
+    /// A block definition, by its name in the drawing.
+    Block(String),
+    /// An external reference: its entities are the other drawing's.
+    Xref,
+}
+
+/// One block record: where its entities go and which they are.
+pub(super) struct BlockRecord {
+    pub handle: u64,
+    pub space: Space,
+    /// The entities the block lists, in order (AutoCAD 2004 and later).
+    pub owned: Vec<u64>,
+    /// The first entity of the block's chain (up to AutoCAD 2000), 0 for none.
+    pub first: u64,
+}
+
 /// The block table as read.
 #[derive(Default)]
 pub(super) struct Blocks {
     /// The name of every block record in the drawing, by handle.
     pub names: HashMap<u64, String>,
+    /// The block records in table order.
+    pub records: Vec<BlockRecord>,
+    /// The records of model space and of the active paper space, which an entity may name by a
+    /// flag in place of a reference.
+    pub model: u64,
+    pub paper: u64,
     /// The handles of the objects this category read.
     pub read: HashSet<u64>,
 }
@@ -38,6 +66,8 @@ struct Header {
     props: Option<(u8, bool)>,
     block: u64,
     endblk: u64,
+    owned: Vec<u64>,
+    first: u64,
 }
 
 struct LayoutRead {
@@ -97,16 +127,21 @@ fn header(r: &mut ObjectReader) -> DwgResult<Header> {
     r.common_refs()?;
     let _null = r.reference()?;
     let block = r.reference()?;
-    // The entities the block owns (their first and last up to AutoCAD 2000, each of them from
-    // 2004): they are placed when the entities are read, each by its own owner.
+    // The entities the block owns: their first and last up to AutoCAD 2000, each of them from
+    // 2004.
+    let (mut owned, mut first) = (Vec::new(), 0);
     if lists {
-        let n = if ver <= V::R2000 { 2 } else { usize::try_from(owned_count).unwrap_or(MAX).min(MAX) };
-        for _ in 0..n {
-            r.reference()?;
+        if ver <= V::R2000 {
+            first = r.reference()?;
+            let _last = r.reference()?;
+        } else {
+            for _ in 0..usize::try_from(owned_count).unwrap_or(MAX).min(MAX) {
+                owned.push(r.reference()?);
+            }
         }
     }
     let endblk = r.reference()?;
-    Ok(Header { name, anonymous, xref, overlay, base: Vec3::new(x, y, z), xref_path, description, props, block, endblk })
+    Ok(Header { name, anonymous, xref, overlay, base: Vec3::new(x, y, z), xref_path, description, props, block, endblk, owned, first })
 }
 
 /// The block control object: the block records in table order, then model space and paper space.
@@ -297,11 +332,20 @@ pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], tables: &Tables, d: &m
     // The layout in `*Paper_Space` is the active one, kept when it isn't the first tab.
     let active = paper_space.and_then(|h| layout_of_block.get(&h).cloned());
     let first_tab = d.layouts.iter().min_by_key(|l| l.tab_order).map(|l| l.name.clone());
-    d.active_layout = active.filter(|a| Some(a) != first_tab.as_ref());
+    d.active_layout = active.clone().filter(|a| Some(a) != first_tab.as_ref());
+    let first_layout = active.or_else(|| d.layouts.first().map(|l| l.name.clone())).unwrap_or_else(|| "Layout1".into());
     for (h, b) in headers {
         let name = out.names.get(&h).cloned().unwrap_or_else(|| b.name.clone());
         let up = name.to_ascii_uppercase();
-        if up != "*MODEL_SPACE" && !up.starts_with("*PAPER_SPACE") {
+        let space = if up == "*MODEL_SPACE" {
+            out.model = h;
+            Space::Model
+        } else if up.starts_with("*PAPER_SPACE") {
+            if up == "*PAPER_SPACE" {
+                out.paper = h;
+            }
+            Space::Layout(layout_of_block.get(&h).cloned().unwrap_or_else(|| first_layout.clone()))
+        } else {
             let mut block = Block::new(&name);
             block.base = b.base;
             block.description.clone_from(&b.description);
@@ -313,8 +357,10 @@ pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], tables: &Tables, d: &m
                 block.xref_path = Some(b.xref_path.clone());
                 block.xref_overlay = b.overlay;
             }
-            d.blocks.insert(name, std::sync::Arc::new(block));
-        }
+            d.blocks.insert(name.clone(), std::sync::Arc::new(block));
+            if b.xref { Space::Xref } else { Space::Block(name) }
+        };
+        out.records.push(BlockRecord { handle: h, space, owned: b.owned, first: b.first });
         // The record, and the BLOCK and ENDBLK objects that open and close its entities: the
         // block itself carries what they hold.
         out.read.extend([h, b.block, b.endblk]);

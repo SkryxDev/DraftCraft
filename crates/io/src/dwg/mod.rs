@@ -10,6 +10,7 @@
 //! [`Unread::is_empty`].
 
 mod blocks;
+mod entities;
 mod header;
 mod tables;
 
@@ -90,10 +91,14 @@ pub fn read(bytes: &[u8]) -> Result<(Drawing, Unread)> {
             None => unread.count(&format!("header ${name}")),
         }
     }
+    let entities = entities::read(&file, &objects, &tables, &block_table, &mut d, &mut unread);
     for o in &objects {
-        if !tables.read.contains(&o.handle) && !block_table.read.contains(&o.handle) {
+        if !tables.read.contains(&o.handle) && !block_table.read.contains(&o.handle) && !entities.contains(&o.handle) {
             unread.count(&o.type_name);
         }
+    }
+    if let Some(seed) = objects.iter().map(|o| o.handle).max() {
+        d.bump_handseed(draftcraft_doc::Handle(seed));
     }
     Ok((d, unread))
 }
