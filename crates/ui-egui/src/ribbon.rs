@@ -1837,7 +1837,8 @@ fn layer_list(app: &CadApp, ui: &mut egui::Ui, rect: Rect, id: egui::Id) -> Opti
         row(&p.with_clip_rect(rect.shrink(1.0).with_max_x(rect.right() - 18.0)), rect, info);
     }
     let mut picked = None;
-    egui::Popup::menu(&resp).width(rect.width()).show(|ui| {
+    // Clicks inside leave it open: a row closes it itself, the state icons don't.
+    egui::Popup::menu(&resp).width(rect.width()).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| {
         egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
             for l in &layers {
                 let (r, item) = ui.allocate_exact_size(vec2(rect.width(), 22.0), Sense::click());
