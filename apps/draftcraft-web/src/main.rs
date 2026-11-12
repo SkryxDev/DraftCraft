@@ -18,6 +18,9 @@ mod host;
 #[cfg(any(target_arch = "wasm32", test))]
 mod panel_layout;
 
+#[cfg(any(target_arch = "wasm32", test))]
+mod phone;
+
 #[cfg(target_arch = "wasm32")]
 mod web {
     use draftcraft_engine::Session;
@@ -112,6 +115,10 @@ mod web {
 
     pub fn start() {
         eframe::WebLogger::init(log::LevelFilter::Info).ok();
+        // Phones get the read-only viewer (web branch, `phone.rs`).
+        if crate::phone::redirect_to_viewer() {
+            return;
+        }
         draftcraft_engine::cmd::file::set_io(draftcraft_engine::cmd::file::IoHooks {
             read: |b, name| draftcraft_io::read(b, name).map_err(|e| e.to_string()),
             write: |d, name| draftcraft_io::write(d, name).map_err(|e| e.to_string()),

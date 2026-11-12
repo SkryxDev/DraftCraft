@@ -1,0 +1,82 @@
+name: Web deploy
+
+# Builds the browser app (web branch) and publishes it on Vercel (project draftcraftwebapp):
+# the full app at /, the phone viewer at /viewer.html (phones are sent there by
+# apps/draftcraft-web/vercel.json). Runs on every push to the web branch, and when web-sync.yml
+# has merged main into it (a push made with GITHUB_TOKEN starts no workflow, so it dispatches
+# this one).
+#
+# Secrets: VERCEL_TOKEN (a Vercel access token), VERCEL_ORG_ID and VERCEL_PROJECT_ID.
+on:
+  push:
+    branches: [web]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      HAS_VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: web
+
+      - name: Rust toolchain with the wasm target
+        run: |
+          rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown
+          rustup default stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: web-wasm
+          cache-targets: true
+
+      - name: Trunk
+        run: |
+          curl -fsSL https://github.com/trunk-rs/trunk/releases/download/v0.22.1/trunk-x86_64-unknown-linux-gnu.tar.gz | sudo tar -xz -C /usr/local/bin trunk
+          trunk --version
+
+      - name: Tests (viewer and phone detection)
+        run: cargo test -p draftcraft-web --locked
+
+      - name: Build the full app and the phone viewer
+        working-directory: apps/draftcraft-web
+        run: |
+          trunk build index.html --release --dist ../../target/site-full
+          # The phone viewer is built for size (about 4.5 MB with Brotli instead of 5.6 MB), in a
+          # target directory of its own so the two builds don't rebuild each other.
+          CARGO_PROFILE_RELEASE_OPT_LEVEL=s CARGO_PROFILE_RELEASE_LTO=fat CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 \
+            CARGO_TARGET_DIR=../../target/viewer-small \
+            trunk build viewer.html --release --dist ../../target/site-viewer
+          mkdir -p ../../target/site
+          cp -R ../../target/site-full/. ../../target/site/
+          cp -R ../../target/site-viewer/. ../../target/site/
+          # Both builds write index.html: the viewer's is viewer.html.
+          cp ../../target/site-viewer/index.html ../../target/site/viewer.html 2>/dev/null || true
+          cp ../../target/site-full/index.html ../../target/site/index.html
+          cp vercel.json ../../target/site/vercel.json
+          ls -la ../../target/site
+
+      - name: Publish on Vercel
+        if: env.HAS_VERCEL_TOKEN == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          url=$(npx --yes vercel@latest deploy target/site --prod --yes --token "$VERCEL_TOKEN")
+          echo "Published: $url" >> "$GITHUB_STEP_SUMMARY"
+          echo "$url"
+
+      - name: No Vercel token
+        if: env.HAS_VERCEL_TOKEN != 'true'
+        run: echo "VERCEL_TOKEN is not set: the site was built but not published." >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,66 @@
+name: Web sync
+
+# Keeps the web branch (the browser app published on Vercel, with the phone viewer) up to date:
+# every push to main is merged into web, then web-deploy.yml publishes it. The web branch only
+# adds files of its own (the viewer in apps/draftcraft-web/src/viewer, phone.rs, viewer.html,
+# vercel.json, web-deploy.yml) and a few lines in apps/draftcraft-web, so the merge normally
+# needs no hand. When it does, the run fails and an issue says which files conflict; merge main
+# into web by hand and push.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+  issues: write
+
+concurrency:
+  group: web-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: web
+          fetch-depth: 0
+
+      - name: Merge main into web
+        id: merge
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          if git merge --no-edit -m "Merge main into web" origin/main; then
+            echo "Merged main into web." >> "$GITHUB_STEP_SUMMARY"
+          else
+            conflicts=$(git diff --name-only --diff-filter=U | tr '\n' ' ')
+            git merge --abort
+            echo "conflicts=$conflicts" >> "$GITHUB_OUTPUT"
+            echo "::error::Merging main into web conflicts in: $conflicts"
+            exit 1
+          fi
+
+      - name: Push web
+        run: git push origin HEAD:web
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run web-deploy.yml --ref web
+
+      - name: Report a conflict
+        if: failure() && steps.merge.outputs.conflicts != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CONFLICTS: ${{ steps.merge.outputs.conflicts }}
+        run: |
+          title="Web sync: main does not merge into web"
+          if [ -z "$(gh issue list --state open --search "$title in:title" --json number --jq '.[].number')" ]; then
+            gh issue create --title "$title" --body "Merging main ($GITHUB_SHA) into the web branch conflicts in: $CONFLICTS. Merge main into web by hand and push; the next push to main syncs again. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          fi
