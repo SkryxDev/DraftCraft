@@ -530,9 +530,12 @@ pub fn start() {
         return;
     };
     let q = query();
-    let languages: Vec<String> =
+    let mut languages: Vec<String> =
         web_sys::window().map(|w| w.navigator().languages().iter().filter_map(|v| v.as_string()).collect()).unwrap_or_default();
-    let words = crate::text::pick(&languages);
+    if let Some(lang) = crate::text::lang_from_query(&q) {
+        languages.insert(0, lang);
+    }
+    let words = crate::text::for_display(crate::text::pick(&languages));
     wasm_bindgen_futures::spawn_local(async move {
         let Some(document) = web_sys::window().and_then(|w| w.document()) else { return };
         let mut options = eframe::WebOptions::default();

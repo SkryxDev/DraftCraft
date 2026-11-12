@@ -15,7 +15,9 @@ The `web` branch is `main` plus the browser site published on Vercel (project `d
   - measuring: distance (length, ΔX, ΔY, angle) and area (area, perimeter), snapping to endpoints and
     corners, midpoints and the nearest point on a line; a finger dragging aims a reticle above it;
   - dark or light background and lineweight display;
-  - a link to the full app.
+  - a link to the full app;
+  - the full app's eighteen languages, chosen from the phone's language (`?lang=de` picks one);
+    Arabic letters are joined for display by `draftcraft_fonts::bidi`.
   Nothing is ever edited or saved: the viewer is read only.
 
 ## Which one a device gets
@@ -36,8 +38,8 @@ keeps the full app on a phone; `?mobile` opens the viewer anywhere.
 
 To keep the merge easy, the web branch adds files of its own and touches `main`'s files as little as
 possible (`apps/draftcraft-web/Cargo.toml`: the viewer binary and one web-sys feature; `src/main.rs`: the
-phone check). New viewer strings go in `src/viewer/text.rs` (English and Italian), not in the full
-app's tables.
+phone check). New viewer strings go in `src/viewer/text.rs` (in every language there), not in the
+full app's tables.
 
 ## Build locally
 
