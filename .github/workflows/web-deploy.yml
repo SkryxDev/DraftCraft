@@ -6,7 +6,8 @@ name: Web deploy
 # has merged main into it (a push made with GITHUB_TOKEN starts no workflow, so it dispatches
 # this one).
 #
-# Secrets: VERCEL_TOKEN (a Vercel access token), VERCEL_ORG_ID and VERCEL_PROJECT_ID.
+# Secret: VERCEL_TOKEN (a Vercel access token). The team and project ids are not secret and
+# are written below.
 on:
   push:
     branches: [web]
@@ -70,8 +71,8 @@ jobs:
         if: env.HAS_VERCEL_TOKEN == 'true'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_ORG_ID: team_DP6VtPVViMjIaokfkbCDr3a7
+          VERCEL_PROJECT_ID: prj_L5fbVrPXNqwE386OCjSYhicD5Ob8
         run: |
           url=$(npx --yes vercel@latest deploy target/site --prod --yes --token "$VERCEL_TOKEN")
           echo "Published: $url" >> "$GITHUB_STEP_SUMMARY"

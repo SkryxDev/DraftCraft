@@ -31,8 +31,8 @@ keeps the full app on a phone; `?mobile` opens the viewer anywhere.
   `web-deploy.yml`. If the merge conflicts, the run fails and opens an issue; merge `main` into `web`
   by hand and push.
 - `.github/workflows/web-deploy.yml` (on `web`) runs the web crate's tests, builds both pages with
-  Trunk and publishes them with the Vercel CLI. It needs the repository secrets `VERCEL_TOKEN`,
-  `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID`.
+  Trunk and publishes them with the Vercel CLI. It needs the repository secret `VERCEL_TOKEN` (a
+  Vercel access token); the team and project ids are in the workflow.
 
 To keep the merge easy, the web branch adds files of its own and touches `main`'s files as little as
 possible (`apps/draftcraft-web/Cargo.toml`: the viewer binary and one web-sys feature; `src/main.rs`: the
