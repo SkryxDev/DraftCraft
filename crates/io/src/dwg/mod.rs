@@ -9,6 +9,7 @@
 //! in [`Unread`], by type, so nothing is left out silently: a drawing is the whole file only when
 //! [`Unread::is_empty`].
 
+mod blocks;
 mod header;
 mod tables;
 
@@ -64,8 +65,9 @@ pub fn read(bytes: &[u8]) -> Result<(Drawing, Unread)> {
         }
     };
     let mut tables = tables::read(&file, &objects, &mut d, &mut unread);
-    let blocks = tables::block_names(&file, &objects);
-    tables::read_more(&file, &objects, &blocks, &mut tables, &mut d, &mut unread);
+    let block_table = blocks::read(&file, &objects, &tables, &mut d, &mut unread);
+    let blocks = &block_table.names;
+    tables::read_more(&file, &objects, blocks, &mut tables, &mut d, &mut unread);
     // The header variables that name a table record, now that the tables are read. The others
     // (a dimension style, a multiline style, a block, a UCS) wait for their categories.
     for (name, handle) in refs.iter().flat_map(|r| &r.names) {
@@ -75,7 +77,7 @@ pub fn read(bytes: &[u8]) -> Result<(Drawing, Unread)> {
             "TEXTSTYLE" | "DIMTXSTY" => &tables.styles,
             "DIMSTYLE" => &tables.dim_styles,
             "UCSNAME" | "PUCSNAME" | "UCSBASE" | "PUCSBASE" | "UCSORTHOREF" | "PUCSORTHOREF" => &tables.ucss,
-            "DIMBLK" | "DIMBLK1" | "DIMBLK2" | "DIMLDRBLK" => &blocks,
+            "DIMBLK" | "DIMBLK1" | "DIMBLK2" | "DIMLDRBLK" => blocks,
             _ => {
                 unread.count(&format!("header ${name}"));
                 continue;
@@ -89,7 +91,7 @@ pub fn read(bytes: &[u8]) -> Result<(Drawing, Unread)> {
         }
     }
     for o in &objects {
-        if !tables.read.contains(&o.handle) {
+        if !tables.read.contains(&o.handle) && !block_table.read.contains(&o.handle) {
             unread.count(&o.type_name);
         }
     }

@@ -53,14 +53,37 @@ fn every_object_of_every_version_is_accounted_for() {
         for t in READ_SO_FAR {
             assert!(!unread.by_type.keys().any(|k| k == t || *k == format!("{t} (not decoded)")), "{name}: {t} left unread: {}", unread.summary());
         }
-        for t in ["LINE", "CIRCLE", "ARC", "TEXT", "DIMENSION_LINEAR", "BLOCK_HEADER", "DICTIONARY"] {
+        for t in ["LINE", "CIRCLE", "ARC", "TEXT", "DIMENSION_LINEAR", "DICTIONARY"] {
             assert!(unread.by_type.contains_key(t), "{name}: no {t} among {}", unread.summary());
         }
     }
 }
 
 /// The object types the reader puts in the drawing so far.
-const READ_SO_FAR: &[&str] = &["APPID", "STYLE", "LTYPE", "LAYER", "DIMSTYLE", "UCS", "VIEW", "VPORT"];
+const READ_SO_FAR: &[&str] = &[
+    "APPID",
+    "STYLE",
+    "LTYPE",
+    "LAYER",
+    "DIMSTYLE",
+    "UCS",
+    "VIEW",
+    "VPORT",
+    "BLOCK_HEADER",
+    "BLOCK",
+    "ENDBLK",
+    "LAYOUT",
+    "BLOCK_CONTROL",
+    "LAYER_CONTROL",
+    "STYLE_CONTROL",
+    "LTYPE_CONTROL",
+    "VIEW_CONTROL",
+    "UCS_CONTROL",
+    "VPORT_CONTROL",
+    "APPID_CONTROL",
+    "DIMSTYLE_CONTROL",
+    "VX_CONTROL",
+];
 
 #[test]
 fn the_2007_container_is_refused_by_name() {
@@ -254,6 +277,42 @@ fn dimension_styles_views_ucss_and_viewports_match_autocads_dxf() {
                     d.header.get(var)
                 );
             }
+        }
+    }
+}
+
+#[test]
+fn blocks_and_layouts_match_autocads_dxf() {
+    for (name, dwg_bytes, dxf_bytes) in pairs() {
+        let (d, _) = dwg::read(dwg_bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let reference = draftcraft_io::read(dxf_bytes, "reference.dxf").unwrap_or_else(|e| panic!("{name}: {e}"));
+        // Layouts: the tabs in order, each with its page setup, limits and saved view. Their
+        // entities are read with the entities.
+        let tabs = |d: &draftcraft_doc::Drawing| {
+            d.layouts.iter().map(|l| (l.name.clone(), l.tab_order, l.page.clone(), l.limits, l.view)).collect::<Vec<_>>()
+        };
+        if name.contains("r14") {
+            // An R12 DXF has no layouts, so its reading has the default page setup; the R14 DWG
+            // holds the layout with its own. Only the tabs can be compared.
+            let names = |d: &draftcraft_doc::Drawing| d.layouts.iter().map(|l| (l.name.clone(), l.tab_order)).collect::<Vec<_>>();
+            assert_eq!(names(&d), names(&reference), "{name}: layouts");
+        } else {
+            assert_eq!(tabs(&d), tabs(&reference), "{name}: layouts");
+        }
+        assert_eq!(d.active_layout, reference.active_layout, "{name}: active layout");
+        // Block definitions: the same blocks, each with its own properties. An R12 DXF, R14's
+        // reference, also has the two spaces as blocks ($MODEL_SPACE, $PAPER_SPACE) and the
+        // blocks AutoCAD made of what R12 cannot hold (*U2, *U3), which the R14 DWG does not.
+        assert!(!reference.blocks.is_empty(), "{name}");
+        if !name.contains("r14") {
+            assert_eq!(d.blocks.keys().collect::<Vec<_>>(), reference.blocks.keys().collect::<Vec<_>>(), "{name}: blocks");
+        }
+        for (block, got) in &d.blocks {
+            let want = reference.blocks.get(block).unwrap_or_else(|| panic!("{name}: block {block} is not in the reference"));
+            let props = |b: &draftcraft_doc::Block| {
+                (b.base, b.description.clone(), b.anonymous, b.xref_path.clone(), b.xref_overlay, b.explodable, b.units, b.annotative)
+            };
+            assert_eq!(props(got), props(want), "{name}: block {block}");
         }
     }
 }

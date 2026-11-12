@@ -17,6 +17,18 @@ use crate::{IoError, Result};
 mod common;
 pub(crate) use common::{ocs_n, transparency_440};
 pub(crate) use tables::style_font_of;
+
+/// A page setup from the groups of a layout's plot settings. The DWG reader uses it too, so a
+/// page setup means the same from either format.
+pub(crate) fn page_setup_of(plot: &[Tag]) -> PageSetup {
+    objects::page_setup(&common::T(plot))
+}
+
+/// A layout's own limits from its groups 10/20 and 11/21, as the DXF reader keeps them.
+pub(crate) fn layout_limits_of(layout: &[Tag]) -> Option<(Vec2, Vec2)> {
+    document::limits(&common::T(layout))
+}
+
 mod dimassoc;
 mod document;
 mod entities;

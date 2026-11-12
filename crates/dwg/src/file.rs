@@ -221,6 +221,10 @@ impl ObjectReader<'_> {
     pub fn bd(&mut self) -> Result<f64> {
         self.o.s.dat.bd()
     }
+    /// Two bit-coded doubles.
+    pub fn bd2(&mut self) -> Result<[f64; 2]> {
+        self.o.s.dat.bd2()
+    }
     /// Three bit-coded doubles.
     pub fn bd3(&mut self) -> Result<[f64; 3]> {
         self.o.s.dat.bd3()
