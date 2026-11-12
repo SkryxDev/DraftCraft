@@ -63,7 +63,9 @@ pub fn read(bytes: &[u8]) -> Result<(Drawing, Unread)> {
             None
         }
     };
-    let tables = tables::read(&file, &objects, &mut d, &mut unread);
+    let mut tables = tables::read(&file, &objects, &mut d, &mut unread);
+    let blocks = tables::block_names(&file, &objects);
+    tables::read_more(&file, &objects, &blocks, &mut tables, &mut d, &mut unread);
     // The header variables that name a table record, now that the tables are read. The others
     // (a dimension style, a multiline style, a block, a UCS) wait for their categories.
     for (name, handle) in refs.iter().flat_map(|r| &r.names) {
@@ -71,6 +73,9 @@ pub fn read(bytes: &[u8]) -> Result<(Drawing, Unread)> {
             "CLAYER" => &tables.layers,
             "CELTYPE" | "DIMLTYPE" | "DIMLTEX1" | "DIMLTEX2" => &tables.linetypes,
             "TEXTSTYLE" | "DIMTXSTY" => &tables.styles,
+            "DIMSTYLE" => &tables.dim_styles,
+            "UCSNAME" | "PUCSNAME" | "UCSBASE" | "PUCSBASE" | "UCSORTHOREF" | "PUCSORTHOREF" => &tables.ucss,
+            "DIMBLK" | "DIMBLK1" | "DIMBLK2" | "DIMLDRBLK" => &blocks,
             _ => {
                 unread.count(&format!("header ${name}"));
                 continue;

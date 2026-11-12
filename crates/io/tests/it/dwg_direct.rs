@@ -60,7 +60,7 @@ fn every_object_of_every_version_is_accounted_for() {
 }
 
 /// The object types the reader puts in the drawing so far.
-const READ_SO_FAR: &[&str] = &["APPID", "STYLE", "LTYPE", "LAYER"];
+const READ_SO_FAR: &[&str] = &["APPID", "STYLE", "LTYPE", "LAYER", "DIMSTYLE", "UCS", "VIEW", "VPORT"];
 
 #[test]
 fn the_2007_container_is_refused_by_name() {
@@ -220,6 +220,39 @@ fn layers_linetypes_and_text_styles_match_autocads_dxf() {
             // The R12 DXF, R14's reference, has no $DIMTXSTY.
             if let Some(want) = reference.header.get(var) {
                 assert_eq!(d.header.get(var), Some(want), "{name}: ${var}");
+            }
+        }
+    }
+}
+
+#[test]
+fn dimension_styles_views_ucss_and_viewports_match_autocads_dxf() {
+    for (name, dwg_bytes, dxf_bytes) in pairs() {
+        let (d, _) = dwg::read(dwg_bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let reference = draftcraft_io::read(dxf_bytes, "reference.dxf").unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert!(!reference.dim_styles.is_empty(), "{name}");
+        assert_eq!(d.dim_styles.len(), reference.dim_styles.len(), "{name}: dimension styles");
+        for (got, want) in d.dim_styles.iter().zip(&reference.dim_styles) {
+            let (g, w) = (serde_json::to_value(got).unwrap(), serde_json::to_value(want).unwrap());
+            let diff: Vec<String> = w
+                .as_object()
+                .unwrap()
+                .iter()
+                .filter(|(k, v)| g.get(k.as_str()) != Some(*v))
+                .map(|(k, v)| format!("{k}: read {:?}, AutoCAD's DXF has {v:?}", g.get(k.as_str())))
+                .collect();
+            assert!(diff.is_empty(), "{name}: dimension style {}:\n{}", want.name, diff.join("\n"));
+        }
+        assert_eq!(d.views, reference.views, "{name}: views");
+        assert_eq!(d.ucss, reference.ucss, "{name}: UCSs");
+        assert_eq!(d.vports, reference.vports, "{name}: viewport configurations");
+        for var in ["DIMSTYLE", "UCSNAME", "PUCSNAME", "DIMBLK", "DIMBLK1", "DIMBLK2", "DIMLDRBLK", "SNAPUNIT", "GRIDUNIT", "SNAPBASE", "SNAPANG"] {
+            if let Some(want) = reference.header.get(var) {
+                assert!(
+                    d.header.get(var).is_some_and(|got| same(got, want)),
+                    "{name}: ${var}: read {:?}, AutoCAD's DXF has {want:?}",
+                    d.header.get(var)
+                );
             }
         }
     }
