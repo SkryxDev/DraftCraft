@@ -7,7 +7,7 @@ use std::collections::{HashMap, HashSet};
 
 use draftcraft_doc::{
     Arc, Attrib, AttribModes, AttribProps, Circle, Common, Drawing, Ellipse, Entity, EntityKind, Face3d, HAlign, Handle, Insert, Line, Lineweight,
-    LwPolyline, MText, Point, RawTag, RayLine, Solid, Text, VAlign,
+    LwPolyline, MText, Point, PolyfaceMesh, Polyline3d, RawTag, RayLine, Solid, Text, VAlign,
 };
 use draftcraft_dwg::DwgVersion as V;
 use draftcraft_dwg::file::{DwgFile, EntityLinetype, EntityRefs, EntitySpace, ObjectReader, ObjectRef, XDataBlock, XDataItem};
@@ -17,7 +17,7 @@ use draftcraft_geom::{PolyVertex, Vec2, Vec3};
 use super::Unread;
 use super::blocks::{Blocks, Space};
 use super::tables::Tables;
-use crate::dxf_read::{mirror_text, mtext_dxf, ocs_n, transparency_440};
+use crate::dxf_read::{SplineParts, mesh_faces_of, mirror_text, mtext_dxf, ocs_n, spline_from, transparency_440};
 
 /// Most entities of one drawing that are read.
 const MAX_ENTITIES: usize = 1 << 24;
@@ -42,6 +42,10 @@ struct Decoded {
     /// A block reference's attributes: listed (2004 and later) or its first and last (up to
     /// 2000), and the SEQEND that ends them.
     attribs: Option<Attribs>,
+    /// A polyline waiting for its vertices: its kind, common properties and the vertices it names.
+    polyline: Option<(PolyKind, Common, Attribs)>,
+    /// A vertex or polyface face waiting for its polyline.
+    vertex: Option<Vertex>,
     partial: Vec<&'static str>,
 }
 
@@ -182,6 +186,16 @@ fn reads(type_name: &str) -> bool {
             | "RAY"
             | "ATTRIB"
             | "ATTDEF"
+            | "POLYLINE_2D"
+            | "POLYLINE_3D"
+            | "POLYLINE_PFACE"
+            | "POLYLINE_MESH"
+            | "VERTEX_2D"
+            | "VERTEX_3D"
+            | "VERTEX_MESH"
+            | "VERTEX_PFACE"
+            | "VERTEX_PFACE_FACE"
+            | "SPLINE"
     )
 }
 
@@ -196,6 +210,190 @@ enum Body {
     /// An attribute (of a block reference) or an attribute definition, with its alignment and
     /// insertion points in its own coordinate system.
     Attrib(Box<Attrib>, Option<Vec3>, Vec3, bool),
+    /// A polyline, waiting for its vertices, and how many it lists (2004 and later).
+    Polyline(PolyKind, u32),
+    /// A vertex or a polyface face, waiting for its polyline.
+    Vertex(Vertex),
+}
+
+/// The kind of a polyline, with what its own record holds.
+#[derive(Clone, Copy, Debug)]
+enum PolyKind {
+    /// DXF flags, default start and end width, elevation.
+    TwoD {
+        flags: u16,
+        start_width: f64,
+        end_width: f64,
+        elevation: f64,
+    },
+    ThreeD {
+        closed: bool,
+    },
+    Pface,
+    /// DXF flags, M and N, and the smoothed surface's M and N.
+    Mesh {
+        flags: u16,
+        size: (u16, u16),
+        smooth: (u16, u16),
+    },
+}
+
+/// A vertex of a polyline, or a face of a polyface mesh.
+#[derive(Clone, Copy, Debug, Default)]
+struct Vertex {
+    flags: u8,
+    point: Vec3,
+    start_width: f64,
+    end_width: f64,
+    bulge: f64,
+    face: Option<[i16; 4]>,
+}
+
+/// The objects a polyline or a block reference owns: listed (2004 and later) or its first and
+/// last (up to 2000), and the SEQEND that ends them.
+fn owned_list(r: &mut ObjectReader, count: u32) -> DwgResult<Attribs> {
+    let (mut listed, mut chain) = (Vec::new(), None);
+    if r.version() <= V::R2000 {
+        chain = Some((r.reference()?, r.reference()?));
+    } else {
+        // The handles are in their own stream: each read fails at its end, so the count only
+        // needs a bound.
+        for _ in 0..usize::try_from(count).unwrap_or(MAX_ENTITIES).min(MAX_ENTITIES) {
+            listed.push(r.reference()?);
+        }
+    }
+    Ok(Attribs { listed, chain, seqend: r.reference()? })
+}
+
+/// POLYLINE_2D (§20.4.15).
+fn polyline_2d(r: &mut ObjectReader) -> DwgResult<Shape> {
+    let flags = r.bs()?;
+    let _curve_type = r.bs()?;
+    let start_width = r.bd()?;
+    let end_width = r.bd()?;
+    let thickness = r.thickness()?;
+    let elevation = r.bd()?;
+    let normal = v3(r.extrusion()?);
+    let owned = if r.version() >= V::R2004 { r.bl()? } else { 0 };
+    Ok(Shape { body: Body::Polyline(PolyKind::TwoD { flags, start_width, end_width, elevation }, owned), thickness, normal })
+}
+
+/// POLYLINE_3D (§20.4.16).
+fn polyline_3d(r: &mut ObjectReader) -> DwgResult<Shape> {
+    let _curve_flags = r.rc()?;
+    let closed = r.rc()? & 1 != 0;
+    let owned = if r.version() >= V::R2004 { r.bl()? } else { 0 };
+    Ok(Shape { body: Body::Polyline(PolyKind::ThreeD { closed }, owned), thickness: 0.0, normal: UP })
+}
+
+/// POLYLINE_PFACE (§20.4.29).
+fn polyline_pface(r: &mut ObjectReader) -> DwgResult<Shape> {
+    let _vertices = r.bs()?;
+    let _faces = r.bs()?;
+    let owned = if r.version() >= V::R2004 { r.bl()? } else { 0 };
+    Ok(Shape { body: Body::Polyline(PolyKind::Pface, owned), thickness: 0.0, normal: UP })
+}
+
+/// POLYLINE_MESH (§20.4.30).
+fn polyline_mesh(r: &mut ObjectReader) -> DwgResult<Shape> {
+    let flags = r.bs()?;
+    let _curve_type = r.bs()?;
+    let size = (r.bs()?, r.bs()?);
+    let smooth = (r.bs()?, r.bs()?);
+    let owned = if r.version() >= V::R2004 { r.bl()? } else { 0 };
+    Ok(Shape { body: Body::Polyline(PolyKind::Mesh { flags, size, smooth }, owned), thickness: 0.0, normal: UP })
+}
+
+/// VERTEX_2D (§20.4.10): a negative start width means both widths are its size.
+fn vertex_2d(r: &mut ObjectReader) -> DwgResult<Shape> {
+    let flags = r.rc()?;
+    let point = v3(r.bd3()?);
+    let sw = r.bd()?;
+    let (start_width, end_width) = if sw < 0.0 { (-sw, -sw) } else { (sw, r.bd()?) };
+    let bulge = r.bd()?;
+    if r.version() >= V::R2010 {
+        let _id = r.bl()?;
+    }
+    let _tangent = r.bd()?;
+    let v = Vertex { flags, point, start_width, end_width, bulge, face: None };
+    Ok(Shape { body: Body::Vertex(v), thickness: 0.0, normal: UP })
+}
+
+/// VERTEX_3D, VERTEX_MESH and VERTEX_PFACE (§20.4.11 to §20.4.13): flags and a point.
+fn vertex_3d(r: &mut ObjectReader) -> DwgResult<Shape> {
+    let flags = r.rc()?;
+    let point = v3(r.bd3()?);
+    Ok(Shape { body: Body::Vertex(Vertex { flags, point, ..Vertex::default() }), thickness: 0.0, normal: UP })
+}
+
+/// VERTEX_PFACE_FACE (§20.4.14): the four vertex numbers of a face, negative for a hidden edge.
+fn pface_face(r: &mut ObjectReader) -> DwgResult<Shape> {
+    let mut face = [0i16; 4];
+    for f in &mut face {
+        *f = i16::from_le_bytes(r.bs()?.to_le_bytes());
+    }
+    Ok(Shape { body: Body::Vertex(Vertex { flags: 128, face: Some(face), ..Vertex::default() }), thickness: 0.0, normal: UP })
+}
+
+/// SPLINE (§20.4.44): a spline defined by its fit points or by its control points and knots. From
+/// AutoCAD 2013 on, flags and the knot parameterisation say which.
+fn spline(r: &mut ObjectReader) -> DwgResult<Shape> {
+    let ver = r.version();
+    let mut scenario = r.bl()?;
+    let mut closed = false;
+    if ver >= V::R2013 {
+        let flags = r.bl()?;
+        let knot_param = r.bl()?;
+        if flags & 1 != 0 {
+            scenario = 2;
+        }
+        if knot_param == 15 {
+            scenario = 1;
+        }
+        closed = flags & 4 != 0;
+    }
+    let degree = usize::try_from(r.bl()?).unwrap_or(3);
+    let (mut knots, mut control, mut weights, mut fit) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    let (mut start_tangent, mut end_tangent, mut tolerance) = (None, None, 0.0);
+    let flat = |p: [f64; 3]| Vec2::new(p[0], p[1]);
+    // A tangent the file leaves unset is stored as zero.
+    let tangent = |p: [f64; 3]| (p != [0.0; 3]).then(|| flat(p));
+    match scenario {
+        2 => {
+            tolerance = r.bd()?;
+            start_tangent = tangent(r.bd3()?);
+            end_tangent = tangent(r.bd3()?);
+            let n = r.bl()?;
+            let n = r.count(n, 6, "SPLINE fit point")?;
+            for _ in 0..n {
+                fit.push(flat(r.bd3()?));
+            }
+        }
+        1 => {
+            let _rational = r.b()?;
+            closed = r.b()?;
+            let _periodic = r.b()?;
+            let _knot_tolerance = r.bd()?;
+            let _control_tolerance = r.bd()?;
+            let n_knots = r.bl()?;
+            let n_control = r.bl()?;
+            let weighted = r.b()?;
+            let n_knots = r.count(n_knots, 2, "SPLINE knot")?;
+            let n_control = r.count(n_control, 6, "SPLINE control point")?;
+            for _ in 0..n_knots {
+                knots.push(r.bd()?);
+            }
+            for _ in 0..n_control {
+                control.push(flat(r.bd3()?));
+                if weighted {
+                    weights.push(r.bd()?);
+                }
+            }
+        }
+        other => return Err(draftcraft_dwg::records::Error::format(format!("unknown spline scenario {other}"))),
+    }
+    let sp = spline_from(SplineParts { degree, knots, control, weights, fit, start_tangent, end_tangent, tolerance, closed });
+    Ok(ready(EntityKind::Spline(sp), 0.0, UP))
 }
 
 /// What an entity type's fields give: the body, and the thickness and extrusion of the types that
@@ -634,6 +832,50 @@ fn ray_line(r: &mut ObjectReader, ray: bool) -> DwgResult<Shape> {
     Ok(ready(if ray { EntityKind::Ray(line) } else { EntityKind::XLine(line) }, 0.0, UP))
 }
 
+/// The drawing's entity of a polyline from its vertices, by the DXF reader's rules: a 2D polyline
+/// is a lightweight polyline, a 3D one a 3D polyline, a polyface mesh keeps the faces that name
+/// three vertices or more, and a polygon mesh becomes 3D faces, the first in the polyline's place
+/// and the rest after it. `None` for a mesh with no face.
+fn polyline_kinds(kind: PolyKind, vertices: &[Vertex], normal: Vec3) -> (Option<EntityKind>, Vec<EntityKind>) {
+    // Spline frame control points (flag 16) are not points of the curve.
+    let points = || vertices.iter().filter(|v| v.face.is_none() && v.flags & 16 == 0);
+    match kind {
+        PolyKind::TwoD { flags, start_width, end_width, elevation } => {
+            // The vertices are in the polyline's own coordinate system: mirrored like LWPOLYLINE.
+            let m = if normal.z < 0.0 { -1.0 } else { 1.0 };
+            let vertices = points()
+                .map(|v| PolyVertex {
+                    p: Vec2::new(m * v.point.x, v.point.y),
+                    bulge: m * v.bulge,
+                    start_width: v.start_width,
+                    end_width: v.end_width,
+                })
+                .collect();
+            let p = LwPolyline {
+                vertices,
+                closed: flags & 1 != 0,
+                const_width: start_width.min(end_width).max(0.0),
+                elevation,
+                plinegen: flags & 128 != 0,
+            };
+            (Some(EntityKind::LwPolyline(p)), Vec::new())
+        }
+        PolyKind::ThreeD { closed } => (Some(EntityKind::Polyline3d(Polyline3d { points: points().map(|v| v.point).collect(), closed })), Vec::new()),
+        PolyKind::Pface => {
+            let mut mesh = PolyfaceMesh { vertices: points().map(|v| v.point).collect(), faces: Vec::new() };
+            let faces: Vec<[i32; 4]> = vertices.iter().filter_map(|v| v.face).map(|f| f.map(i32::from)).collect();
+            mesh.faces = faces.into_iter().filter(|f| mesh.face3d(f).is_some()).collect();
+            if mesh.faces.is_empty() { (None, Vec::new()) } else { (Some(EntityKind::PolyfaceMesh(mesh)), Vec::new()) }
+        }
+        PolyKind::Mesh { flags, size, smooth } => {
+            let verts: Vec<Vec3> = points().map(|v| v.point).collect();
+            let pair = |(a, b): (u16, u16)| Some((i64::from(a), i64::from(b)));
+            let mut faces = mesh_faces_of(&verts, pair(size), pair(smooth), i64::from(flags)).into_iter().map(EntityKind::Face3d);
+            (faces.next(), faces.collect())
+        }
+    }
+}
+
 /// One entity's type fields, or `None` for a type read in a later step.
 fn shape(r: &mut ObjectReader, type_name: &str, partial: &mut Vec<&'static str>) -> DwgResult<Option<Shape>> {
     Ok(Some(match type_name {
@@ -647,6 +889,14 @@ fn shape(r: &mut ObjectReader, type_name: &str, partial: &mut Vec<&'static str>)
         "MTEXT" => mtext(r, partial)?,
         "INSERT" => insert(r, false)?,
         "ATTRIB" => attribute(r, false)?,
+        "POLYLINE_2D" => polyline_2d(r)?,
+        "POLYLINE_3D" => polyline_3d(r)?,
+        "POLYLINE_PFACE" => polyline_pface(r)?,
+        "POLYLINE_MESH" => polyline_mesh(r)?,
+        "VERTEX_2D" => vertex_2d(r)?,
+        "VERTEX_3D" | "VERTEX_MESH" | "VERTEX_PFACE" => vertex_3d(r)?,
+        "VERTEX_PFACE_FACE" => pface_face(r)?,
+        "SPLINE" => spline(r)?,
         "ATTDEF" => attribute(r, true)?,
         "MINSERT" => insert(r, true)?,
         "SOLID" => solid(r, false)?,
@@ -664,14 +914,14 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
     let Some(Shape { body, thickness, normal }) = shape(r, &o.type_name, &mut partial)? else {
         // A type read in a later step: only its place is known.
         let refs = r.entity_refs()?;
-        return Ok((Decoded { entity: None, attrib: None, attribs: None, partial }, refs));
+        return Ok((Decoded { entity: None, attrib: None, attribs: None, polyline: None, vertex: None, partial }, refs));
     };
     let refs = r.entity_refs()?;
     let style = |r: &mut ObjectReader| -> DwgResult<String> {
         let h = r.reference()?;
         Ok(n.tables.styles.get(&h).cloned().unwrap_or_else(|| "Standard".into()))
     };
-    let (mut attrib, mut attribs) = (None, None);
+    let (mut attrib, mut attribs, mut polyline, mut vertex) = (None, None, None, None);
     let kind = match body {
         Body::Ready(k) => Some(*k),
         Body::Text(mut t, align, insert) => {
@@ -688,22 +938,24 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
         Body::Insert(mut i, has_attributes, owned) => {
             let block = r.reference()?;
             if has_attributes {
-                let (mut listed, mut chain) = (Vec::new(), None);
-                if r.version() <= V::R2000 {
-                    chain = Some((r.reference()?, r.reference()?));
-                } else {
-                    // The handles are in their own stream: each read fails at its end, so the count
-                    // only needs a bound.
-                    for _ in 0..usize::try_from(owned).unwrap_or(MAX_ENTITIES).min(MAX_ENTITIES) {
-                        listed.push(r.reference()?);
-                    }
-                }
-                attribs = Some(Attribs { listed, chain, seqend: r.reference()? });
+                attribs = Some(owned_list(r, owned)?);
             }
             n.blocks.get(&block).map(|name| {
                 i.block.clone_from(name);
                 EntityKind::Insert(*i)
             })
+        }
+        Body::Polyline(kind, owned) => {
+            let list = owned_list(r, owned)?;
+            let mut c = common(r, &refs, n, &mut partial);
+            c.thickness = thickness;
+            c.extrusion = normal;
+            polyline = Some((kind, c, list));
+            None
+        }
+        Body::Vertex(v) => {
+            vertex = Some(v);
+            None
         }
         Body::Attrib(mut a, align, insert, definition) => {
             a.text.style = style(r)?;
@@ -729,7 +981,7 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
         e.common = c;
         e
     });
-    Ok((Decoded { entity, attrib, attribs, partial }, refs))
+    Ok((Decoded { entity, attrib, attribs, polyline, vertex, partial }, refs))
 }
 
 /// Read the entities into `d`, each into the space or block that owns it, in the block's order.
@@ -741,6 +993,14 @@ pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], tables: &Tables, block
     let mut places: HashMap<u64, Place> = HashMap::new();
     let mut attribs: HashMap<u64, (Attrib, Common)> = HashMap::new();
     let mut lists: Vec<(u64, Attribs)> = Vec::new();
+    let mut vertices: HashMap<u64, Vertex> = HashMap::new();
+    let mut polylines: Vec<(u64, PolyKind, Common, Attribs)> = Vec::new();
+    // The entities after a polyline's own, from its polygon mesh's faces, by the polyline.
+    let mut extras: HashMap<u64, Vec<Entity>> = HashMap::new();
+    // New entities take handles after every one of the file's.
+    if let Some(seed) = objects.iter().map(|o| o.handle).max() {
+        d.bump_handseed(Handle(seed));
+    }
     // The object after each one in the file, for a chain that leaves the next entity unsaid.
     let mut following: HashMap<u64, u64> = HashMap::new();
     let entities: Vec<&ObjectRef> = objects.iter().filter(|o| o.is_entity && !blocks.read.contains(&o.handle)).take(MAX_ENTITIES).collect();
@@ -771,19 +1031,24 @@ pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], tables: &Tables, block
         if let Some(list) = dec.attribs {
             lists.push((o.handle, list));
         }
+        if let Some(v) = dec.vertex {
+            vertices.insert(o.handle, v);
+        }
+        if let Some((kind, c, list)) = dec.polyline {
+            polylines.push((o.handle, kind, c, list));
+        }
         match dec.entity {
             Some(e) => {
                 decoded.insert(o.handle, e);
             }
-            None if reads(&o.type_name) && o.type_name != "ATTRIB" => unread.count(&format!("{} of an unknown block", o.type_name)),
+            None if reads(&o.type_name) && o.type_name == "INSERT" => unread.count(&format!("{} of an unknown block", o.type_name)),
             None => {}
         }
     }
-    // Each block reference's attributes: the ones it lists (2004 and later) or the chain from its
-    // first to its last (up to 2000). A reference whose attributes are not all read is left out
-    // whole, so it never loses one silently.
-    for (h, list) in lists {
-        let mut handles = list.listed;
+    // Each polyline's vertices: the ones it lists (2004 and later) or the chain from its first to
+    // its last (up to 2000). A polyline whose vertices are not all read is left out whole.
+    let walk = |list: &Attribs, places: &HashMap<u64, Place>| -> Vec<u64> {
+        let mut handles = list.listed.clone();
         if let Some((first, last)) = list.chain {
             let mut at = first;
             while at != 0 && handles.len() < MAX_ENTITIES {
@@ -794,6 +1059,42 @@ pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], tables: &Tables, block
                 at = places.get(&at).and_then(|p| p.next).or_else(|| following.get(&at).copied()).unwrap_or(0);
             }
         }
+        handles
+    };
+    for (h, kind, c, list) in polylines {
+        let handles = walk(&list, &places);
+        let Some(found) = handles.iter().map(|v| vertices.remove(v)).collect::<Option<Vec<_>>>() else {
+            unread.count("polyline whose vertices were not all read");
+            continue;
+        };
+        let (main, more) = polyline_kinds(kind, &found, c.extrusion);
+        let Some(main) = main else {
+            unread.count("polyline mesh without faces");
+            continue;
+        };
+        let mut e = Entity::new(Handle(h), main);
+        e.common = c;
+        let more: Vec<Entity> = more
+            .into_iter()
+            .map(|k| {
+                let mut x = Entity::new(d.new_handle(), k);
+                x.common = e.common.clone();
+                x
+            })
+            .collect();
+        decoded.insert(h, e);
+        extras.insert(h, more);
+        read.extend(handles);
+        read.insert(list.seqend);
+    }
+    for _ in vertices.keys() {
+        unread.count("vertex of no polyline");
+    }
+    // Each block reference's attributes: the ones it lists (2004 and later) or the chain from its
+    // first to its last (up to 2000). A reference whose attributes are not all read is left out
+    // whole, so it never loses one silently.
+    for (h, list) in lists {
+        let handles = walk(&list, &places);
         let Some(e) = decoded.get_mut(&h) else { continue };
         let Some(found) = handles.iter().map(|a| attribs.remove(a)).collect::<Option<Vec<_>>>() else {
             decoded.remove(&h);
@@ -835,19 +1136,30 @@ pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], tables: &Tables, block
             }
             let Some(e) = decoded.remove(&h) else { continue };
             read.insert(h);
+            let more = extras.remove(&h).unwrap_or_default();
             match &rec.space {
                 Space::Model => {
                     d.ensure_layer(&e.common.layer);
                     d.model.push(e);
+                    for x in more {
+                        d.model.push(x);
+                    }
                 }
                 Space::Layout(name) => {
                     if let Some(l) = d.layouts.iter_mut().find(|l| &l.name == name) {
                         l.entities.push(e);
+                        for x in more {
+                            l.entities.push(x);
+                        }
                     }
                 }
                 Space::Block(name) => {
                     if let Some(b) = d.blocks.get_mut(name) {
-                        std::sync::Arc::make_mut(b).entities.push(e);
+                        let b = std::sync::Arc::make_mut(b);
+                        b.entities.push(e);
+                        for x in more {
+                            b.entities.push(x);
+                        }
                     }
                 }
                 Space::Xref => {}
