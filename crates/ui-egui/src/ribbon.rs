@@ -1016,9 +1016,53 @@ fn paint_variant(p: &egui::Painter, r: Rect, cmd: &str) -> bool {
 #[derive(Default)]
 struct Out {
     command: Option<&'static str>,
-    layer: Option<String>,
+    /// A property picked from a list of the Layers or Properties panel (see [`set_property`]).
+    prop: Option<Prop>,
     run: Option<(&'static str, serde_json::Value)>,
     typed: Option<String>,
+}
+
+/// A property picked from a list of the Layers or Properties panel: `key` and `value` as CHPROP
+/// takes them, and the command (with its parameters) that makes it the current one.
+struct Prop {
+    key: &'static str,
+    value: serde_json::Value,
+    current: (&'static str, serde_json::Value),
+}
+
+/// Apply a property picked from a ribbon list, as AutoCAD's layer and property controls do: with
+/// objects selected it changes them (CHPROP, which leaves out those on locked layers and says
+/// how many), and the current layer or property stays as it was; with nothing selected it becomes
+/// the current one.
+fn set_property(app: &mut CadApp, prop: Prop) {
+    let sel = app.session.selection();
+    let r = if sel.is_empty() {
+        app.run(prop.current.0, prop.current.1)
+    } else {
+        let handles: Vec<String> = sel.iter().map(|h| h.hex()).collect();
+        let mut params = serde_json::Map::new();
+        params.insert("handles".into(), json!(handles));
+        params.insert(prop.key.into(), prop.value);
+        app.run("chprop", serde_json::Value::Object(params)).inspect(|r| match r.get("locked").and_then(serde_json::Value::as_u64).unwrap_or(0) {
+            0 => {}
+            1 => app.session.echo("1 object was on a locked layer."),
+            n => app.session.echo(format!("{n} objects were on a locked layer.")),
+        })
+    };
+    if let Err(e) = r {
+        app.set_status(e);
+    }
+}
+
+/// What the selected objects share for one property: `None` with nothing selected, `Some(None)`
+/// when they differ, `Some(Some(v))` when every one has `v`. The ribbon's lists show it in place
+/// of the current value while objects are selected, as AutoCAD's do.
+fn selection_shares<T: PartialEq>(app: &CadApp, f: impl Fn(&draftcraft_engine::doc::Entity) -> T) -> Option<Option<T>> {
+    let sel = app.session.selection();
+    let d = app.session.doc().ok()?;
+    let mut values = sel.iter().filter_map(|h| d.entity(*h)).map(|e| f(e));
+    let first = values.next()?;
+    Some(values.all(|v| v == first).then_some(first))
 }
 
 /// The application button: the DraftCraft logo ([`crate::brand`]) and the menu arrow.
@@ -1045,8 +1089,8 @@ pub fn title_and_ribbon(app: &mut CadApp, ui: &mut egui::Ui) {
             ribbon(app, ui, Rect::from_min_max(pos2(r.left(), r.top() + APP_BAR), r.max), &mut out);
         }
     });
-    if let Some(name) = out.layer {
-        let _ = app.run("layer.current", json!({ "name": name }));
+    if let Some(prop) = out.prop {
+        set_property(app, prop);
     }
     if let Some((cmd, params)) = out.run
         && let Err(e) = app.run(cmd, params)
@@ -1447,8 +1491,12 @@ fn ribbon(app: &mut CadApp, ui: &mut egui::Ui, area: Rect, out: &mut Out) {
                 }
                 Layers(rows, labelled) => {
                     let lr = Rect::from_min_size(pos2(cx, top + 1.0), vec2(cw - 8.0, ROW - 1.0));
-                    if let Some(name) = layer_list(app, ui, lr, id.with("list")) {
-                        out.layer = Some(name);
+                    match layer_list(app, ui, lr, id.with("list")) {
+                        Some(LayerPick::Layer(name)) => {
+                            out.prop = Some(Prop { key: "layer", value: json!(name), current: ("layer.current", json!({ "name": name })) });
+                        }
+                        Some(LayerPick::Toggle(params)) => out.run = Some(("layer.set", params)),
+                        None => {}
                     }
                     for (ri, (row, last)) in rows.iter().zip(labelled.iter()).enumerate() {
                         let y = top + (ri as f32 + 1.0) * (ROW + 1.0);
@@ -1600,9 +1648,20 @@ fn lweight_name(code: i64) -> String {
 fn props_lists(app: &CadApp, ui: &mut egui::Ui, r: Rect, id: egui::Id, out: &mut Out) {
     let t = Tokens::get();
     let Ok(d) = app.session.doc() else { return };
-    let cecolor = d.header.i64("CECOLOR", 256);
-    let celtype = d.header.str("CELTYPE", "ByLayer");
-    let celweight = d.header.i64("CELWEIGHT", -1);
+    // The selected objects' properties (none shown where they differ), else the current ones.
+    let color = match selection_shares(app, |e| e.common.color) {
+        Some(shared) => shared,
+        None => Some(draftcraft_color::Color::from_aci(d.header.i64("CECOLOR", 256).clamp(0, 256) as i16)),
+    };
+    let cecolor = color.map(|c| i64::from(c.to_aci()));
+    let celtype = match selection_shares(app, |e| e.common.linetype.clone()) {
+        Some(shared) => shared,
+        None => Some(d.header.str("CELTYPE", "ByLayer").to_string()),
+    };
+    let celweight = match selection_shares(app, |e| i64::from(e.common.lineweight.to_dxf())) {
+        Some(shared) => shared,
+        None => Some(d.header.i64("CELWEIGHT", -1)),
+    };
     let linetypes: Vec<String> = std::iter::once("ByLayer".to_string())
         .chain(std::iter::once("ByBlock".to_string()))
         .chain(d.linetypes.iter().map(|l| l.name.clone()).filter(|n| !n.eq_ignore_ascii_case("bylayer") && !n.eq_ignore_ascii_case("byblock")))
@@ -1618,16 +1677,20 @@ fn props_lists(app: &CadApp, ui: &mut egui::Ui, r: Rect, id: egui::Id, out: &mut
             0 => {
                 paint_color_wheel(&p, icon_c, 8.0);
                 let resp = list_box(ui, lr, id.with("color"), "Object Color");
-                let color = draftcraft_color::Color::from_aci(cecolor.clamp(0, 256) as i16);
-                let rgb = color.resolve(draftcraft_color::Color::Index(7), draftcraft_color::Color::Index(7));
-                let sw = Rect::from_min_size(pos2(lr.left() + 5.0, lr.center().y - 6.0), vec2(14.0, 12.0));
-                p.rect_filled(sw, 1.0, Color32::from_rgb(rgb.0, rgb.1, rgb.2));
-                let name = COLORS.iter().find(|c| c.1 == cecolor).map(|c| crate::i18n::t(c.0).to_string()).unwrap_or_else(|| color.name());
-                p.with_clip_rect(lr.shrink(2.0)).text(pos2(sw.right() + 6.0, lr.center().y), Align2::LEFT_CENTER, name, label_font(), t.text);
+                if let Some(color) = color {
+                    let rgb = color.resolve(draftcraft_color::Color::Index(7), draftcraft_color::Color::Index(7));
+                    let sw = Rect::from_min_size(pos2(lr.left() + 5.0, lr.center().y - 6.0), vec2(14.0, 12.0));
+                    p.rect_filled(sw, 1.0, Color32::from_rgb(rgb.0, rgb.1, rgb.2));
+                    let named = matches!(color, draftcraft_color::Color::True(_)).then(|| color.name());
+                    let name = named
+                        .or_else(|| COLORS.iter().find(|c| Some(c.1) == cecolor).map(|c| crate::i18n::t(c.0).to_string()))
+                        .unwrap_or_else(|| color.name());
+                    p.with_clip_rect(lr.shrink(2.0)).text(pos2(sw.right() + 6.0, lr.center().y), Align2::LEFT_CENTER, name, label_font(), t.text);
+                }
                 egui::Popup::menu(&resp).width(w).show(|ui| {
                     for (name, aci) in COLORS {
-                        if ui.selectable_label(*aci == cecolor, crate::i18n::t(name)).clicked() {
-                            out.run = Some(("color", json!({ "color": name })));
+                        if ui.selectable_label(Some(*aci) == cecolor, crate::i18n::t(name)).clicked() {
+                            out.prop = Some(Prop { key: "color", value: json!(name), current: ("color", json!({ "color": name })) });
                             ui.close();
                         }
                     }
@@ -1643,19 +1706,21 @@ fn props_lists(app: &CadApp, ui: &mut egui::Ui, r: Rect, id: egui::Id, out: &mut
                     p.hline(icon_c.x - 8.0..=icon_c.x + 8.0, icon_c.y - 5.0 + k as f32 * 5.0, Stroke::new(1.5, t.icon));
                 }
                 let resp = list_box(ui, lr, id.with("ltype"), "Linetype");
-                p.hline(lr.left() + 6.0..=lr.left() + 50.0, lr.center().y, Stroke::new(1.0, t.text));
-                p.with_clip_rect(lr.shrink(2.0)).text(
-                    pos2(lr.right() - 18.0, lr.center().y),
-                    Align2::RIGHT_CENTER,
-                    crate::i18n::t(&celtype),
-                    label_font(),
-                    t.text,
-                );
+                if let Some(celtype) = &celtype {
+                    p.hline(lr.left() + 6.0..=lr.left() + 50.0, lr.center().y, Stroke::new(1.0, t.text));
+                    p.with_clip_rect(lr.shrink(2.0)).text(
+                        pos2(lr.right() - 18.0, lr.center().y),
+                        Align2::RIGHT_CENTER,
+                        crate::i18n::t(celtype),
+                        label_font(),
+                        t.text,
+                    );
+                }
                 egui::Popup::menu(&resp).width(w).show(|ui| {
                     egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
                         for name in &linetypes {
-                            if ui.selectable_label(name.eq_ignore_ascii_case(&celtype), crate::i18n::t(name)).clicked() {
-                                out.run = Some(("linetype", json!({ "current": name })));
+                            if ui.selectable_label(celtype.as_ref().is_some_and(|c| name.eq_ignore_ascii_case(c)), crate::i18n::t(name)).clicked() {
+                                out.prop = Some(Prop { key: "linetype", value: json!(name), current: ("linetype", json!({ "current": name })) });
                                 ui.close();
                             }
                         }
@@ -1672,25 +1737,27 @@ fn props_lists(app: &CadApp, ui: &mut egui::Ui, r: Rect, id: egui::Id, out: &mut
                     p.hline(icon_c.x - 8.0..=icon_c.x + 8.0, icon_c.y - 5.0 + k as f32 * 5.0, Stroke::new(0.8 + k as f32, t.icon));
                 }
                 let resp = list_box(ui, lr, id.with("lweight"), "Lineweight");
-                p.hline(lr.left() + 6.0..=lr.left() + 50.0, lr.center().y, Stroke::new(1.0, t.text));
-                p.with_clip_rect(lr.shrink(2.0)).text(
-                    pos2(lr.right() - 18.0, lr.center().y),
-                    Align2::RIGHT_CENTER,
-                    crate::i18n::t(&lweight_name(celweight)),
-                    label_font(),
-                    t.text,
-                );
+                if let Some(celweight) = celweight {
+                    p.hline(lr.left() + 6.0..=lr.left() + 50.0, lr.center().y, Stroke::new(1.0, t.text));
+                    p.with_clip_rect(lr.shrink(2.0)).text(
+                        pos2(lr.right() - 18.0, lr.center().y),
+                        Align2::RIGHT_CENTER,
+                        crate::i18n::t(&lweight_name(celweight)),
+                        label_font(),
+                        t.text,
+                    );
+                }
                 egui::Popup::menu(&resp).width(w).show(|ui| {
                     egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
                         for code in LWEIGHTS {
-                            if ui.selectable_label(*code == celweight, crate::i18n::t(&lweight_name(*code))).clicked() {
+                            if ui.selectable_label(Some(*code) == celweight, crate::i18n::t(&lweight_name(*code))).clicked() {
                                 let v = match code {
                                     -1 => json!("ByLayer"),
                                     -2 => json!("ByBlock"),
                                     -3 => json!("Default"),
                                     c => json!(*c as f64 / 100.0),
                                 };
-                                out.run = Some(("lweight", json!({ "lineweight": v })));
+                                out.prop = Some(Prop { key: "lineweight", value: v.clone(), current: ("lweight", json!({ "lineweight": v })) });
                                 ui.close();
                             }
                         }
@@ -1701,16 +1768,47 @@ fn props_lists(app: &CadApp, ui: &mut egui::Ui, r: Rect, id: egui::Id, out: &mut
     }
 }
 
+/// What the layer list's menu was clicked for.
+#[derive(Debug, PartialEq)]
+enum LayerPick {
+    /// A layer's name: the selection moves to it, or it becomes the current layer.
+    Layer(String),
+    /// A layer's on, frozen or locked state switched: `layer.set` parameters.
+    Toggle(serde_json::Value),
+}
+
+/// The left edges of a layer row's on, freeze and lock icons, 16 points wide each.
+fn layer_icon_xs(r: Rect) -> [f32; 3] {
+    let x = r.left() + 4.0;
+    [x, x + 18.0, x + 36.0]
+}
+
+/// The state a click at `x` in a layer row switches, as `layer.set` parameters, or `None` when it
+/// is not on one of the icons (the click then picks the layer).
+fn layer_toggle_at(r: Rect, x: f32, (name, on, frozen, locked, _): &(String, bool, bool, bool, Color32)) -> Option<serde_json::Value> {
+    let hit = layer_icon_xs(r).iter().position(|&left| (left - 1.0..left + 17.0).contains(&x))?;
+    Some(match hit {
+        0 => json!({ "name": name, "on": !on }),
+        1 => json!({ "name": name, "frozen": !frozen }),
+        _ => json!({ "name": name, "locked": !locked }),
+    })
+}
+
 /// The current-layer list: the layer's state and colour, its name, and a menu of all layers.
-/// Returns the layer picked from the menu.
-fn layer_list(app: &CadApp, ui: &mut egui::Ui, rect: Rect, id: egui::Id) -> Option<String> {
+/// In the menu, the bulb, sun and lock switch the layer's state, as in AutoCAD's layer control,
+/// and the rest of a row picks the layer.
+fn layer_list(app: &CadApp, ui: &mut egui::Ui, rect: Rect, id: egui::Id) -> Option<LayerPick> {
     let t = Tokens::get();
     let p = ui.painter().clone();
     let Ok(d) = app.session.doc() else {
         p.rect_filled(rect, 2.0, t.chrome_dark);
         return None;
     };
-    let cur = d.header.str("CLAYER", "0");
+    // The selected objects' layer (none when they differ), else the current one.
+    let cur = match selection_shares(app, |e| e.common.layer.clone()) {
+        Some(shared) => shared.unwrap_or_default(),
+        None => d.header.str("CLAYER", "0").to_string(),
+    };
     let layers: Vec<(String, bool, bool, bool, Color32)> = d
         .layers
         .iter()
@@ -1721,15 +1819,15 @@ fn layer_list(app: &CadApp, ui: &mut egui::Ui, rect: Rect, id: egui::Id) -> Opti
         .collect();
     let resp = list_box(ui, rect, id, "Layer");
     let row = |p: &egui::Painter, r: Rect, (name, on, frozen, locked, color): &(String, bool, bool, bool, Color32)| {
-        let mut x = r.left() + 4.0;
-        for icon in [
+        let icons_at = [
             if *on { Icon::Bulb } else { Icon::BulbOff },
             if *frozen { Icon::Snowflake } else { Icon::Sun },
             if *locked { Icon::Lock } else { Icon::Unlock },
-        ] {
+        ];
+        for (icon, x) in icons_at.into_iter().zip(layer_icon_xs(r)) {
             icons::paint(p, Rect::from_min_size(pos2(x, r.center().y - 8.0), vec2(16.0, 16.0)), icon, false);
-            x += 18.0;
         }
+        let x = layer_icon_xs(r)[2] + 18.0;
         let sw = Rect::from_min_size(pos2(x + 2.0, r.center().y - 6.0), vec2(12.0, 12.0));
         p.rect_filled(sw, 1.0, *color);
         p.rect_stroke(sw, 1.0, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
@@ -1739,7 +1837,8 @@ fn layer_list(app: &CadApp, ui: &mut egui::Ui, rect: Rect, id: egui::Id) -> Opti
         row(&p.with_clip_rect(rect.shrink(1.0).with_max_x(rect.right() - 18.0)), rect, info);
     }
     let mut picked = None;
-    egui::Popup::menu(&resp).width(rect.width()).show(|ui| {
+    // Clicks inside leave it open: a row closes it itself, the state icons don't.
+    egui::Popup::menu(&resp).width(rect.width()).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| {
         egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
             for l in &layers {
                 let (r, item) = ui.allocate_exact_size(vec2(rect.width(), 22.0), Sense::click());
@@ -1751,8 +1850,14 @@ fn layer_list(app: &CadApp, ui: &mut egui::Ui, rect: Rect, id: egui::Id) -> Opti
                 row(ui.painter(), r, l);
                 crate::control::record_widget(ui, &item, &l.0, "button", None);
                 if item.clicked() {
-                    picked = Some(l.0.clone());
-                    ui.close();
+                    // On an icon the menu stays open, so several layers can be switched in a row.
+                    match item.interact_pointer_pos().and_then(|pos| layer_toggle_at(r, pos.x, l)) {
+                        Some(params) => picked = Some(LayerPick::Toggle(params)),
+                        None => {
+                            picked = Some(LayerPick::Layer(l.0.clone()));
+                            ui.close();
+                        }
+                    }
                 }
             }
         });
@@ -1763,6 +1868,104 @@ fn layer_list(app: &CadApp, ui: &mut egui::Ui, rect: Rect, id: egui::Id) -> Opti
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn layer_of(app: &CadApp, h: draftcraft_engine::doc::Handle) -> String {
+        app.session.doc().unwrap().entity(h).unwrap().common.layer.clone()
+    }
+
+    /// The ribbon's layer list moves the selected objects to the layer picked, leaving the
+    /// current layer alone; with nothing selected it sets the current layer. Objects on locked
+    /// layers stay where they are, and the command line says so.
+    #[test]
+    fn the_layer_list_moves_the_selection_to_the_layer() {
+        let mut app = CadApp::new(draftcraft_engine::Session::new(), crate::Services::default());
+        app.session.cmdline("line 0,0 10,0").unwrap();
+        app.session.cmdline("").unwrap();
+        app.session.cmdline("circle 50,50 5").unwrap();
+        let d = app.session.doc_mut().unwrap();
+        d.ensure_layer("Walls");
+        d.ensure_layer("Doors");
+        let hs: Vec<_> = d.model.iter().map(|e| e.handle).collect();
+        let (line, circle) = (hs[0], hs[1]);
+        let pick = |name: &str| Prop { key: "layer", value: json!(name), current: ("layer.current", json!({ "name": name })) };
+        // Both selected: both move, CLAYER stays 0, the selection stays.
+        app.session.set_selection(vec![line, circle]);
+        assert_eq!(selection_shares(&app, |e| e.common.layer.clone()), Some(Some("0".to_string())));
+        set_property(&mut app, pick("Walls"));
+        assert_eq!((layer_of(&app, line), layer_of(&app, circle)), ("Walls".into(), "Walls".into()));
+        assert_eq!(app.session.doc().unwrap().header.str("CLAYER", "0"), "0");
+        assert_eq!(app.session.selection(), vec![line, circle]);
+        // One of them on another layer: the list shows none.
+        app.session.set_selection(vec![line]);
+        set_property(&mut app, pick("Doors"));
+        app.session.set_selection(vec![line, circle]);
+        assert_eq!(selection_shares(&app, |e| e.common.layer.clone()), Some(None));
+        // Nothing selected: the current layer changes, no object does.
+        app.session.set_selection(Vec::new());
+        assert_eq!(selection_shares(&app, |e| e.common.layer.clone()), None);
+        set_property(&mut app, pick("Walls"));
+        assert_eq!(app.session.doc().unwrap().header.str("CLAYER", "0"), "Walls");
+        assert_eq!(layer_of(&app, line), "Doors");
+        // On a locked layer: left alone, and said.
+        if let Some(l) = app.session.doc_mut().unwrap().layer_mut("Doors") {
+            l.locked = true;
+        }
+        app.session.set_selection(vec![line, circle]);
+        set_property(&mut app, pick("0"));
+        assert_eq!((layer_of(&app, line), layer_of(&app, circle)), ("Doors".into(), "0".into()));
+        assert!(app.session.log.iter().any(|m| m == "1 object was on a locked layer."), "{:?}", app.session.log);
+    }
+
+    /// In the layer list's menu, the bulb, sun and lock switch that layer's state; the rest of the
+    /// row picks the layer.
+    #[test]
+    fn the_layer_menu_icons_switch_the_layer_state() {
+        let r = Rect::from_min_size(pos2(100.0, 50.0), vec2(220.0, 22.0));
+        let layer = ("Walls".to_string(), true, false, false, Color32::WHITE);
+        let [on, freeze, lock] = layer_icon_xs(r);
+        assert_eq!(layer_toggle_at(r, on + 8.0, &layer), Some(json!({ "name": "Walls", "on": false })));
+        assert_eq!(layer_toggle_at(r, freeze + 8.0, &layer), Some(json!({ "name": "Walls", "frozen": true })));
+        assert_eq!(layer_toggle_at(r, lock + 8.0, &layer), Some(json!({ "name": "Walls", "locked": true })));
+        let off = ("Walls".to_string(), false, true, true, Color32::WHITE);
+        assert_eq!(layer_toggle_at(r, on + 8.0, &off), Some(json!({ "name": "Walls", "on": true })));
+        assert_eq!(layer_toggle_at(r, freeze + 8.0, &off), Some(json!({ "name": "Walls", "frozen": false })));
+        assert_eq!(layer_toggle_at(r, lock + 8.0, &off), Some(json!({ "name": "Walls", "locked": false })));
+        // The swatch and the name pick the layer.
+        assert_eq!(layer_toggle_at(r, lock + 30.0, &layer), None);
+        assert_eq!(layer_toggle_at(r, r.right() - 10.0, &layer), None);
+        // And layer.set does switch it.
+        let mut app = CadApp::new(draftcraft_engine::Session::new(), crate::Services::default());
+        app.session.doc_mut().unwrap().ensure_layer("Walls");
+        for params in
+            [json!({ "name": "Walls", "on": false }), json!({ "name": "Walls", "frozen": true }), json!({ "name": "Walls", "locked": true })]
+        {
+            app.run("layer.set", params).unwrap();
+        }
+        let d = app.session.doc().unwrap();
+        let l = d.layers.iter().find(|l| l.name == "Walls").unwrap();
+        assert_eq!((l.on, l.frozen, l.locked), (false, true, true));
+    }
+
+    /// The colour, linetype and lineweight lists change the selected objects too.
+    #[test]
+    fn the_property_lists_change_the_selection() {
+        let mut app = CadApp::new(draftcraft_engine::Session::new(), crate::Services::default());
+        app.session.cmdline("circle 0,0 5").unwrap();
+        let h = app.session.doc().unwrap().model.last().unwrap().handle;
+        app.session.set_selection(vec![h]);
+        set_property(&mut app, Prop { key: "color", value: json!("Red"), current: ("color", json!({ "color": "Red" })) });
+        set_property(&mut app, Prop { key: "lineweight", value: json!(0.5), current: ("lweight", json!({ "lineweight": 0.5 })) });
+        set_property(&mut app, Prop { key: "linetype", value: json!("ByBlock"), current: ("linetype", json!({ "current": "ByBlock" })) });
+        let d = app.session.doc().unwrap();
+        let e = d.entity(h).unwrap();
+        assert_eq!(e.common.color, draftcraft_color::Color::Index(1));
+        assert_eq!(e.common.lineweight.to_dxf(), 50);
+        assert!(e.common.linetype.eq_ignore_ascii_case("ByBlock"));
+        // The current properties stay as they were.
+        assert_eq!(d.header.i64("CECOLOR", 256), 256);
+        assert_eq!(d.header.i64("CELWEIGHT", -1), -1);
+        assert_eq!(selection_shares(&app, |e| e.common.color), Some(Some(draftcraft_color::Color::Index(1))));
+    }
 
     #[test]
     fn every_ribbon_command_exists() {

@@ -770,6 +770,7 @@
 	Specify center of polygon	Geben Sie den Mittelpunkt des Polygons an
 	Specify center point for circle	Geben Sie den Mittelpunkt des Kreises an
 	Specify center point of arc	Geben Sie den Mittelpunkt des Bogens an
+	Specify center point of arc (hold Ctrl to switch direction)	Geben Sie den Mittelpunkt des Bogens an (Strg halten, um die Richtung zu wechseln)
 	Specify center point of array	Geben Sie den Mittelpunkt der Reihe an
 	Specify center point of base	Geben Sie den Mittelpunkt der Basis an
 	Specify corner of viewport	Geben Sie die Ecke des Ansichtsfensters an
@@ -808,6 +809,7 @@
 	Specify height	Geben Sie die Höhe an
 	Specify helix height	Geben Sie die Höhe der Helix an
 	Specify included angle	Geben Sie den eingeschlossenen Winkel an
+	Specify included angle (hold Ctrl to switch direction)	Geben Sie den eingeschlossenen Winkel an (Strg halten, um die Richtung zu wechseln)
 	Specify insertion base point	Geben Sie den Einfügebasispunkt an
 	Specify insertion point	Geben Sie den Einfügepunkt an
 	Specify inside diameter of donut	Geben Sie den Innendurchmesser des Rings an
@@ -816,6 +818,7 @@
 	Specify leader landing location	Geben Sie die Position des Führungslinienabsatzes an
 	Specify length for rectangles	Geben Sie die Länge für Rechtecke an
 	Specify length of chord	Geben Sie die Länge der Sehne an
+	Specify length of chord (hold Ctrl to switch direction)	Geben Sie die Länge der Sehne an (Strg halten, um die Richtung zu wechseln)
 	Specify length of segment	Geben Sie die Länge des Segments an
 	Specify line width for rectangles	Geben Sie die Linienbreite für Rechtecke an
 	Specify location for new vertex	Geben Sie die Position des neuen Scheitelpunkts an
@@ -834,6 +837,7 @@
 	Specify point on object for second tangent of circle	Geben Sie einen Punkt auf dem Objekt für die zweite Tangente des Kreises an
 	Specify point on side to offset	Geben Sie einen Punkt auf der Seite des Versatzes an
 	Specify radius of arc	Geben Sie den Radius des Bogens an
+	Specify radius of arc (hold Ctrl to switch direction)	Geben Sie den Radius des Bogens an (Strg halten, um die Richtung zu wechseln)
 	Specify radius of circle	Geben Sie den Radius des Kreises an
 	Specify rotation angle	Geben Sie den Drehwinkel an
 	Specify rotation angle of text	Geben Sie den Drehwinkel des Textes an

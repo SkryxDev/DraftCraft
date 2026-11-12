@@ -967,6 +967,7 @@
 	Specify center of polygon	Ange polygonens centrum
 	Specify center point for circle	Ange cirkelns centrumpunkt
 	Specify center point of arc	Ange bågens centrumpunkt
+	Specify center point of arc (hold Ctrl to switch direction)	Ange bågens centrumpunkt (håll ned Ctrl för att byta riktning)
 	Specify center point of array	Ange mönstrets centrumpunkt
 	Specify center point of base	Ange basens centrumpunkt
 	Specify corner of viewport	Ange vyfönstrets hörn
@@ -1005,6 +1006,7 @@
 	Specify height	Ange höjd
 	Specify helix height	Ange helixens höjd
 	Specify included angle	Ange medelpunktsvinkel
+	Specify included angle (hold Ctrl to switch direction)	Ange medelpunktsvinkel (håll ned Ctrl för att byta riktning)
 	Specify insertion base point	Ange insättningens baspunkt
 	Specify insertion point	Ange insättningspunkt
 	Specify inside diameter of donut	Ange ringens innerdiameter
@@ -1013,6 +1015,7 @@
 	Specify leader landing location	Ange placering för hänvisningslinjens avsats
 	Specify length for rectangles	Ange längd för rektanglar
 	Specify length of chord	Ange kordans längd
+	Specify length of chord (hold Ctrl to switch direction)	Ange kordans längd (håll ned Ctrl för att byta riktning)
 	Specify length of segment	Ange segmentets längd
 	Specify line width for rectangles	Ange linjebredd för rektanglar
 	Specify location for new vertex	Ange placering för ny hörnpunkt
@@ -1031,6 +1034,7 @@
 	Specify point on object for second tangent of circle	Ange punkt på objektet för cirkelns andra tangent
 	Specify point on side to offset	Ange punkt på den sida som ska förskjutas
 	Specify radius of arc	Ange bågens radie
+	Specify radius of arc (hold Ctrl to switch direction)	Ange bågens radie (håll ned Ctrl för att byta riktning)
 	Specify radius of circle	Ange cirkelns radie
 	Specify rotation angle	Ange rotationsvinkel
 	Specify rotation angle of text	Ange textens rotationsvinkel

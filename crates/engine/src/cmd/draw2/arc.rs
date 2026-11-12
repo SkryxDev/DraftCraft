@@ -65,18 +65,22 @@ impl ArcV {
         const S: &str = "Specify start point of arc";
         const C: &str = "Specify center point of arc";
         const E: &str = "Specify end point of arc";
-        const A: &str = "Specify included angle";
-        const L: &str = "Specify length of chord";
+        // The last prompt of every variant whose direction Ctrl switches says so, as
+        // AutoCAD's does.
+        const EC: &str = "Specify end point of arc (hold Ctrl to switch direction)";
+        const CC: &str = "Specify center point of arc (hold Ctrl to switch direction)";
+        const A: &str = "Specify included angle (hold Ctrl to switch direction)";
+        const L: &str = "Specify length of chord (hold Ctrl to switch direction)";
         match self {
             ArcV::ThreeP => &[(S, Ask::Point), ("Specify second point of arc", Ask::Point), (E, Ask::Point)],
-            ArcV::Sec => &[(S, Ask::Point), (E, Ask::Point), (C, Ask::Point)],
-            ArcV::Sce => &[(S, Ask::Point), (C, Ask::Point), (E, Ask::Point)],
+            ArcV::Sec => &[(S, Ask::Point), (E, Ask::Point), (CC, Ask::Point)],
+            ArcV::Sce => &[(S, Ask::Point), (C, Ask::Point), (EC, Ask::Point)],
             ArcV::Sca => &[(S, Ask::Point), (C, Ask::Point), (A, Ask::Sweep(1, 0))],
             ArcV::Scl => &[(S, Ask::Point), (C, Ask::Point), (L, Ask::Dist(0))],
             ArcV::Sea => &[(S, Ask::Point), (E, Ask::Point), (A, Ask::Angle(0))],
             ArcV::Sed => &[(S, Ask::Point), (E, Ask::Point), ("Specify tangent direction for the start point of arc", Ask::Angle(0))],
-            ArcV::Ser => &[(S, Ask::Point), (E, Ask::Point), ("Specify radius of arc", Ask::Dist(1))],
-            ArcV::Cse => &[(C, Ask::Point), (S, Ask::Point), ("Specify end point of arc (hold Ctrl to switch direction)", Ask::Point)],
+            ArcV::Ser => &[(S, Ask::Point), (E, Ask::Point), ("Specify radius of arc (hold Ctrl to switch direction)", Ask::Dist(1))],
+            ArcV::Cse => &[(C, Ask::Point), (S, Ask::Point), (EC, Ask::Point)],
             ArcV::Csa => &[(C, Ask::Point), (S, Ask::Point), (A, Ask::Sweep(0, 1))],
             ArcV::Csl => &[(C, Ask::Point), (S, Ask::Point), (L, Ask::Dist(1))],
             ArcV::CircleCd => &[("Specify center point for circle", Ask::Point), ("Specify diameter of circle", Ask::Dist(0))],
@@ -90,28 +94,36 @@ impl ArcV {
             ],
         }
     }
+    /// Builds the entity from the values. `ctrl` (Ctrl, or Cmd on macOS, held) switches the
+    /// arc to the other direction, clockwise from the start point instead of counter-clockwise:
+    ///
+    /// * start/center/end picked (`Sce`, `Sec`, `Cse`): the same two endpoints on the same
+    ///   circle, walking the other way around, so the start/end angles swap;
+    /// * start, end and angle or radius (`Sea`, `Ser`): the same sweep or radius bulging to the
+    ///   other side of the chord;
+    /// * start, center and chord length (`Scl`, `Csl`): the same chord, clockwise from the start;
+    /// * included angle (`Sca`, `Csa`): already signed when the value was taken (see
+    ///   `SeqM::value_from_point`), because a picked angle must keep ending at the cursor.
     fn build(self, v: &[Val], ctrl: bool) -> Option<EntityKind> {
         let p = |i: usize| v.get(i).and_then(|x| x.p());
         let n = |i: usize| v.get(i).and_then(|x| x.n());
+        let swap = |a: Arc| if ctrl { Arc::new(a.center, a.radius, a.end, a.start) } else { a };
         let a = match self {
             ArcV::ThreeP => Arc::from_3_points(p(0)?, p(1)?, p(2)?),
-            ArcV::Sec => Some(Arc::from_start_center_end(p(0)?, p(2)?, p(1)?)),
-            ArcV::Sce => Some(Arc::from_start_center_end(p(0)?, p(1)?, p(2)?)),
+            ArcV::Sec => Some(swap(Arc::from_start_center_end(p(0)?, p(2)?, p(1)?))),
+            ArcV::Sce => Some(swap(Arc::from_start_center_end(p(0)?, p(1)?, p(2)?))),
             ArcV::Sca => curves::arc_sca(p(0)?, p(1)?, n(2)?),
-            ArcV::Scl => curves::arc_scl(p(0)?, p(1)?, n(2)?),
-            ArcV::Sea => curves::arc_sea(p(0)?, p(1)?, n(2)?),
+            ArcV::Scl => curves::arc_scl(p(0)?, p(1)?, n(2)?).map(|a| if ctrl { clockwise_from_start(a) } else { a }),
+            ArcV::Sea => curves::arc_sea(p(0)?, p(1)?, if ctrl { -n(2)? } else { n(2)? }),
             ArcV::Sed => curves::arc_sed(p(0)?, p(1)?, Vec2::from_angle(n(2)?)),
+            // Counter-clockwise from the end back to the start is clockwise from the start.
+            ArcV::Ser if ctrl => curves::arc_ser(p(1)?, p(0)?, n(2)?),
             ArcV::Ser => curves::arc_ser(p(0)?, p(1)?, n(2)?),
-            // Center, Start, End. Ctrl keeps the two endpoints on the circle and walks the
-            // other way around: swapping the start/end angles is the mirror arc through the
-            // same two endpoints. (Continue below flips differently, by negating the start
+            // Center, Start, End. (Continue below flips differently, by negating the start
             // tangent; both are "reverse", but only here is the chord fixed by the picks.)
-            ArcV::Cse => {
-                let a = Arc::from_start_center_end(p(1)?, p(0)?, p(2)?);
-                Some(if ctrl { Arc::new(a.center, a.radius, a.end, a.start) } else { a })
-            }
+            ArcV::Cse => Some(swap(Arc::from_start_center_end(p(1)?, p(0)?, p(2)?))),
             ArcV::Csa => curves::arc_sca(p(1)?, p(0)?, n(2)?),
-            ArcV::Csl => curves::arc_scl(p(1)?, p(0)?, n(2)?),
+            ArcV::Csl => curves::arc_scl(p(1)?, p(0)?, n(2)?).map(|a| if ctrl { clockwise_from_start(a) } else { a }),
             ArcV::CircleCd => {
                 let d = n(1)?.abs();
                 let c = p(0)?;
@@ -128,6 +140,13 @@ impl ArcV {
         }?;
         (a.radius > 1e-12 && a.radius.is_finite() && a.center.is_finite()).then(|| arc(&a))
     }
+}
+
+/// The counter-clockwise arc `a`, which starts at its start point, turned to sweep the same
+/// angle clockwise from that point instead.
+fn clockwise_from_start(a: Arc) -> Arc {
+    let sweep = norm_angle(a.end - a.start);
+    Arc::new(a.center, a.radius, a.start - sweep, a.start)
 }
 
 impl ArcV {
@@ -165,14 +184,17 @@ impl SeqM {
     fn ask(&self) -> Option<(&'static str, Ask)> {
         self.v.steps().get(self.vals.len()).copied()
     }
-    fn value_from_point(&self, ask: Ask, q: Vec2) -> Option<Val> {
+    /// The value a picked point gives. With `ctrl` an included angle is measured clockwise
+    /// (negative), so the arc still ends on the ray through the cursor but goes the other way.
+    fn value_from_point(&self, ask: Ask, q: Vec2, ctrl: bool) -> Option<Val> {
         let pt = |i: usize| self.vals.get(i).and_then(|x| x.p());
         Some(match ask {
             Ask::Point => Val::P(q),
             Ask::Angle(b) => Val::N(pt(b)?.angle_to(q)),
             Ask::Sweep(c, f) => {
                 let c = pt(c)?;
-                Val::N(norm_angle(c.angle_to(q) - c.angle_to(pt(f)?)))
+                let ccw = norm_angle(c.angle_to(q) - c.angle_to(pt(f)?));
+                Val::N(if ctrl && ccw > 0.0 { ccw - std::f64::consts::TAU } else { ccw })
             }
             Ask::Dist(b) => Val::N(pt(b)?.dist(q)),
         })
@@ -235,12 +257,14 @@ impl Interactive for SeqM {
         }
         let Some((_, ask)) = self.ask() else { return Ok(Step::Done) };
         let val = match (&i, ask) {
-            (Input::Point(q), _) => self.value_from_point(ask, *q),
+            (Input::Point(q), _) => self.value_from_point(ask, *q, s.ctrl_down),
             (Input::Text(t), Ask::Angle(_) | Ask::Sweep(..)) => {
                 // The tangent direction is a direction; included angles are sizes.
                 let au = s.angle_settings();
                 let a = if self.v == ArcV::Sed { au.direction(t) } else { au.amount(t) };
-                Some(Val::N(a.ok_or_else(|| other("Requires a valid angle."))?))
+                let a = a.ok_or_else(|| other("Requires a valid angle."))?;
+                // A typed included angle is signed already; Ctrl reverses it like a picked one.
+                Some(Val::N(if s.ctrl_down && matches!(ask, Ask::Sweep(..)) { -a } else { a }))
             }
             (Input::Text(t), Ask::Dist(_)) => Some(Val::N(number(t).ok_or_else(|| other("Requires numeric distance or a point."))?)),
             (Input::Enter, _) => return Ok(Step::Cancel),
@@ -274,7 +298,7 @@ impl Interactive for SeqM {
             return curves::arc_sed(st, c, d).map(|a| vec![arc(&a)]).unwrap_or_default();
         }
         let Some((_, ask)) = self.ask() else { return Vec::new() };
-        let Some(v) = self.value_from_point(ask, c) else { return Vec::new() };
+        let Some(v) = self.value_from_point(ask, c, s.ctrl_down) else { return Vec::new() };
         let mut vals = self.vals.clone();
         vals.push(v);
         let mut out: Vec<EntityKind> = self.base().map(|b| vec![line(b, c)]).unwrap_or_default();

@@ -771,6 +771,7 @@
 	Specify center of polygon	指定多边形中心
 	Specify center point for circle	指定圆的圆心
 	Specify center point of arc	指定圆弧的中心点
+	Specify center point of arc (hold Ctrl to switch direction)	指定圆弧的中心点（按住 Ctrl 切换方向）
 	Specify center point of array	指定阵列中心点
 	Specify center point of base	指定基准中心点
 	Specify corner of viewport	指定视口角点
@@ -809,6 +810,7 @@
 	Specify height	指定高度
 	Specify helix height	Specify helix height
 	Specify included angle	指定夹角
+	Specify included angle (hold Ctrl to switch direction)	指定夹角（按住 Ctrl 切换方向）
 	Specify insertion base point	指定插入基点
 	Specify insertion point	指定插入点
 	Specify inside diameter of donut	指定圆环内径
@@ -817,6 +819,7 @@
 	Specify leader landing location	指定引线尾巴位置
 	Specify length for rectangles	指定矩形长度
 	Specify length of chord	指定弦长
+	Specify length of chord (hold Ctrl to switch direction)	指定弦长（按住 Ctrl 切换方向）
 	Specify length of segment	指定段长
 	Specify line width for rectangles	指定矩形线宽
 	Specify location for new vertex	指定新顶点位置
@@ -835,6 +838,7 @@
 	Specify point on object for second tangent of circle	在对象上指定圆的第二条切线点
 	Specify point on side to offset	指定要偏移在哪一侧的点
 	Specify radius of arc	指定圆弧半径
+	Specify radius of arc (hold Ctrl to switch direction)	指定圆弧半径（按住 Ctrl 切换方向）
 	Specify radius of circle	指定圆半径
 	Specify rotation angle	指定旋转角度
 	Specify rotation angle of text	指定文字旋转角度

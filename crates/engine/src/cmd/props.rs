@@ -664,15 +664,23 @@ pub(crate) const UNIT_RANGES: [(&str, i64, i64); 5] = [("lunits", 1, 5), ("lupre
 
 fn run_units(s: &mut Session, p: &Value) -> Result<Value> {
     let d = s.doc_mut()?;
+    let before = crate::units::DrawingUnits::of(d);
     for (k, lo, hi) in UNIT_RANGES {
         if let Some(v) = p.get(k).and_then(Value::as_i64) {
             d.header.set_i64(&k.to_ascii_uppercase(), v.clamp(lo, hi));
         }
     }
+    // Dimension styles that showed the drawing's units follow them (see dim_styles_follow_units).
+    let styles = crate::units::dim_styles_follow_units(d, before);
     let h = &d.header;
-    Ok(
-        json!({ "lunits": h.i64("LUNITS", 2), "luprec": h.i64("LUPREC", 4), "aunits": h.i64("AUNITS", 0), "auprec": h.i64("AUPREC", 0), "insunits": h.i64("INSUNITS", 1) }),
-    )
+    Ok(json!({
+        "lunits": h.i64("LUNITS", 2),
+        "luprec": h.i64("LUPREC", 4),
+        "aunits": h.i64("AUNITS", 0),
+        "auprec": h.i64("AUPREC", 0),
+        "insunits": h.i64("INSUNITS", 1),
+        "dimStyles": styles,
+    }))
 }
 
 fn run_limits(s: &mut Session, p: &Value) -> Result<Value> {

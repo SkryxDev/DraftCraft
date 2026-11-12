@@ -1050,6 +1050,7 @@
 	Specify center of polygon	Çokgenin merkezini belirtin
 	Specify center point for circle	Dairenin merkez noktasını belirtin
 	Specify center point of arc	Yayın merkez noktasını belirtin
+	Specify center point of arc (hold Ctrl to switch direction)	Yayın merkez noktasını belirtin (yönü değiştirmek için Ctrl'yi basılı tutun)
 	Specify center point of array	Dizinin merkez noktasını belirtin
 	Specify center point of base	Tabanın merkez noktasını belirtin
 	Specify corner of viewport	Görünüm penceresinin köşesini belirtin
@@ -1088,6 +1089,7 @@
 	Specify height	Yüksekliği belirtin
 	Specify helix height	Helezon yüksekliğini belirtin
 	Specify included angle	İç açıyı belirtin
+	Specify included angle (hold Ctrl to switch direction)	İç açıyı belirtin (yönü değiştirmek için Ctrl'yi basılı tutun)
 	Specify insertion base point	Ekleme taban noktasını belirtin
 	Specify insertion point	Ekleme noktasını belirtin
 	Specify inside diameter of donut	Halkanın iç çapını belirtin
@@ -1096,6 +1098,7 @@
 	Specify leader landing location	Kılavuz bağlantı konumunu belirtin
 	Specify length for rectangles	Dikdörtgenler için uzunluğu belirtin
 	Specify length of chord	Kirişin uzunluğunu belirtin
+	Specify length of chord (hold Ctrl to switch direction)	Kirişin uzunluğunu belirtin (yönü değiştirmek için Ctrl'yi basılı tutun)
 	Specify length of segment	Parçanın uzunluğunu belirtin
 	Specify line width for rectangles	Dikdörtgenler için çizgi genişliğini belirtin
 	Specify location for new vertex	Yeni köşe noktasının konumunu belirtin
@@ -1114,6 +1117,7 @@
 	Specify point on object for second tangent of circle	Dairenin ikinci teğeti için nesne üzerinde nokta belirtin
 	Specify point on side to offset	Ötelenecek taraftaki noktayı belirtin
 	Specify radius of arc	Yayın yarıçapını belirtin
+	Specify radius of arc (hold Ctrl to switch direction)	Yayın yarıçapını belirtin (yönü değiştirmek için Ctrl'yi basılı tutun)
 	Specify radius of circle	Dairenin yarıçapını belirtin
 	Specify rotation angle	Döndürme açısını belirtin
 	Specify rotation angle of text	Metnin döndürme açısını belirtin

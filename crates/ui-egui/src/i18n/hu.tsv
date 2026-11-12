@@ -1049,6 +1049,7 @@
 	Specify center of polygon	Add meg a sokszög középpontját
 	Specify center point for circle	Add meg a kör középpontját
 	Specify center point of arc	Add meg az ív középpontját
+	Specify center point of arc (hold Ctrl to switch direction)	Add meg az ív középpontját (a Ctrl nyomva tartásával irányt válthatsz)
 	Specify center point of array	Add meg a kiosztás középpontját
 	Specify center point of base	Add meg az alap középpontját
 	Specify corner of viewport	Add meg a nézetablak sarkát
@@ -1087,6 +1088,7 @@
 	Specify height	Add meg a magasságot
 	Specify helix height	Add meg a csavarvonal magasságát
 	Specify included angle	Add meg a középponti szöget
+	Specify included angle (hold Ctrl to switch direction)	Add meg a középponti szöget (a Ctrl nyomva tartásával irányt válthatsz)
 	Specify insertion base point	Add meg a beszúrási bázispontot
 	Specify insertion point	Add meg a beszúrási pontot
 	Specify inside diameter of donut	Add meg a gyűrű belső átmérőjét
@@ -1095,6 +1097,7 @@
 	Specify leader landing location	Add meg a mutatóvonal vállának helyét
 	Specify length for rectangles	Add meg a téglalapok hosszát
 	Specify length of chord	Add meg a húr hosszát
+	Specify length of chord (hold Ctrl to switch direction)	Add meg a húr hosszát (a Ctrl nyomva tartásával irányt válthatsz)
 	Specify length of segment	Add meg a szakasz hosszát
 	Specify line width for rectangles	Add meg a téglalapok vonalszélességét
 	Specify location for new vertex	Add meg az új csúcspont helyét
@@ -1113,6 +1116,7 @@
 	Specify point on object for second tangent of circle	Add meg az objektumon a kör második érintési pontját
 	Specify point on side to offset	Adj meg egy pontot az eltolás oldalán
 	Specify radius of arc	Add meg az ív sugarát
+	Specify radius of arc (hold Ctrl to switch direction)	Add meg az ív sugarát (a Ctrl nyomva tartásával irányt válthatsz)
 	Specify radius of circle	Add meg a kör sugarát
 	Specify rotation angle	Add meg az elforgatási szöget
 	Specify rotation angle of text	Add meg a szöveg elforgatási szögét

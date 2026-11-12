@@ -142,6 +142,7 @@ impl Interactive for DashUnits {
             Input::Keyword(k) => Some(k.as_str()),
             _ => return Ok(Step::Continue),
         };
+        let before = crate::units::DrawingUnits::of(s.doc()?);
         let h = &mut s.doc_mut()?.header;
         match self.ask {
             Ask::LengthFormat => {
@@ -208,6 +209,8 @@ impl Interactive for DashUnits {
                 return Ok(Step::Done);
             }
         }
+        // Dimension styles that showed the drawing's units follow them, as with UNITS.
+        crate::units::dim_styles_follow_units(s.doc_mut()?, before);
         Ok(Step::Continue)
     }
 }

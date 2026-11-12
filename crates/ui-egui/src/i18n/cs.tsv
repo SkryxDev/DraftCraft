@@ -885,6 +885,7 @@
 	Specify center of polygon	Určete střed mnohoúhelníku
 	Specify center point for circle	Určete středový bod kružnice
 	Specify center point of arc	Určete středový bod oblouku
+	Specify center point of arc (hold Ctrl to switch direction)	Určete středový bod oblouku (podržením Ctrl přepnete směr)
 	Specify center point of array	Určete středový bod pole
 	Specify center point of base	Určete středový bod základny
 	Specify corner of viewport	Určete roh výřezu
@@ -923,6 +924,7 @@
 	Specify height	Určete výšku
 	Specify helix height	Určete výšku šroubovice
 	Specify included angle	Určete středový úhel
+	Specify included angle (hold Ctrl to switch direction)	Určete středový úhel (podržením Ctrl přepnete směr)
 	Specify insertion base point	Určete základní bod vložení
 	Specify insertion point	Určete bod vložení
 	A drawing opened from a file keeps that file's format.	Výkres otevřený ze souboru si zachová formát tohoto souboru.
@@ -966,6 +968,7 @@
 	Specify leader landing location	Určete polohu zakončení odkazu
 	Specify length for rectangles	Určete délku obdélníků
 	Specify length of chord	Určete délku tětivy
+	Specify length of chord (hold Ctrl to switch direction)	Určete délku tětivy (podržením Ctrl přepnete směr)
 	Specify length of segment	Určete délku segmentu
 	Specify line width for rectangles	Určete šířku čáry obdélníků
 	Specify location for new vertex	Určete polohu nového vrcholu
@@ -984,6 +987,7 @@
 	Specify point on object for second tangent of circle	Určete bod na objektu pro druhou tečnu kružnice
 	Specify point on side to offset	Určete bod na straně pro ekvidistantu
 	Specify radius of arc	Určete poloměr oblouku
+	Specify radius of arc (hold Ctrl to switch direction)	Určete poloměr oblouku (podržením Ctrl přepnete směr)
 	Specify radius of circle	Určete poloměr kružnice
 	Specify rotation angle	Určete úhel otočení
 	Specify rotation angle of text	Určete úhel otočení textu

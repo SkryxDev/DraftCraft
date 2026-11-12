@@ -277,7 +277,9 @@ fn navigate_canvas(app: &mut CadApp, ui: &mut egui::Ui, nav: &Navigation<'_>) ->
     let p = nav.pointer;
     let inside = p.hover_pos.is_some_and(|at| nav.rect.contains(at) && ui.ctx().layer_id_at(at) == Some(ui.layer_id()) && nav.response.hovered());
     let on_menu = p.hover_pos.is_some_and(|at| over_canvas_menu(app, at));
-    app.session.ctrl_down = p.mods.ctrl;
+    // ARC's "hold Ctrl to switch direction": Ctrl everywhere, and Cmd too on macOS (`mac_cmd`;
+    // `command` is Cmd there and Ctrl elsewhere), where a Ctrl-click can turn into a right click.
+    app.session.ctrl_down = p.mods.ctrl || p.mods.command || p.mods.mac_cmd;
     ui.input(|i| {
         for event in &i.raw.events {
             if let egui::Event::MouseWheel { unit, .. } = event {

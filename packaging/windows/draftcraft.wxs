@@ -62,10 +62,25 @@
         </File>
 
         <RegistryValue Root="HKMU" Key="Software\Microsoft\Windows\CurrentVersion\App Paths\draftcraft.exe" Value="[#DraftcraftExe]" Type="string" />
+
+        <!-- DXF and DWG files: DraftCraft is offered in "Open with" and can be chosen as their
+             default app, but never takes them over by itself (Windows asks the user). HKMU follows
+             the install's context: HKCU\Software\Classes for one account, HKLM for everyone. -->
         <RegistryValue Root="HKMU" Key="Software\Classes\Applications\draftcraft.exe\shell\open\command" Value="&quot;[#DraftcraftExe]&quot; &quot;%1&quot;" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\Applications\draftcraft.exe" Name="FriendlyAppName" Value="DraftCraft" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\Applications\draftcraft.exe\SupportedTypes" Name=".dxf" Value="" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\Applications\draftcraft.exe\SupportedTypes" Name=".dwg" Value="" Type="string" />
         <RegistryValue Root="HKMU" Key="Software\Classes\.dxf\OpenWithProgids" Name="DraftCraft.Drawing" Value="" Type="string" />
         <RegistryValue Root="HKMU" Key="Software\Classes\.dwg\OpenWithProgids" Name="DraftCraft.Drawing" Value="" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\DraftCraft.Drawing" Value="DraftCraft drawing" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\Classes\DraftCraft.Drawing\DefaultIcon" Value="[#DraftcraftExe],0" Type="string" />
         <RegistryValue Root="HKMU" Key="Software\Classes\DraftCraft.Drawing\shell\open\command" Value="&quot;[#DraftcraftExe]&quot; &quot;%1&quot;" Type="string" />
+        <!-- Settings > Apps > Default apps lists the app from its capabilities. -->
+        <RegistryValue Root="HKMU" Key="Software\DraftCraft\Capabilities" Name="ApplicationName" Value="DraftCraft" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\DraftCraft\Capabilities" Name="ApplicationDescription" Value="Computer-aided design and drafting" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\DraftCraft\Capabilities\FileAssociations" Name=".dxf" Value="DraftCraft.Drawing" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\DraftCraft\Capabilities\FileAssociations" Name=".dwg" Value="DraftCraft.Drawing" Type="string" />
+        <RegistryValue Root="HKMU" Key="Software\RegisteredApplications" Name="DraftCraft" Value="Software\DraftCraft\Capabilities" Type="string" />
       <RegistryValue Root="HKMU" Key="Software\DraftCraft" Name="InstallDir" Value="[INSTALLFOLDER]" Type="string" />
       </Component>
 

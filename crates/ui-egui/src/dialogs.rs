@@ -198,7 +198,7 @@ fn tracking_options(ui: &mut egui::Ui, s: &mut draftcraft_engine::Settings) {
 }
 
 /// LUNITS values in the order the Type list shows them.
-const LENGTH_TYPES: [(i64, &str); 5] = [(4, "Architectural"), (2, "Decimal"), (3, "Engineering"), (5, "Fractional"), (1, "Scientific")];
+const LENGTH_TYPES: [(i64, &str); 5] = crate::chrome::units::LENGTH_FORMATS;
 /// AUNITS values.
 const ANGLE_TYPES: [(i64, &str); 5] = [(0, "Decimal Degrees"), (1, "Deg/Min/Sec"), (2, "Grads"), (3, "Radians"), (4, "Surveyor's Units")];
 /// INSUNITS names, indexed by value (DXF Reference, header group code 70).

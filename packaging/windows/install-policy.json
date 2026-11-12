@@ -47,6 +47,66 @@
     ],
     [
       "-1",
+      "Software\\Classes\\Applications\\draftcraft.exe",
+      "FriendlyAppName",
+      "DraftCraft"
+    ],
+    [
+      "-1",
+      "Software\\Classes\\Applications\\draftcraft.exe\\SupportedTypes",
+      ".dxf",
+      ""
+    ],
+    [
+      "-1",
+      "Software\\Classes\\Applications\\draftcraft.exe\\SupportedTypes",
+      ".dwg",
+      ""
+    ],
+    [
+      "-1",
+      "Software\\Classes\\DraftCraft.Drawing",
+      "",
+      "DraftCraft drawing"
+    ],
+    [
+      "-1",
+      "Software\\Classes\\DraftCraft.Drawing\\DefaultIcon",
+      "",
+      "[#DraftcraftExe],0"
+    ],
+    [
+      "-1",
+      "Software\\DraftCraft\\Capabilities",
+      "ApplicationName",
+      "DraftCraft"
+    ],
+    [
+      "-1",
+      "Software\\DraftCraft\\Capabilities",
+      "ApplicationDescription",
+      "Computer-aided design and drafting"
+    ],
+    [
+      "-1",
+      "Software\\DraftCraft\\Capabilities\\FileAssociations",
+      ".dxf",
+      "DraftCraft.Drawing"
+    ],
+    [
+      "-1",
+      "Software\\DraftCraft\\Capabilities\\FileAssociations",
+      ".dwg",
+      "DraftCraft.Drawing"
+    ],
+    [
+      "-1",
+      "Software\\RegisteredApplications",
+      "DraftCraft",
+      "Software\\DraftCraft\\Capabilities"
+    ],
+    [
+      "-1",
       "Software\\Skryx Dev\\DraftCraft",
       "DesktopShortcut",
       "1"
