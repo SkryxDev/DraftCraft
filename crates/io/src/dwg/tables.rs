@@ -5,11 +5,12 @@
 use std::collections::{HashMap, HashSet};
 
 use draftcraft_color::{Color, Rgb};
-use draftcraft_doc::{DashElement, Drawing, Layer, Linetype, Lineweight, TextStyle};
+use draftcraft_doc::{DashElement, DimStyle, Drawing, HVal, Layer, Linetype, Lineweight, NamedView, TextStyle, Ucs, VportConfig, VportTile};
 use draftcraft_dwg::DwgVersion as V;
 use draftcraft_dwg::file::{ColorValue, DwgFile, ObjectReader, ObjectRef, XDataItem};
 use draftcraft_dwg::records::Result as DwgResult;
-use draftcraft_geom::Vec2;
+use draftcraft_dxf::Tag;
+use draftcraft_geom::{Vec2, Vec3};
 
 use super::Unread;
 use crate::dxf_read::style_font_of;
@@ -27,6 +28,8 @@ pub(super) struct Tables {
     /// Text styles; an unnamed shape style is here under its shape file.
     pub styles: HashMap<u64, String>,
     pub layers: HashMap<u64, String>,
+    pub dim_styles: HashMap<u64, String>,
+    pub ucss: HashMap<u64, String>,
     /// The handles of the objects this category read.
     pub read: HashSet<u64>,
 }
@@ -299,4 +302,443 @@ fn layer(r: &mut ObjectReader, t: &Tables) -> DwgResult<(Layer, u64)> {
         l.linetype.clone_from(n);
     }
     Ok((l, plot_style))
+}
+
+/// A colour as an AutoCAD Color Index number (0 ByBlock, 256 ByLayer), as a dimension style holds
+/// its colours. Before AutoCAD 2004 the number is the colour's index field.
+fn aci((c, index): (ColorValue, i16)) -> i64 {
+    match c {
+        ColorValue::ByBlock => 0,
+        ColorValue::Index(i) => i64::from(i),
+        ColorValue::Rgb(r, g, b) => i64::from(draftcraft_color::nearest_aci(Rgb::from_u32(u32::from(r) << 16 | u32::from(g) << 8 | u32::from(b)))),
+        ColorValue::ByLayer | ColorValue::None if index != 0 => i64::from(index.unsigned_abs().min(256)),
+        ColorValue::ByLayer | ColorValue::None => 256,
+    }
+}
+
+/// The names of records by handle as the DXF reader's tables hold them: by the handle in
+/// hexadecimal.
+fn by_hex(names: &HashMap<u64, String>) -> HashMap<String, String> {
+    names.iter().map(|(h, n)| (format!("{h:X}"), n.clone())).collect()
+}
+
+/// The second group of tables: dimension styles, views, UCSs and viewport configurations.
+/// `blocks` names the block records, for a dimension style's arrowheads.
+pub(super) fn read_more(file: &DwgFile, objects: &[ObjectRef], blocks: &HashMap<u64, String>, t: &mut Tables, d: &mut Drawing, unread: &mut Unread) {
+    let of = |name: &'static str| objects.iter().filter(move |o| o.type_name == name).take(MAX_RECORDS);
+    let (styles, mut arrows, ltypes) = (by_hex(&t.styles), by_hex(blocks), by_hex(&t.linetypes));
+    for o in of("DIMSTYLE") {
+        match file.read_object(o).and_then(|mut r| dim_style(&mut r, &t.apps, &styles, &mut arrows, &ltypes)) {
+            Ok(st) => {
+                t.dim_styles.insert(o.handle, st.name.clone());
+                if !st.name.is_empty() {
+                    put(&mut d.dim_styles, st, |x| &x.name);
+                }
+                t.read.insert(o.handle);
+            }
+            Err(_) => unread.count("DIMSTYLE (not decoded)"),
+        }
+    }
+    for o in of("UCS") {
+        match file.read_object(o).and_then(|mut r| ucs(&mut r)) {
+            Ok(u) => {
+                t.ucss.insert(o.handle, u.name.clone());
+                let finite = [u.origin, u.x_axis, u.y_axis].iter().all(|p| p.x.is_finite() && p.y.is_finite() && p.z.is_finite());
+                if !u.name.is_empty() && finite {
+                    put(&mut d.ucss, u, |x| &x.name);
+                }
+                t.read.insert(o.handle);
+            }
+            Err(_) => unread.count("UCS (not decoded)"),
+        }
+    }
+    for o in of("VIEW") {
+        match file.read_object(o).and_then(|mut r| view(&mut r, &t.apps)) {
+            Ok(v) => {
+                if let Some(v) = v {
+                    put(&mut d.views, v, |x| &x.name);
+                }
+                t.read.insert(o.handle);
+            }
+            Err(_) => unread.count("VIEW (not decoded)"),
+        }
+    }
+    let mut active = false;
+    for o in of("VPORT") {
+        match file.read_object(o).and_then(|mut r| vport(&mut r)) {
+            Ok(v) => {
+                // The first *Active viewport holds the current snap and grid settings.
+                if !active && v.name.eq_ignore_ascii_case(VportConfig::ACTIVE) {
+                    active = true;
+                    if v.snap_spacing.is_finite() && v.snap_spacing.x > 0.0 && v.snap_spacing.y > 0.0 {
+                        d.header.set("SNAPUNIT", HVal::Point(v.snap_spacing.to3(0.0)));
+                    }
+                    if v.grid_spacing.is_finite() && v.grid_spacing.x >= 0.0 && v.grid_spacing.y >= 0.0 {
+                        d.header.set("GRIDUNIT", HVal::Point(v.grid_spacing.to3(0.0)));
+                    }
+                    if v.snap_base.is_finite() {
+                        d.header.set("SNAPBASE", HVal::Point(v.snap_base.to3(0.0)));
+                    }
+                    if v.snap_rotation.is_finite() {
+                        d.header.set_f64("SNAPANG", v.snap_rotation.to_degrees());
+                    }
+                }
+                if let Some(tile) = v.tile {
+                    let name = if v.name.eq_ignore_ascii_case(VportConfig::ACTIVE) { VportConfig::ACTIVE.to_string() } else { v.name };
+                    match d.vports.iter_mut().find(|c| c.name.eq_ignore_ascii_case(&name)) {
+                        Some(c) if c.tiles.len() < MAX_VPORT_TILES => c.tiles.push(tile),
+                        Some(_) => {}
+                        None => d.vports.push(VportConfig { name, tiles: vec![tile] }),
+                    }
+                }
+                t.read.insert(o.handle);
+            }
+            Err(_) => unread.count("VPORT (not decoded)"),
+        }
+    }
+    // One *Active viewport is no tiling: the view is the editor's, kept only for its twist.
+    d.vports.retain(|c| c.tiles.len() > usize::from(c.is_active()) || c.tiles.first().is_some_and(|t| t.twist != 0.0));
+}
+
+/// Most tiles a viewport configuration keeps.
+const MAX_VPORT_TILES: usize = 64;
+
+/// DIMSTYLE (specification §20.4.68). Each variable is set in the drawing's style through its DXF
+/// group code, by the same table the DXF reader uses, so a variable means the same from either
+/// format.
+fn dim_style(
+    r: &mut ObjectReader,
+    apps: &HashMap<u64, String>,
+    styles: &HashMap<String, String>,
+    arrows: &mut HashMap<String, String>,
+    ltypes: &HashMap<String, String>,
+) -> DwgResult<DimStyle> {
+    let name = record_name(r)?;
+    let ver = r.version();
+    let old = ver <= V::R14;
+    let mut tags: Vec<Tag> = Vec::with_capacity(80);
+    let int = |tags: &mut Vec<Tag>, code: i32, v: i64| tags.push(Tag::i(code, v));
+    let real = |tags: &mut Vec<Tag>, code: i32, v: f64| tags.push(Tag::f(code, v));
+    if old {
+        for code in [71, 72, 73, 74, 75, 76, 170, 172, 173, 174, 175] {
+            let v = r.b()?;
+            int(&mut tags, code, i64::from(v));
+        }
+        let altd = r.rc()?;
+        int(&mut tags, 171, i64::from(altd));
+        let zin = r.rc()?;
+        int(&mut tags, 78, i64::from(zin));
+        for code in [281, 282] {
+            let v = r.b()?;
+            int(&mut tags, code, i64::from(v));
+        }
+        let tolj = r.rc()?;
+        int(&mut tags, 283, i64::from(tolj));
+        let just = r.rc()?;
+        int(&mut tags, 280, i64::from(just));
+        let fit = r.rc()?;
+        int(&mut tags, 287, i64::from(fit));
+        let upt = r.b()?;
+        int(&mut tags, 288, i64::from(upt));
+        for code in [284, 285, 286, 77] {
+            let v = r.rc()?;
+            int(&mut tags, code, i64::from(v));
+        }
+        // DIMUNIT, DIMAUNIT, DIMDEC, DIMTDEC, DIMALTU, DIMALTTD.
+        for code in [270, 275, 271, 272, 273, 274] {
+            let v = r.bs()?;
+            int(&mut tags, code, i64::from(v));
+        }
+    } else {
+        let post = r.text()?;
+        tags.push(Tag::s(3, post));
+        let apost = r.text()?;
+        tags.push(Tag::s(4, apost));
+    }
+    for code in [40, 41, 42, 43, 44, 45, 46, 47, 48] {
+        let v = r.bd()?;
+        real(&mut tags, code, v);
+    }
+    if ver >= V::R2007 {
+        let fxl = r.bd()?;
+        real(&mut tags, 49, fxl);
+        let jogang = r.bd()?;
+        real(&mut tags, 50, jogang);
+        let tfill = r.bs()?;
+        int(&mut tags, 69, i64::from(tfill));
+        let c = r.color()?;
+        int(&mut tags, 70, aci(c));
+    }
+    if !old {
+        for code in [71, 72, 73, 74, 75, 76] {
+            let v = r.b()?;
+            int(&mut tags, code, i64::from(v));
+        }
+        for code in [77, 78, 79] {
+            let v = r.bs()?;
+            int(&mut tags, code, i64::from(v));
+        }
+        if ver >= V::R2007 {
+            let arcsym = r.bs()?;
+            int(&mut tags, 90, i64::from(arcsym));
+        }
+    }
+    for code in [140, 141, 142, 143, 144, 145, 146, 147] {
+        let v = r.bd()?;
+        real(&mut tags, code, v);
+    }
+    // Before AutoCAD 2000 the arrowhead blocks are named, not referred to.
+    let mut named = |tags: &mut Vec<Tag>, code: i32, name: String| {
+        if !name.is_empty() {
+            let key = format!("@{name}");
+            arrows.insert(key.clone(), name);
+            tags.push(Tag::s(code, key));
+        }
+    };
+    if old {
+        let post = r.text()?;
+        tags.push(Tag::s(3, post));
+        let apost = r.text()?;
+        tags.push(Tag::s(4, apost));
+        for code in [342, 343, 344] {
+            let n = r.text()?;
+            named(&mut tags, code, n);
+        }
+    } else {
+        let altrnd = r.bd()?;
+        real(&mut tags, 148, altrnd);
+        let alt = r.b()?;
+        int(&mut tags, 170, i64::from(alt));
+        let altd = r.bs()?;
+        int(&mut tags, 171, i64::from(altd));
+        for code in [172, 173, 174, 175] {
+            let v = r.b()?;
+            int(&mut tags, code, i64::from(v));
+        }
+    }
+    for code in [176, 177, 178] {
+        let c = r.color()?;
+        int(&mut tags, code, aci(c));
+    }
+    let mut newer = Vec::new();
+    if !old {
+        for code in [179, 271, 272, 273, 274, 275, 276, 277, 278, 279, 280] {
+            let v = r.bs()?;
+            int(&mut tags, code, i64::from(v));
+        }
+        for code in [281, 282] {
+            let v = r.b()?;
+            int(&mut tags, code, i64::from(v));
+        }
+        for code in [283, 284, 285, 286] {
+            let v = r.bs()?;
+            int(&mut tags, code, i64::from(v));
+        }
+        let upt = r.b()?;
+        int(&mut tags, 288, i64::from(upt));
+        let fit = r.bs()?;
+        int(&mut tags, 289, i64::from(fit));
+        if ver >= V::R2007 {
+            let fxlon = r.b()?;
+            int(&mut tags, 290, i64::from(fxlon));
+        }
+        if ver >= V::R2010 {
+            let txtdirection = r.b()?;
+            newer.push(Tag::i(294, i64::from(txtdirection)));
+            let altmzf = r.bd()?;
+            newer.push(Tag::f(295, altmzf));
+            let altmzs = r.text()?;
+            newer.push(Tag::s(296, altmzs));
+            let mzf = r.bd()?;
+            newer.push(Tag::f(297, mzf));
+            let mzs = r.text()?;
+            newer.push(Tag::s(298, mzs));
+        }
+        for code in [371, 372] {
+            let v = r.bs()?;
+            int(&mut tags, code, i64::from(v as i16));
+        }
+    }
+    let _flag = r.b();
+    let x = r.xdata();
+    let a = xdata(&x, apps, "AcadAnnotative");
+    let start = a.iter().position(|v| matches!(v, XDataItem::Text(s) if s == "AnnotativeData"));
+    let annotative = a
+        .iter()
+        .skip(start.map_or(a.len(), |i| i + 1))
+        .filter_map(|v| if let XDataItem::Int16(i) = v { Some(*i) } else { None })
+        .nth(1)
+        .is_some_and(|i| i != 0);
+    r.common_refs()?;
+    let _xref_block = r.reference()?;
+    let mut href = |tags: &mut Vec<Tag>, code: i32| -> DwgResult<()> {
+        let h = r.reference()?;
+        tags.push(Tag::s(code, format!("{h:X}")));
+        Ok(())
+    };
+    href(&mut tags, 340)?;
+    if !old {
+        for code in [341, 342, 343, 344] {
+            href(&mut tags, code)?;
+        }
+        if ver >= V::R2007 {
+            for code in [345, 346, 347] {
+                href(&mut tags, code)?;
+            }
+        }
+    }
+    tags.extend(newer);
+    let mut fields = serde_json::Map::new();
+    for tag in &tags {
+        let Some((field, kind)) = crate::dxf_ext::dim_field(tag.code) else { continue };
+        if let Some(v) = crate::dxf_ext::decode(kind, tag, styles, arrows, ltypes) {
+            fields.insert(field.to_string(), v);
+        }
+    }
+    let mut st = DimStyle { name, annotative, ..DimStyle::default() };
+    st.apply_fields(&fields);
+    Ok(st)
+}
+
+/// UCS (specification §20.4.62).
+fn ucs(r: &mut ObjectReader) -> DwgResult<Ucs> {
+    let name = record_name(r)?;
+    let v = |p: [f64; 3]| Vec3::new(p[0], p[1], p[2]);
+    let origin = v(r.bd3()?);
+    let x_axis = v(r.bd3()?);
+    let y_axis = v(r.bd3()?);
+    Ok(Ucs { name, origin, x_axis, y_axis })
+}
+
+/// VIEW (specification §20.4.60). `None` for a view the drawing can't hold (no size).
+fn view(r: &mut ObjectReader, apps: &HashMap<u64, String>) -> DwgResult<Option<NamedView>> {
+    let name = record_name(r)?;
+    let ver = r.version();
+    let height = r.bd()?;
+    let width = r.bd()?;
+    let [cx, cy] = r.rd2()?;
+    let target = r.bd3()?;
+    let _direction = r.bd3()?;
+    let twist = r.bd()?;
+    let _lens = r.bd()?;
+    let _front = r.bd()?;
+    let _back = r.bd()?;
+    for _ in 0..4 {
+        r.b()?;
+    }
+    if ver >= V::R2000 {
+        r.rc()?;
+    }
+    if ver >= V::R2007 {
+        r.b()?;
+        r.rc()?;
+        r.bd()?;
+        r.bd()?;
+        r.color()?;
+    }
+    let paper = r.b()?;
+    let x = r.xdata();
+    let own = xdata(&x, apps, crate::dxf_ext::APP);
+    let field = |key: &str| {
+        own.windows(2).find_map(|w| match w {
+            [XDataItem::Text(k), XDataItem::Text(v)] if k == key => Some(v.clone()),
+            _ => None,
+        })
+    };
+    let twist = if twist.is_finite() { draftcraft_geom::norm_angle(twist) } else { 0.0 };
+    let center = crate::dxf_ext::dcs_center_to_model(Vec2::new(cx, cy), twist, Vec2::new(target[0], target[1]));
+    let ok =
+        !name.is_empty() && height.is_finite() && width.is_finite() && height > 0.0 && width > 0.0 && center.x.is_finite() && center.y.is_finite();
+    Ok(ok.then(|| NamedView {
+        name,
+        center,
+        height,
+        width,
+        layer_state: field("LAYERSTATE"),
+        twist,
+        layout: paper.then(|| field("LAYOUT").unwrap_or_default()),
+    }))
+}
+
+/// What a VPORT record gives the drawing.
+struct Vport {
+    name: String,
+    tile: Option<VportTile>,
+    snap_spacing: Vec2,
+    grid_spacing: Vec2,
+    snap_base: Vec2,
+    snap_rotation: f64,
+}
+
+/// VPORT (specification §20.4.64): one tile of the viewport configuration it names.
+fn vport(r: &mut ObjectReader) -> DwgResult<Vport> {
+    let name = record_name(r)?.trim().to_string();
+    let ver = r.version();
+    let height = r.bd()?;
+    let aspect = r.bd()?;
+    let [cx, cy] = r.rd2()?;
+    let target = r.bd3()?;
+    let _direction = r.bd3()?;
+    let twist = r.bd()?;
+    let _lens = r.bd()?;
+    let _front = r.bd()?;
+    let _back = r.bd()?;
+    for _ in 0..4 {
+        r.b()?;
+    }
+    if ver >= V::R2000 {
+        r.rc()?;
+    }
+    if ver >= V::R2007 {
+        r.b()?;
+        r.rc()?;
+        r.bd()?;
+        r.bd()?;
+        r.color()?;
+    }
+    let p = |[x, y]: [f64; 2]| Vec2::new(x, y);
+    let min = p(r.rd2()?);
+    let max = p(r.rd2()?);
+    let _ucsfollow = r.b()?;
+    let _circle_zoom = r.bs()?;
+    let _fast_zoom = r.b()?;
+    r.bb()?;
+    let _grid_on = r.b()?;
+    let grid_spacing = p(r.rd2()?);
+    let _snap_on = r.b()?;
+    let _snap_style = r.b()?;
+    let _isopair = r.bs()?;
+    let snap_rotation = r.bd()?;
+    let snap_base = p(r.rd2()?);
+    let snap_spacing = p(r.rd2()?);
+    let twist = if twist.is_finite() { draftcraft_geom::norm_angle(twist) } else { 0.0 };
+    let center = crate::dxf_ext::dcs_center_to_model(Vec2::new(cx, cy), twist, Vec2::new(target[0], target[1]));
+    let unit = |v: f64| v.is_finite() && (-1e-9..=1.0 + 1e-9).contains(&v);
+    let ok = !name.is_empty()
+        && [min.x, min.y, max.x, max.y].into_iter().all(unit)
+        && max.x > min.x + 1e-6
+        && max.y > min.y + 1e-6
+        && center.is_finite()
+        && height.is_finite()
+        && height > 0.0;
+    let clamp = |p: Vec2| Vec2::new(p.x.clamp(0.0, 1.0), p.y.clamp(0.0, 1.0));
+    let tile = ok.then(|| VportTile {
+        min: clamp(min),
+        max: clamp(max),
+        center,
+        height,
+        aspect: if aspect.is_finite() && aspect > 0.0 { aspect } else { 0.0 },
+        twist,
+    });
+    Ok(Vport { name, tile, snap_spacing, grid_spacing, snap_base, snap_rotation })
+}
+
+/// The name of every block record, by handle. The blocks themselves are read with their entities.
+pub(super) fn block_names(file: &DwgFile, objects: &[ObjectRef]) -> HashMap<u64, String> {
+    objects
+        .iter()
+        .filter(|o| o.type_name == "BLOCK_HEADER")
+        .take(MAX_RECORDS)
+        .filter_map(|o| Some((o.handle, file.read_object(o).and_then(|mut r| record_name(&mut r)).ok()?)))
+        .collect()
 }
