@@ -16,6 +16,7 @@ use crate::{IoError, Result};
 
 mod common;
 pub(crate) use common::{ocs_n, transparency_440};
+pub(crate) use entities::{SplineParts, mesh_faces_of, spline_from};
 pub(crate) use tables::style_font_of;
 pub(crate) use text::mirror_text;
 

@@ -571,3 +571,137 @@ fn multiline_attributes_are_counted_not_dropped() {
         assert_eq!(unread.by_type.get(what), Some(&1), "{what}: {}", unread.summary());
     }
 }
+
+/// A DWG of `version` holding every kind of polyline and both kinds of spline, written with
+/// acadrust's own API: DraftCraft writes 2D polylines and polygon meshes in other forms, so its
+/// save path can't make them.
+fn curves_dwg(version: acadrust::types::DxfVersion) -> Vec<u8> {
+    use acadrust::entities::*;
+    use acadrust::types::Vector3;
+    let mut doc = acadrust::CadDocument::with_version(version);
+    // 2D polylines: open with bulges and widths at an elevation, closed, and mirrored.
+    for (normal_z, closed, y) in [(1.0, false, 0.0), (1.0, true, 20.0), (-1.0, false, 40.0)] {
+        let mut p = Polyline2D::new();
+        p.elevation = 1.5;
+        p.normal = Vector3::new(0.0, 0.0, normal_z);
+        p.start_width = 0.25;
+        p.end_width = 0.25;
+        p.add_vertex(Vertex2D::new(Vector3::new(0.0, y, 0.0)).with_bulge(0.5).with_width(0.1, 0.3));
+        p.add_vertex(Vertex2D::new(Vector3::new(10.0, y, 0.0)).with_width(0.3, 0.1));
+        p.add_vertex(Vertex2D::new(Vector3::new(10.0, y + 10.0, 0.0)).with_bulge(-1.0));
+        p.add_vertex(Vertex2D::new(Vector3::new(0.0, y + 10.0, 0.0)));
+        if closed {
+            p.close();
+        }
+        doc.add_entity(EntityType::Polyline2D(p)).unwrap();
+    }
+    // A closed 3D polyline.
+    let mut p3 = Polyline3D::from_points(vec![
+        Vector3::new(0.0, 0.0, 0.0),
+        Vector3::new(5.0, 0.0, 2.0),
+        Vector3::new(5.0, 5.0, 4.0),
+        Vector3::new(0.0, 5.0, 6.0),
+    ]);
+    p3.flags.closed = true;
+    doc.add_entity(EntityType::Polyline3D(p3)).unwrap();
+    // A polyface mesh: a quad and a triangle over five vertices.
+    let mut pf = PolyfaceMesh::new();
+    for (x, y, z) in [(0.0, 0.0, 0.0), (4.0, 0.0, 0.0), (4.0, 4.0, 1.0), (0.0, 4.0, 1.0), (2.0, 6.0, 2.0)] {
+        pf.add_vertex_xyz(x + 50.0, y, z);
+    }
+    pf.add_face(PolyfaceFace::quad(1, 2, 3, 4));
+    pf.add_face(PolyfaceFace::triangle(3, 5, 4));
+    doc.add_entity(EntityType::PolyfaceMesh(pf)).unwrap();
+    // A 3 × 4 polygon mesh, closed in N.
+    let mut pm = PolygonMeshEntity::new();
+    pm.m_vertex_count = 3;
+    pm.n_vertex_count = 4;
+    pm.flags = PolygonMeshFlags::POLYGON_MESH | PolygonMeshFlags::CLOSED_N;
+    for i in 0..3 {
+        for j in 0..4 {
+            pm.vertices.push(PolygonMeshVertex::at(Vector3::new(70.0 + f64::from(i) * 3.0, f64::from(j) * 2.0, f64::from(i * j))));
+        }
+    }
+    doc.add_entity(EntityType::PolygonMesh(pm)).unwrap();
+    // A rational spline by its control points, and a spline by its fit points with end tangents.
+    let control = vec![Vector3::new(0.0, 60.0, 0.0), Vector3::new(5.0, 70.0, 0.0), Vector3::new(10.0, 55.0, 0.0), Vector3::new(15.0, 65.0, 0.0)];
+    let mut sc = Spline::from_control_points(3, control);
+    sc.weights = vec![1.0, 2.0, 0.5, 1.0];
+    sc.flags.rational = true;
+    doc.add_entity(EntityType::Spline(sc)).unwrap();
+    let fit = vec![Vector3::new(30.0, 60.0, 0.0), Vector3::new(35.0, 66.0, 0.0), Vector3::new(42.0, 58.0, 0.0), Vector3::new(48.0, 64.0, 0.0)];
+    let mut sf = Spline::from_fit_points(fit);
+    sf.begin_tangent = Vector3::new(1.0, 1.0, 0.0);
+    sf.end_tangent = Vector3::new(1.0, -1.0, 0.0);
+    doc.add_entity(EntityType::Spline(sf)).unwrap();
+    acadrust::DwgWriter::write_to_vec(&doc).unwrap()
+}
+
+#[test]
+fn polylines_and_splines_read_as_the_acadrust_reader_reads_them() {
+    use acadrust::types::DxfVersion;
+    use draftcraft_doc::EntityKind;
+    use draftcraft_io::{DwgReader, read_dwg_with};
+    let curve = |k: &EntityKind| {
+        matches!(
+            k,
+            EntityKind::LwPolyline(_) | EntityKind::Polyline3d(_) | EntityKind::PolyfaceMesh(_) | EntityKind::Face3d(_) | EntityKind::Spline(_)
+        )
+    };
+    // The 2007 container is not read yet.
+    for version in [DxfVersion::AC1015, DxfVersion::AC1018, DxfVersion::AC1024, DxfVersion::AC1027, DxfVersion::AC1032] {
+        let bytes = curves_dwg(version);
+        let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
+        let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
+        let want: Vec<_> = reference.model.iter().filter(|e| curve(&e.kind)).collect();
+        // Three 2D polylines, a 3D one, a polyface mesh, the 3 × 4 mesh closed in N as 2 × 4 faces,
+        // two splines.
+        assert_eq!(want.len(), 15, "{version:?}: {:?}", want.iter().map(|e| e.kind.type_name()).collect::<Vec<_>>());
+        let got: Vec<_> = d.model.iter().filter(|e| curve(&e.kind)).collect();
+        assert_eq!(got.len(), want.len(), "{version:?}: unread {}", unread.summary());
+        for (g, w) in got.iter().zip(&want) {
+            // acadrust's DXF gives a vertex stored with no width the polyline's default width and
+            // leaves the default out, so 2D polylines are checked against what was written.
+            if matches!(g.kind, EntityKind::LwPolyline(_)) {
+                continue;
+            }
+            let (g, w) = (serde_json::to_value(g.as_ref()).unwrap(), serde_json::to_value(w.as_ref()).unwrap());
+            assert!(close(&g["kind"], &w["kind"], false), "{version:?}\nread      {}\nreference {}", g["kind"], w["kind"]);
+            assert!(close(&g["common"], &w["common"], false), "{version:?}: properties\nread      {}\nreference {}", g["common"], w["common"]);
+        }
+        // The 2D polylines as they were written: the vertices with their own widths and bulges,
+        // the default width, the elevation, closed or not; the mirrored one with x and the bulges
+        // turned round and its extrusion kept.
+        let written = |closed: bool, y: f64, m: f64| {
+            let v = |x: f64, y: f64, bulge: f64, sw: f64, ew: f64| draftcraft_geom::PolyVertex {
+                p: draftcraft_geom::Vec2::new(m * x, y),
+                bulge: m * bulge,
+                start_width: sw,
+                end_width: ew,
+            };
+            draftcraft_doc::LwPolyline {
+                vertices: vec![
+                    v(0.0, y, 0.5, 0.1, 0.3),
+                    v(10.0, y, 0.0, 0.3, 0.1),
+                    v(10.0, y + 10.0, -1.0, 0.0, 0.0),
+                    v(0.0, y + 10.0, 0.0, 0.0, 0.0),
+                ],
+                closed,
+                const_width: 0.25,
+                elevation: 1.5,
+                plinegen: false,
+            }
+        };
+        let polylines: Vec<_> =
+            d.model.iter().filter_map(|e| if let EntityKind::LwPolyline(p) = &e.kind { Some((p, e.common.extrusion.z)) } else { None }).collect();
+        let expected = [(written(false, 0.0, 1.0), 1.0), (written(true, 20.0, 1.0), 1.0), (written(false, 40.0, -1.0), -1.0)];
+        assert_eq!(polylines.len(), 3, "{version:?}");
+        for ((got, z), (want, wz)) in polylines.iter().zip(&expected) {
+            assert_eq!(*got, want, "{version:?}");
+            assert_eq!(*z, *wz, "{version:?}: extrusion");
+        }
+        for t in ["POLYLINE", "VERTEX", "SEQEND", "SPLINE", "polyline", "vertex"] {
+            assert!(!unread.by_type.keys().any(|k| k.starts_with(t)), "{version:?}: {t} left unread: {}", unread.summary());
+        }
+    }
+}
