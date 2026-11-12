@@ -43,7 +43,8 @@ fn every_object_of_every_version_is_accounted_for() {
         let (d, unread) = dwg::read(bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
         assert_eq!(d.header.str("ACADVER", ""), *code, "{name}");
         // Nothing is read yet, so every object must be counted as unread: none dropped silently.
-        assert_eq!(unread.total(), file.object_count(), "{name}: {}", unread.summary());
+        let objects: usize = unread.by_type.iter().filter(|(k, _)| !k.starts_with("header")).map(|(_, n)| n).sum();
+        assert_eq!(objects, file.object_count(), "{name}: {}", unread.summary());
         // Every object's type is known by name.
         assert!(!unread.by_type.contains_key("?"), "{name}: {}", unread.summary());
         for t in ["LINE", "CIRCLE", "ARC", "TEXT", "DIMENSION_LINEAR", "LAYER", "BLOCK_HEADER", "DICTIONARY"] {
@@ -78,5 +79,121 @@ fn damaged_files_never_panic() {
             let _ = dwg::read(&b);
             b[i] ^= 0x5A;
         }
+    }
+}
+
+/// Each DWG with AutoCAD's DXF of the same version (R14's is the R12 DXF).
+fn pairs() -> Vec<(&'static str, &'static [u8], &'static [u8])> {
+    let dxf = |name: &str| DXFS.iter().find(|(n, _)| *n == name).map(|(_, b)| *b).unwrap();
+    DWGS.iter()
+        .map(|(name, _, bytes)| {
+            let reference = match *name {
+                "mi201-r14.dwg" => "mi201-r12.dxf",
+                "mi201-r2000.dwg" => "mi201-r2000.dxf",
+                "mi201-r2004.dwg" => "mi201-r2004.dxf",
+                "mi201-r2010.dwg" => "mi201-r2010.dxf",
+                "mi201-r2013.dwg" => "mi201-r2013.dxf",
+                _ => "mi201-r2018.dxf",
+            };
+            (*name, *bytes, dxf(reference))
+        })
+        .collect()
+}
+
+/// Header variables that belong to one save of a file, not to the drawing: AutoCAD wrote the DWG
+/// and its DXF at different moments, so these differ between the two.
+const OF_THE_SAVE: &[&str] = &["ACADVER", "ACADMAINTVER", "HANDSEED", "TDUPDATE", "TDUUPDATE", "TDINDWG", "TDUSRTIMER", "VERSIONGUID", "DWGCODEPAGE"];
+
+/// The two dates in local time: from AutoCAD 2000 on a DWG stores them in universal time only
+/// (TDUCREATE, TDUUPDATE), and the offset AutoCAD used is not in the file.
+const LOCAL_TIMES: &[&str] = &["TDCREATE", "TDUPDATE"];
+
+/// The default visual styles of interference checking: AutoCAD's DXF names them, its DWG holds
+/// null references.
+const NULL_IN_DWG: &[&str] = &["INTERFEREOBJVS", "INTERFEREVPVS"];
+
+/// Variables that name a table record, a block or a UCS. They are set when those are read; until
+/// then the reader must count each as unread and leave it out of the header.
+const NAMES: &[&str] = &[
+    "CLAYER",
+    "CELTYPE",
+    "TEXTSTYLE",
+    "DIMSTYLE",
+    "CMLSTYLE",
+    "DIMTXSTY",
+    "DIMBLK",
+    "DIMBLK1",
+    "DIMBLK2",
+    "DIMLDRBLK",
+    "DIMLTYPE",
+    "DIMLTEX1",
+    "DIMLTEX2",
+    "UCSNAME",
+    "UCSBASE",
+    "UCSORTHOREF",
+    "PUCSNAME",
+    "PUCSBASE",
+    "PUCSORTHOREF",
+];
+
+/// Where the R14 DWG and the R12 DXF, the nearest reference AutoCAD writes, are different files
+/// of different formats: R12 has a variable for whether handles are on (a later DWG always has
+/// them), and AutoCAD wrote 64 as the R12 file's $MAXACTVP where the R14 file holds 48.
+const R12_DIFFERS: &[&str] = &["HANDLING", "MAXACTVP"];
+
+fn same(a: &draftcraft_doc::HVal, b: &draftcraft_doc::HVal) -> bool {
+    use draftcraft_doc::HVal::*;
+    match (a, b) {
+        (Real(x), Real(y)) => (x - y).abs() <= 1e-9 * (1.0 + y.abs()),
+        (Int(i), Real(r)) | (Real(r), Int(i)) => (*i as f64 - r).abs() < 1e-9,
+        (Point(p), Point(q)) => (*p - *q).len() < 1e-9,
+        _ => a == b,
+    }
+}
+
+#[test]
+fn header_variables_match_autocads_dxf() {
+    for (name, dwg_bytes, dxf_bytes) in pairs() {
+        let (d, unread) = dwg::read(dwg_bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let reference = draftcraft_io::read(dxf_bytes, "reference.dxf").unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert!(!unread.by_type.contains_key("header"), "{name}: the header was not read");
+        let before_2000 = name.contains("r14");
+        let mut wrong = Vec::new();
+        let mut compared = 0;
+        for (var, want) in &reference.header.vars {
+            let v = var.as_str();
+            if OF_THE_SAVE.contains(&v)
+                || NULL_IN_DWG.contains(&v)
+                || (!before_2000 && LOCAL_TIMES.contains(&v))
+                || (before_2000 && R12_DIFFERS.contains(&v))
+            {
+                continue;
+            }
+            // A name the file gives as a reference waits for its table; one it gives as text
+            // (R14's $DIMBLK) is compared like any other variable.
+            if NAMES.contains(&v) && unread.by_type.contains_key(&format!("header ${v}")) {
+                assert!(d.header.get(v).is_none(), "{name}: ${v} is set before its table is read");
+                continue;
+            }
+            // The two DWGs AutoCAD made from DXFs have handles of their own, so a variable that
+            // holds a handle differs from the reference of the original drawing.
+            if v == "CMATERIAL" && name.contains("-from-") {
+                assert!(d.header.get(v).is_some(), "{name}");
+                continue;
+            }
+            // A 2004 DXF holds $XCLIPFRAME as a yes/no and keeps the drawing's real value, 2, in a
+            // dictionary variable; the 2004 DWG's header holds the 2 itself, as later DXFs do.
+            if v == "XCLIPFRAME" && name.contains("r2004") {
+                assert_eq!(d.header.i64(v, -1), 2, "{name}");
+                continue;
+            }
+            compared += 1;
+            match d.header.get(v) {
+                Some(got) if same(got, want) => {}
+                got => wrong.push(format!("${v}: read {got:?}, AutoCAD's DXF has {want:?}")),
+            }
+        }
+        assert!(wrong.is_empty(), "{name}: {} of {compared} header variables differ:\n{}", wrong.len(), wrong.join("\n"));
+        assert!(compared > 60, "{name}: only {compared} variables compared");
     }
 }

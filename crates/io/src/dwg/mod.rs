@@ -9,6 +9,8 @@
 //! in [`Unread`], by type, so nothing is left out silently: a drawing is the whole file only when
 //! [`Unread::is_empty`].
 
+mod header;
+
 use std::collections::BTreeMap;
 
 use draftcraft_doc::Drawing;
@@ -49,7 +51,14 @@ pub fn read(bytes: &[u8]) -> Result<(Drawing, Unread)> {
     let file = DwgFile::open(bytes).map_err(|e| IoError::Format(format!("DWG: {e}")))?;
     let mut d = Drawing::new_imperial();
     d.header.set_str("ACADVER", file.version_code());
+    // A file without the variable (before AutoCAD 2000) has no units.
+    d.header.set_i64("INSUNITS", 0);
     let mut unread = Unread::default();
+    match header::read(&file, &mut d) {
+        // The variables that name other objects wait for the tables.
+        Ok(refs) => refs.names.keys().for_each(|name| unread.count(&format!("header ${name}"))),
+        Err(_) => unread.count("header"),
+    }
     for o in file.objects() {
         // No category is read yet: every object is accounted for as unread.
         unread.count(&o.type_name);

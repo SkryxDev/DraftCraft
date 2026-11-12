@@ -419,7 +419,7 @@ static VARS: &[(&str, K, W)] = &[
 ];
 
 #[derive(Debug, Clone, PartialEq)]
-enum Val {
+pub(crate) enum Val {
     Bool(bool),
     Int(i64),
     Real(f64),
@@ -635,21 +635,30 @@ fn to_header(vals: Vec<(&'static str, Val)>, verified: bool, note: String) -> He
 /// Parse the header section. Never fails outright: an unreadable header
 /// yields `HeaderVars { verified: false, note }`.
 pub(crate) fn parse(data: &[u8], ver: DwgVersion, maintenance: u8, codepage: u16, type_of: &dyn Fn(u64) -> Option<u16>) -> HeaderVars {
-    match parse_inner(data, ver, maintenance, codepage, type_of) {
-        Ok(h) => h,
+    match parse_values(data, ver, maintenance, codepage, type_of) {
+        Ok((vals, verified, note)) => to_header(vals, verified, note),
         Err(e) => HeaderVars { verified: false, note: e.to_string(), ..Default::default() },
     }
 }
 
-fn parse_inner(data: &[u8], ver: DwgVersion, maintenance: u8, codepage: u16, type_of: &dyn Fn(u64) -> Option<u16>) -> Result<HeaderVars> {
+/// The header's variables in file order, whether the reading was verified
+/// (its control handles point at objects of the right types), and a note
+/// on how it was read.
+pub(crate) fn parse_values(
+    data: &[u8],
+    ver: DwgVersion,
+    maintenance: u8,
+    codepage: u16,
+    type_of: &dyn Fn(u64) -> Option<u16>,
+) -> Result<(Vec<(&'static str, Val)>, bool, String)> {
     let wrapped = section::unwrap(data, &HEADER_START, &HEADER_END, ver, maintenance)?;
     let body = wrapped.body;
     if ver < V::R2007 {
         let s = Streams { ver, codepage, dat: BitReader::new(body), strs: None, hdl: None };
         let (vals, _end) = read_all(s)?;
         return Ok(match validate(&vals, type_of) {
-            Ok(()) => to_header(vals, true, String::new()),
-            Err(why) => to_header(vals, false, format!("header not verified: {why}")),
+            Ok(()) => (vals, true, String::new()),
+            Err(why) => (vals, false, format!("header not verified: {why}")),
         });
     }
     // R2007+: main, string and handle streams. The layout of the leading
@@ -680,7 +689,7 @@ fn parse_inner(data: &[u8], ver: DwgVersion, maintenance: u8, codepage: u16, typ
         let s = Streams { ver, codepage, dat, strs, hdl: Some(hdl) };
         match read_all(s) {
             Ok((vals, _)) => match validate(&vals, type_of) {
-                Ok(()) => return Ok(to_header(vals, true, format!("layout: {label}"))),
+                Ok(()) => return Ok((vals, true, format!("layout: {label}"))),
                 Err(why) => {
                     notes.push(format!("{label}: {why}"));
                     if best.is_none() {
@@ -692,8 +701,8 @@ fn parse_inner(data: &[u8], ver: DwgVersion, maintenance: u8, codepage: u16, typ
         }
     }
     let note = format!("header not verified ({})", notes.join("; "));
-    Ok(match best {
-        Some(vals) => to_header(vals, false, note),
-        None => HeaderVars { verified: false, note, ..Default::default() },
-    })
+    match best {
+        Some(vals) => Ok((vals, false, note)),
+        None => Err(Error::format(note)),
+    }
 }
