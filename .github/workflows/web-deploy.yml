@@ -79,4 +79,5 @@ jobs:
 
       - name: No Vercel token
         if: env.HAS_VERCEL_TOKEN != 'true'
-        run: echo "VERCEL_TOKEN is not set: the site was built but not published." >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          echo "VERCEL_TOKEN is not set: the site was built but not published." >> "$GITHUB_STEP_SUMMARY"
