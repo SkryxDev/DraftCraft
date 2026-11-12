@@ -1491,8 +1491,12 @@ fn ribbon(app: &mut CadApp, ui: &mut egui::Ui, area: Rect, out: &mut Out) {
                 }
                 Layers(rows, labelled) => {
                     let lr = Rect::from_min_size(pos2(cx, top + 1.0), vec2(cw - 8.0, ROW - 1.0));
-                    if let Some(name) = layer_list(app, ui, lr, id.with("list")) {
-                        out.prop = Some(Prop { key: "layer", value: json!(name), current: ("layer.current", json!({ "name": name })) });
+                    match layer_list(app, ui, lr, id.with("list")) {
+                        Some(LayerPick::Layer(name)) => {
+                            out.prop = Some(Prop { key: "layer", value: json!(name), current: ("layer.current", json!({ "name": name })) });
+                        }
+                        Some(LayerPick::Toggle(params)) => out.run = Some(("layer.set", params)),
+                        None => {}
                     }
                     for (ri, (row, last)) in rows.iter().zip(labelled.iter()).enumerate() {
                         let y = top + (ri as f32 + 1.0) * (ROW + 1.0);
@@ -1764,9 +1768,36 @@ fn props_lists(app: &CadApp, ui: &mut egui::Ui, r: Rect, id: egui::Id, out: &mut
     }
 }
 
+/// What the layer list's menu was clicked for.
+#[derive(Debug, PartialEq)]
+enum LayerPick {
+    /// A layer's name: the selection moves to it, or it becomes the current layer.
+    Layer(String),
+    /// A layer's on, frozen or locked state switched: `layer.set` parameters.
+    Toggle(serde_json::Value),
+}
+
+/// The left edges of a layer row's on, freeze and lock icons, 16 points wide each.
+fn layer_icon_xs(r: Rect) -> [f32; 3] {
+    let x = r.left() + 4.0;
+    [x, x + 18.0, x + 36.0]
+}
+
+/// The state a click at `x` in a layer row switches, as `layer.set` parameters, or `None` when it
+/// is not on one of the icons (the click then picks the layer).
+fn layer_toggle_at(r: Rect, x: f32, (name, on, frozen, locked, _): &(String, bool, bool, bool, Color32)) -> Option<serde_json::Value> {
+    let hit = layer_icon_xs(r).iter().position(|&left| (left - 1.0..left + 17.0).contains(&x))?;
+    Some(match hit {
+        0 => json!({ "name": name, "on": !on }),
+        1 => json!({ "name": name, "frozen": !frozen }),
+        _ => json!({ "name": name, "locked": !locked }),
+    })
+}
+
 /// The current-layer list: the layer's state and colour, its name, and a menu of all layers.
-/// Returns the layer picked from the menu.
-fn layer_list(app: &CadApp, ui: &mut egui::Ui, rect: Rect, id: egui::Id) -> Option<String> {
+/// In the menu, the bulb, sun and lock switch the layer's state, as in AutoCAD's layer control,
+/// and the rest of a row picks the layer.
+fn layer_list(app: &CadApp, ui: &mut egui::Ui, rect: Rect, id: egui::Id) -> Option<LayerPick> {
     let t = Tokens::get();
     let p = ui.painter().clone();
     let Ok(d) = app.session.doc() else {
@@ -1788,15 +1819,15 @@ fn layer_list(app: &CadApp, ui: &mut egui::Ui, rect: Rect, id: egui::Id) -> Opti
         .collect();
     let resp = list_box(ui, rect, id, "Layer");
     let row = |p: &egui::Painter, r: Rect, (name, on, frozen, locked, color): &(String, bool, bool, bool, Color32)| {
-        let mut x = r.left() + 4.0;
-        for icon in [
+        let icons_at = [
             if *on { Icon::Bulb } else { Icon::BulbOff },
             if *frozen { Icon::Snowflake } else { Icon::Sun },
             if *locked { Icon::Lock } else { Icon::Unlock },
-        ] {
+        ];
+        for (icon, x) in icons_at.into_iter().zip(layer_icon_xs(r)) {
             icons::paint(p, Rect::from_min_size(pos2(x, r.center().y - 8.0), vec2(16.0, 16.0)), icon, false);
-            x += 18.0;
         }
+        let x = layer_icon_xs(r)[2] + 18.0;
         let sw = Rect::from_min_size(pos2(x + 2.0, r.center().y - 6.0), vec2(12.0, 12.0));
         p.rect_filled(sw, 1.0, *color);
         p.rect_stroke(sw, 1.0, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
@@ -1818,8 +1849,14 @@ fn layer_list(app: &CadApp, ui: &mut egui::Ui, rect: Rect, id: egui::Id) -> Opti
                 row(ui.painter(), r, l);
                 crate::control::record_widget(ui, &item, &l.0, "button", None);
                 if item.clicked() {
-                    picked = Some(l.0.clone());
-                    ui.close();
+                    // On an icon the menu stays open, so several layers can be switched in a row.
+                    match item.interact_pointer_pos().and_then(|pos| layer_toggle_at(r, pos.x, l)) {
+                        Some(params) => picked = Some(LayerPick::Toggle(params)),
+                        None => {
+                            picked = Some(LayerPick::Layer(l.0.clone()));
+                            ui.close();
+                        }
+                    }
                 }
             }
         });
@@ -1876,6 +1913,36 @@ mod tests {
         set_property(&mut app, pick("0"));
         assert_eq!((layer_of(&app, line), layer_of(&app, circle)), ("Doors".into(), "0".into()));
         assert!(app.session.log.iter().any(|m| m == "1 object was on a locked layer."), "{:?}", app.session.log);
+    }
+
+    /// In the layer list's menu, the bulb, sun and lock switch that layer's state; the rest of the
+    /// row picks the layer.
+    #[test]
+    fn the_layer_menu_icons_switch_the_layer_state() {
+        let r = Rect::from_min_size(pos2(100.0, 50.0), vec2(220.0, 22.0));
+        let layer = ("Walls".to_string(), true, false, false, Color32::WHITE);
+        let [on, freeze, lock] = layer_icon_xs(r);
+        assert_eq!(layer_toggle_at(r, on + 8.0, &layer), Some(json!({ "name": "Walls", "on": false })));
+        assert_eq!(layer_toggle_at(r, freeze + 8.0, &layer), Some(json!({ "name": "Walls", "frozen": true })));
+        assert_eq!(layer_toggle_at(r, lock + 8.0, &layer), Some(json!({ "name": "Walls", "locked": true })));
+        let off = ("Walls".to_string(), false, true, true, Color32::WHITE);
+        assert_eq!(layer_toggle_at(r, on + 8.0, &off), Some(json!({ "name": "Walls", "on": true })));
+        assert_eq!(layer_toggle_at(r, freeze + 8.0, &off), Some(json!({ "name": "Walls", "frozen": false })));
+        assert_eq!(layer_toggle_at(r, lock + 8.0, &off), Some(json!({ "name": "Walls", "locked": false })));
+        // The swatch and the name pick the layer.
+        assert_eq!(layer_toggle_at(r, lock + 30.0, &layer), None);
+        assert_eq!(layer_toggle_at(r, r.right() - 10.0, &layer), None);
+        // And layer.set does switch it.
+        let mut app = CadApp::new(draftcraft_engine::Session::new(), crate::Services::default());
+        app.session.doc_mut().unwrap().ensure_layer("Walls");
+        for params in
+            [json!({ "name": "Walls", "on": false }), json!({ "name": "Walls", "frozen": true }), json!({ "name": "Walls", "locked": true })]
+        {
+            app.run("layer.set", params).unwrap();
+        }
+        let d = app.session.doc().unwrap();
+        let l = d.layers.iter().find(|l| l.name == "Walls").unwrap();
+        assert_eq!((l.on, l.frozen, l.locked), (false, true, true));
     }
 
     /// The colour, linetype and lineweight lists change the selected objects too.
