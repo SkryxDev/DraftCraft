@@ -67,8 +67,8 @@ pub fn sniff_version(bytes: &[u8]) -> Option<DwgVersion> {
     DwgVersion::from_magic(bytes)
 }
 
-/// Read a DWG file from memory.
-pub fn read_bytes(bytes: &[u8]) -> Result<Drawing> {
+/// A file's version and its container opened to sections.
+pub(crate) fn open_container(bytes: &[u8]) -> Result<(DwgVersion, container::Container)> {
     let ver = DwgVersion::from_magic(bytes).ok_or_else(|| {
         let tag: String = bytes.iter().take(6).map(|&b| if b.is_ascii_graphic() { b as char } else { '?' }).collect();
         Error::new(ErrorKind::NotDwg, format!("unrecognised version tag {tag:?}"))
@@ -84,6 +84,12 @@ pub fn read_bytes(bytes: &[u8]) -> Result<Drawing> {
             ));
         }
     };
+    Ok((ver, container))
+}
+
+/// Read a DWG file from memory.
+pub fn read_bytes(bytes: &[u8]) -> Result<Drawing> {
+    let (ver, container) = open_container(bytes)?;
     let mut diagnostics = container.notes;
     let maintenance = container.maintenance;
     let codepage = container.codepage;
@@ -288,7 +294,7 @@ fn failed(ctx: &object::DecodeCtx, data: &[u8], handle: u64, offset: usize, mess
 
 /// Parse the object map both ways and keep the reading whose entries agree
 /// with the handles stored in the objects themselves.
-fn choose_object_map(handles: &[u8], ver: DwgVersion, objects: &[u8], diagnostics: &mut Vec<Diagnostic>) -> Result<Vec<objmap::MapEntry>> {
+pub(crate) fn choose_object_map(handles: &[u8], ver: DwgVersion, objects: &[u8], diagnostics: &mut Vec<Diagnostic>) -> Result<Vec<objmap::MapEntry>> {
     let score = |entries: &[objmap::MapEntry]| -> (usize, usize) {
         if entries.is_empty() {
             return (0, 0);

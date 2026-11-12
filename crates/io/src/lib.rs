@@ -5,6 +5,7 @@
 /// What a DXF file holds that DraftCraft doesn't model, kept and written back (#528).
 mod dxf_raw;
 
+pub mod dwg;
 pub mod dwg_read;
 /// XCLIP boundaries as SPATIAL_FILTER objects.
 mod dxf_clip;
