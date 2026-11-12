@@ -174,3 +174,29 @@ fn each_answer_is_kept_as_it_is_given() {
     s.cancel();
     assert!(same(units(&s), (3, 2, 2, 5, 1.413716694115407, 0)), "{:?}", units(&s));
 }
+
+/// UNITS and -UNITS carry a new format or precision into the dimension styles that showed the
+/// drawing's units, so existing and new dimensions read the new way; a style set on purpose to
+/// something else keeps it.
+#[test]
+fn units_carry_into_the_dimension_styles_that_followed_them() {
+    use serde_json::json;
+    let mut s = Session::new();
+    s.execute("dimstyle", &json!({ "name": "Metric", "DIMDEC": 2, "DIMLUNIT": 2 })).unwrap();
+    s.execute("dimstyle", &json!({ "name": "Survey", "DIMLUNIT": 3 })).unwrap();
+    let r = s.execute("units", &json!({ "lunits": 4, "luprec": 3, "aunits": 1, "auprec": 2 })).unwrap();
+    let style = |s: &Session, n: &str| s.doc().unwrap().dim_style(n).cloned().unwrap();
+    // Standard showed decimal with 4 places, as the drawing did: it follows all of it.
+    let st = style(&s, "Standard");
+    assert_eq!((st.linear_unit, st.decimals, st.angular_unit, st.angular_decimals), (4, 3, 1, 2));
+    // Metric kept its own 2 places but showed the drawing's format.
+    let m = style(&s, "Metric");
+    assert_eq!((m.linear_unit, m.decimals), (4, 2));
+    // Survey's engineering format was its own.
+    assert_eq!(style(&s, "Survey").linear_unit, 3);
+    assert!(r["dimStyles"].as_array().unwrap().iter().any(|n| n == "Standard"), "{r}");
+    // -UNITS does the same: back to decimal.
+    run(&mut s, "2 3 \"\" \"\" \"\" \"\"");
+    let st = style(&s, "Standard");
+    assert_eq!((st.linear_unit, st.decimals), (2, 3));
+}

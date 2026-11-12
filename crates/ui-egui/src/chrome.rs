@@ -8,6 +8,7 @@ use crate::icons::{self, Icon};
 use crate::theme::Tokens;
 
 pub mod annoscale;
+pub mod units;
 
 /// File tabs: switcher, "+", Start, open drawings.
 pub fn file_tabs(app: &mut CadApp, ui: &mut egui::Ui) {
@@ -230,8 +231,9 @@ pub fn status_bar(app: &mut CadApp, ui: &mut egui::Ui) {
         });
         // MODEL / PAPER (layouts only): toggles MSPACE and PSPACE like AutoCAD's status button.
         let mut coord_right = rx - 8.0;
-        // The annotation scale list (model space).
+        // The annotation scale list (model space), then the drawing units.
         coord_right = annoscale::status(app, ui, coord_right, r.center().y);
+        coord_right = units::status(app, ui, coord_right, r.center().y);
         if matches!(app.session.layout_space(), draftcraft_doc::Space::Model) {
             // Windows shows MODEL on the status bar in the Model tab too.
             let br = Rect::from_min_max(pos2(coord_right - 56.0, r.center().y - 9.0), pos2(coord_right - 4.0, r.center().y + 9.0));
@@ -241,7 +243,7 @@ pub fn status_bar(app: &mut CadApp, ui: &mut egui::Ui) {
         if matches!(app.session.layout_space(), draftcraft_doc::Space::Paper(_)) {
             let model = app.session.state().is_ok_and(|st| st.mspace.is_some());
             let label = if model { "MODEL" } else { "PAPER" };
-            let br = Rect::from_min_max(pos2(rx - 60.0, r.center().y - 9.0), pos2(rx - 6.0, r.center().y + 9.0));
+            let br = Rect::from_min_max(pos2(coord_right - 52.0, r.center().y - 9.0), pos2(coord_right + 2.0, r.center().y + 9.0));
             let resp = ui.interact(br, ui.scope_id().with("mspace_toggle"), Sense::click());
             p.rect_filled(br, 3.0, if resp.hovered() { t.control_hover } else { t.toggle_on.gamma_multiply(0.25) });
             p.text(br.center(), egui::Align2::CENTER_CENTER, crate::i18n::t(label), crate::theme::small(), t.text);

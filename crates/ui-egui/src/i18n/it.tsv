@@ -1645,3 +1645,10 @@ menu	Palettes	Tavolozze
 	Workspaces	Aree di lavoro
 	Interface...	Interfaccia...
 menu	Workspaces	Aree di lavoro
+# Status bar: drawing units.
+	Drawing units	Unità del disegno
+	Architectural	Architettoniche
+	Decimal	Decimali
+	Engineering	Ingegneristiche
+	Fractional	Frazionarie
+	Scientific	Scientifiche
