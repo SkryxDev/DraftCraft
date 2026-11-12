@@ -211,7 +211,7 @@ pub fn read_bytes(bytes: &[u8]) -> Result<Drawing> {
 /// writes `01 00 00 00` before it). 0 is imperial, 1 metric; anything else
 /// is not believed. R13–R15 files have no such section and keep the
 /// default.
-fn template_measurement(s: &[u8]) -> Option<u16> {
+pub(crate) fn template_measurement(s: &[u8]) -> Option<u16> {
     let at = s.len().checked_sub(2)?;
     let m = u16::from_le_bytes([*s.get(at)?, *s.get(at + 1)?]);
     (m <= 1).then_some(m)
@@ -238,7 +238,7 @@ fn summary_text(s: &[u8], p: &mut usize, wide: bool) -> Option<String> {
 /// AcDb:SummaryInfo (spec chapter 13): eight strings, three dates the
 /// header also holds, then custom properties as name and value pairs.
 /// `None` if it does not parse.
-fn summary_info(s: &[u8], wide: bool) -> Option<Properties> {
+pub(crate) fn summary_info(s: &[u8], wide: bool) -> Option<Properties> {
     let mut p = 0usize;
     let mut f = Vec::with_capacity(8);
     for _ in 0..8 {
