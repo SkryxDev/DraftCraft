@@ -732,13 +732,3 @@ fn vport(r: &mut ObjectReader) -> DwgResult<Vport> {
     });
     Ok(Vport { name, tile, snap_spacing, grid_spacing, snap_base, snap_rotation })
 }
-
-/// The name of every block record, by handle. The blocks themselves are read with their entities.
-pub(super) fn block_names(file: &DwgFile, objects: &[ObjectRef]) -> HashMap<u64, String> {
-    objects
-        .iter()
-        .filter(|o| o.type_name == "BLOCK_HEADER")
-        .take(MAX_RECORDS)
-        .filter_map(|o| Some((o.handle, file.read_object(o).and_then(|mut r| record_name(&mut r)).ok()?)))
-        .collect()
-}
