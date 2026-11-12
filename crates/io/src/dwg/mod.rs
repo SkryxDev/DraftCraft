@@ -10,6 +10,7 @@
 //! [`Unread::is_empty`].
 
 mod header;
+mod tables;
 
 use std::collections::BTreeMap;
 
@@ -54,14 +55,38 @@ pub fn read(bytes: &[u8]) -> Result<(Drawing, Unread)> {
     // A file without the variable (before AutoCAD 2000) has no units.
     d.header.set_i64("INSUNITS", 0);
     let mut unread = Unread::default();
-    match header::read(&file, &mut d) {
-        // The variables that name other objects wait for the tables.
-        Ok(refs) => refs.names.keys().for_each(|name| unread.count(&format!("header ${name}"))),
-        Err(_) => unread.count("header"),
+    let objects: Vec<_> = file.objects().collect();
+    let refs = match header::read(&file, &mut d) {
+        Ok(refs) => Some(refs),
+        Err(_) => {
+            unread.count("header");
+            None
+        }
+    };
+    let tables = tables::read(&file, &objects, &mut d, &mut unread);
+    // The header variables that name a table record, now that the tables are read. The others
+    // (a dimension style, a multiline style, a block, a UCS) wait for their categories.
+    for (name, handle) in refs.iter().flat_map(|r| &r.names) {
+        let table = match *name {
+            "CLAYER" => &tables.layers,
+            "CELTYPE" | "DIMLTYPE" | "DIMLTEX1" | "DIMLTEX2" => &tables.linetypes,
+            "TEXTSTYLE" | "DIMTXSTY" => &tables.styles,
+            _ => {
+                unread.count(&format!("header ${name}"));
+                continue;
+            }
+        };
+        match table.get(handle) {
+            Some(record) => d.header.set_str(name, record),
+            // No reference: the variable is empty, as AutoCAD's DXF has it.
+            None if *handle == 0 => d.header.set_str(name, ""),
+            None => unread.count(&format!("header ${name}")),
+        }
     }
-    for o in file.objects() {
-        // No category is read yet: every object is accounted for as unread.
-        unread.count(&o.type_name);
+    for o in &objects {
+        if !tables.read.contains(&o.handle) {
+            unread.count(&o.type_name);
+        }
     }
     Ok((d, unread))
 }

@@ -9,7 +9,7 @@
 use std::collections::HashMap;
 
 use crate::read::header::Val;
-use crate::read::model::{ClassDef, Color, Diagnostic};
+use crate::read::model::{ClassDef, Color, Diagnostic, XDataApp, XValue};
 use crate::read::{self, object};
 use crate::records::Result;
 
@@ -68,6 +68,201 @@ pub struct HeaderRead {
     pub measurement: Option<u16>,
     /// Who last saved the file, from its summary section (AutoCAD 2004 and later).
     pub last_saved_by: Option<String>,
+}
+
+fn color_value(c: Color) -> ColorValue {
+    match c {
+        Color::ByLayer => ColorValue::ByLayer,
+        Color::ByBlock => ColorValue::ByBlock,
+        Color::Index(i) => ColorValue::Index(i),
+        Color::Rgb(r, g, b) => ColorValue::Rgb(r, g, b),
+        Color::None => ColorValue::None,
+    }
+}
+
+/// One value of an object's extended data (DXF groups 1000 to 1071).
+#[derive(Clone, Debug, PartialEq)]
+pub enum XDataItem {
+    /// 1000: a string.
+    Text(String),
+    /// 1002 `{`.
+    Open,
+    /// 1002 `}`.
+    Close,
+    /// 1003: a layer, by handle.
+    Layer(u64),
+    /// 1004: bytes.
+    Bytes(Vec<u8>),
+    /// 1005: an object, by handle.
+    Handle(u64),
+    /// 1010: a point.
+    Point([f64; 3]),
+    /// 1011: a position in space.
+    Position([f64; 3]),
+    /// 1012: a displacement.
+    Displacement([f64; 3]),
+    /// 1013: a direction.
+    Direction([f64; 3]),
+    /// 1040: a number.
+    Real(f64),
+    /// 1041: a distance.
+    Distance(f64),
+    /// 1042: a scale factor.
+    ScaleFactor(f64),
+    /// 1070: a 16-bit integer.
+    Int16(i16),
+    /// 1071: a 32-bit integer.
+    Int32(i32),
+    /// A value the reader could not decode, as its bytes.
+    Undecoded(Vec<u8>),
+}
+
+/// The extended data one application attached to an object.
+#[derive(Clone, Debug, PartialEq)]
+pub struct XDataBlock {
+    /// The application, by the handle of its APPID table record.
+    pub app: u64,
+    pub items: Vec<XDataItem>,
+}
+
+/// The references every object starts with.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct CommonRefs {
+    /// The object that owns this one (its table, its block, its dictionary).
+    pub owner: u64,
+    /// The objects told when this one changes.
+    pub reactors: Vec<u64>,
+    /// The object's extension dictionary, 0 when it has none.
+    pub xdictionary: u64,
+}
+
+/// One object opened for reading: its fields are read in the order the format stores them, by
+/// the reader that knows the object's type. Every read is bounds-checked and returns an error at
+/// the end of the object's data.
+pub struct ObjectReader<'a> {
+    o: object::Opened<'a>,
+}
+
+impl ObjectReader<'_> {
+    /// The file's version, which decides what many objects store.
+    pub fn version(&self) -> read::DwgVersion {
+        self.o.s.ver
+    }
+    /// True when the file keeps text apart from the other fields (AutoCAD 2007 and later).
+    pub fn has_string_stream(&self) -> bool {
+        self.o.s.ver.has_string_stream()
+    }
+    /// The object's own handle.
+    pub fn handle(&self) -> u64 {
+        self.o.handle
+    }
+    /// The object's extended data, one block per application.
+    pub fn xdata(&self) -> Vec<XDataBlock> {
+        self.o
+            .xdata
+            .iter()
+            .filter_map(|x| {
+                let XDataApp::Handle(app) = &x.app else { return None };
+                let p = |v: &crate::read::geom::Vec3| [v.x, v.y, v.z];
+                let items = x
+                    .items
+                    .iter()
+                    .map(|v| match v {
+                        XValue::Str(s) => XDataItem::Text(s.clone()),
+                        XValue::Open => XDataItem::Open,
+                        XValue::Close => XDataItem::Close,
+                        XValue::Layer(h) => XDataItem::Layer(h.0),
+                        XValue::Bytes(b) => XDataItem::Bytes(b.clone()),
+                        XValue::Handle(h) => XDataItem::Handle(h.0),
+                        XValue::Point(v) => XDataItem::Point(p(v)),
+                        XValue::Position(v) => XDataItem::Position(p(v)),
+                        XValue::Displacement(v) => XDataItem::Displacement(p(v)),
+                        XValue::Direction(v) => XDataItem::Direction(p(v)),
+                        XValue::Real(r) => XDataItem::Real(*r),
+                        XValue::Distance(r) => XDataItem::Distance(*r),
+                        XValue::ScaleFactor(r) => XDataItem::ScaleFactor(*r),
+                        XValue::Int16(i) => XDataItem::Int16(*i),
+                        XValue::Int32(i) => XDataItem::Int32(*i),
+                        XValue::Undecoded { data, .. } => XDataItem::Undecoded(data.clone()),
+                    })
+                    .collect();
+                Some(XDataBlock { app: app.0, items })
+            })
+            .collect()
+    }
+    /// The owner, reactors and extension dictionary. They come first among the object's
+    /// references, so this is called before any [`ObjectReader::reference`].
+    pub fn common_refs(&mut self) -> Result<CommonRefs> {
+        let (owner, reactors, xdictionary) = object::common_handles(&mut self.o)?;
+        Ok(CommonRefs { owner, reactors: reactors.into_iter().map(|h| h.0).collect(), xdictionary })
+    }
+    /// The next reference to another object, as that object's handle (0 for none).
+    pub fn reference(&mut self) -> Result<u64> {
+        let own = self.o.handle;
+        self.o.s.h_abs(own)
+    }
+    /// A bit.
+    pub fn b(&mut self) -> Result<bool> {
+        self.o.s.dat.b()
+    }
+    /// Two bits.
+    pub fn bb(&mut self) -> Result<u8> {
+        self.o.s.dat.bb()
+    }
+    /// A bit-coded 16-bit integer.
+    pub fn bs(&mut self) -> Result<u16> {
+        self.o.s.dat.bs()
+    }
+    /// A bit-coded 32-bit integer.
+    pub fn bl(&mut self) -> Result<u32> {
+        self.o.s.dat.bl()
+    }
+    /// A bit-coded double.
+    pub fn bd(&mut self) -> Result<f64> {
+        self.o.s.dat.bd()
+    }
+    /// Three bit-coded doubles.
+    pub fn bd3(&mut self) -> Result<[f64; 3]> {
+        self.o.s.dat.bd3()
+    }
+    /// A byte.
+    pub fn rc(&mut self) -> Result<u8> {
+        self.o.s.dat.rc()
+    }
+    /// A raw double.
+    pub fn rd(&mut self) -> Result<f64> {
+        self.o.s.dat.rd()
+    }
+    /// Two raw doubles.
+    pub fn rd2(&mut self) -> Result<[f64; 2]> {
+        self.o.s.dat.rd2()
+    }
+    /// `n` bytes.
+    pub fn bytes(&mut self, n: usize) -> Result<Vec<u8>> {
+        self.o.s.dat.raw_bytes(n)
+    }
+    /// Skip `n` bytes.
+    pub fn skip_bytes(&mut self, n: usize) -> Result<()> {
+        self.o.s.dat.skip_bits(n.saturating_mul(8))
+    }
+    /// A text value, from the string stream where the file has one.
+    pub fn text(&mut self) -> Result<String> {
+        self.o.s.tv()
+    }
+    /// A colour, with the index field as stored (its sign marks a layer that is off, before
+    /// AutoCAD 2000).
+    pub fn color(&mut self) -> Result<(ColorValue, i16)> {
+        let (c, index) = self.o.s.cmc()?;
+        Ok((color_value(c), index))
+    }
+    /// 8-bit text in the file's code page, as a string.
+    pub fn ansi(&self, bytes: &[u8]) -> String {
+        crate::read::text::decode_ansi(bytes, self.o.s.codepage)
+    }
+    /// How many bits of the object's fields are left to read.
+    pub fn remaining_bits(&self) -> usize {
+        self.o.s.dat.remaining()
+    }
 }
 
 /// A DWG file opened to its sections.
@@ -158,13 +353,7 @@ impl DwgFile {
                     Val::P3(p) => HeaderValue::Point3([p.x, p.y, p.z]),
                     Val::Text(t) => HeaderValue::Text(t),
                     Val::Handle(h) => HeaderValue::Handle(h),
-                    Val::Color(c) => HeaderValue::Color(match c {
-                        Color::ByLayer => ColorValue::ByLayer,
-                        Color::ByBlock => ColorValue::ByBlock,
-                        Color::Index(i) => ColorValue::Index(i),
-                        Color::Rgb(r, g, b) => ColorValue::Rgb(r, g, b),
-                        Color::None => ColorValue::None,
-                    }),
+                    Val::Color(c) => HeaderValue::Color(color_value(c)),
                 };
                 (name, v)
             })
@@ -174,6 +363,12 @@ impl DwgFile {
         let last_saved_by =
             self.others.iter().find(|(n, _)| n == "AcDb:SummaryInfo").and_then(|(_, s)| read::summary_info(s, wide)).map(|p| p.last_saved_by);
         Ok(HeaderRead { vars, verified, measurement, last_saved_by })
+    }
+
+    /// Open one object to read its fields.
+    pub fn read_object(&self, object: &ObjectRef) -> Result<ObjectReader<'_>> {
+        let ctx = object::DecodeCtx { ver: self.version, codepage: self.codepage, classes: &self.classes };
+        Ok(ObjectReader { o: object::open(&ctx, &self.objects, object.offset)? })
     }
 
     /// Every object of the file, in handle order as the object map lists them.

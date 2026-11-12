@@ -25,7 +25,7 @@ const LINEWEIGHTS: [i64; 24] = [0, 5, 9, 13, 15, 18, 20, 25, 30, 35, 40, 50, 53,
 
 /// A lineweight as the header holds it: hundredths of a millimetre, or -1 ByLayer, -2 ByBlock,
 /// -3 Default.
-fn lineweight(index: i64) -> i64 {
+pub(super) fn lineweight(index: i64) -> i64 {
     match index {
         29 => -1,
         30 => -2,
