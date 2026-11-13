@@ -7,14 +7,31 @@
 
 use std::collections::{HashMap, HashSet};
 
-use draftcraft_doc::foreign::{Foreign, ForeignObject};
-use draftcraft_doc::{Drawing, Group, Handle, RawTag};
+use draftcraft_doc::foreign::{Foreign, ForeignExtra, ForeignKey, ForeignObject};
+use draftcraft_doc::{Drawing, EntityKind, Group, Handle, RawTag};
 use draftcraft_dwg::file::{CommonRefs, DwgFile, Groups, NonGraphic, ObjectReader, ObjectRef, XrValue};
 use draftcraft_dwg::records::Result as DwgResult;
 
 use super::Unread;
+use super::blocks::Blocks;
+use super::entities::Link;
 use super::objects::Named;
 use super::tables::Tables;
+
+/// What the earlier passes give this one.
+pub(super) struct Source<'a> {
+    pub file: &'a DwgFile,
+    pub objects: &'a [ObjectRef],
+    pub tables: &'a Tables,
+    pub blocks: &'a Blocks,
+    pub named: &'a Named,
+    /// The entities' extension dictionaries, reactors and materials, by entity.
+    pub links: &'a HashMap<u64, Link>,
+    /// The named object dictionary.
+    pub root: u64,
+    /// The objects the earlier passes read.
+    pub done: &'a HashSet<u64>,
+}
 
 /// Most owners followed from an object up to the named object dictionary.
 const MAX_DEPTH: usize = 64;
@@ -184,48 +201,154 @@ fn class_tags(c: &draftcraft_dwg::file::ClassInfo) -> Vec<RawTag> {
     ]
 }
 
-/// Whether the object `handle` is kept as the DXF reader keeps a DXF file's objects: its owners
-/// lead to an entry of the named object dictionary (`root`) DraftCraft doesn't write itself.
-fn retained(handle: u64, objs: &HashMap<u64, Obj>, root: u64, root_keys: &HashMap<u64, String>, memo: &mut HashMap<u64, bool>) -> bool {
-    let mut path = Vec::new();
-    let mut at = handle;
-    let keep = loop {
-        if let Some(&known) = memo.get(&at) {
-            break known;
-        }
-        if path.contains(&at) || path.len() >= MAX_DEPTH {
-            break false;
-        }
-        path.push(at);
-        let Some(o) = objs.get(&at) else { break false };
-        if o.refs.owner == root {
-            break root_keys.get(&at).is_some_and(|key| !crate::dxf_raw::modelled_key(key));
-        }
-        if objs.contains_key(&o.refs.owner) {
-            at = o.refs.owner;
-            continue;
-        }
-        break false;
-    };
-    for p in path {
-        memo.insert(p, keep);
-    }
-    keep
+/// What says whether an object is kept: the objects by handle, the named object dictionary and
+/// its entries, the extension dictionary of each entity and record, and the drawing's entities
+/// (true for one of a type the drawing doesn't model) and records by handle.
+struct Keeping<'a> {
+    objs: &'a HashMap<u64, Obj>,
+    root: u64,
+    root_keys: &'a HashMap<u64, String>,
+    xdict_of: &'a HashMap<u64, u64>,
+    ents: &'a HashMap<u64, bool>,
+    ids: &'a HashMap<u64, ForeignKey>,
 }
 
-/// Read the objects the earlier passes left (`done`): the drawing's part of them, and what it
-/// keeps of the rest. Returns the handles accounted for.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn read(
-    file: &DwgFile,
-    objects: &[ObjectRef],
-    tables: &Tables,
-    named: &Named,
-    root: u64,
-    done: &HashSet<u64>,
-    d: &mut Drawing,
-    unread: &mut Unread,
-) -> HashSet<u64> {
+impl Keeping<'_> {
+    /// An extension dictionary of an entity or record (not of another object).
+    fn is_xdict(&self, h: u64) -> bool {
+        let Some(o) = self.objs.get(&h) else { return false };
+        let owner = o.refs.owner;
+        !self.objs.contains_key(&owner) && self.xdict_of.get(&owner) == Some(&h) && (self.ents.contains_key(&owner) || self.ids.contains_key(&owner))
+    }
+
+    /// The keys of a dictionary's entries.
+    fn keys(&self, h: u64) -> Vec<(&str, u64)> {
+        match self.objs.get(&h).and_then(|o| o.value.as_ref()) {
+            Some(NonGraphic::Dictionary(dict)) => dict.entries.iter().map(|(k, e)| (k.as_str(), e.0)).collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    /// Whether the object `handle` is kept, by the DXF reader's rule (`dxf_raw::retained_objects`):
+    /// its owners lead to an entry of the named object dictionary DraftCraft doesn't write
+    /// itself, to an extension dictionary's entry it doesn't model, or to an entity of a type it
+    /// doesn't model.
+    fn retained(&self, handle: u64, memo: &mut HashMap<u64, bool>) -> bool {
+        let mut path = Vec::new();
+        let mut at = handle;
+        let keep = loop {
+            if let Some(&known) = memo.get(&at) {
+                break known;
+            }
+            if path.contains(&at) || path.len() >= MAX_DEPTH {
+                break false;
+            }
+            path.push(at);
+            let Some(o) = self.objs.get(&at) else { break false };
+            let owner = o.refs.owner;
+            if owner == self.root {
+                break self.root_keys.get(&at).is_some_and(|key| !crate::dxf_raw::modelled_key(key));
+            }
+            if self.objs.contains_key(&owner) {
+                if self.is_xdict(owner) && self.keys(owner).iter().any(|(k, e)| *e == at && crate::dxf_raw::modelled_xdict_key(k)) {
+                    break false;
+                }
+                at = owner;
+                continue;
+            }
+            if self.is_xdict(at) {
+                break self.keys(at).iter().any(|(k, _)| !crate::dxf_raw::modelled_xdict_key(k));
+            }
+            break self.ents.get(&owner) == Some(&true);
+        };
+        for p in path {
+            memo.insert(p, keep);
+        }
+        keep
+    }
+}
+
+/// The roles of the file's handles (`ForeignKey`), as the DXF reader names them: table records
+/// and tables by type and name, block records, the named object dictionary, its entries and
+/// their entries.
+fn identities(src: &Source, objs: &HashMap<u64, Obj>, root_entries: &[(String, u64)]) -> HashMap<u64, ForeignKey> {
+    let up = |s: &str| s.trim().to_ascii_uppercase();
+    let mut out: HashMap<u64, ForeignKey> = HashMap::new();
+    for o in src.objects.iter().filter(|o| !o.is_entity) {
+        let record = |kind: &str, names: &HashMap<u64, String>| names.get(&o.handle).filter(|n| !n.is_empty()).map(|n| (kind.to_string(), up(n)));
+        let key = match o.type_name.as_str() {
+            "LAYER" => record("LAYER", &src.tables.layers),
+            "STYLE" => record("STYLE", &src.tables.styles),
+            "LTYPE" => record("LTYPE", &src.tables.linetypes),
+            "APPID" => record("APPID", &src.tables.apps),
+            "DIMSTYLE" => record("DIMSTYLE", &src.tables.dim_styles),
+            "UCS" => record("UCS", &src.tables.ucss),
+            "BLOCK_HEADER" => record("BLOCK_RECORD", &src.blocks.names),
+            "BLOCK_CONTROL" => Some(("TABLE".into(), "BLOCK_RECORD".into())),
+            t => t.strip_suffix("_CONTROL").filter(|t| *t != "VX").map(|t| ("TABLE".to_string(), t.to_string())),
+        };
+        if let Some(key) = key {
+            out.entry(o.handle).or_insert(key);
+        }
+    }
+    if src.root != 0 {
+        out.entry(src.root).or_insert(("NOD".into(), String::new()));
+    }
+    for (key, h) in root_entries {
+        out.entry(*h).or_insert(("NOD".into(), up(key)));
+        if let Some(NonGraphic::Dictionary(dict)) = objs.get(h).and_then(|o| o.value.as_ref()) {
+            for (name, e) in &dict.entries {
+                out.entry(e.0).or_insert((format!("NOD/{}", up(key)), up(name)));
+            }
+        }
+    }
+    out
+}
+
+/// Every entity of the drawing by handle: true for one of a type the drawing doesn't model.
+fn entity_types(d: &Drawing) -> HashMap<u64, bool> {
+    std::iter::once(&d.model)
+        .chain(d.layouts.iter().map(|l| &l.entities))
+        .chain(d.blocks.values().map(|b| &b.entities))
+        .flat_map(|s| s.iter())
+        .map(|e| (e.handle.0, matches!(e.kind, EntityKind::Unknown(_))))
+        .collect()
+}
+
+/// What a table record, table or block record carries beyond the model: its extension
+/// dictionary and reactors (those kept are chosen later) and other applications' extended data.
+fn record_extras(src: &Source, ids: &HashMap<u64, ForeignKey>) -> HashMap<u64, (CommonRefs, Vec<RawTag>)> {
+    let mut out = HashMap::new();
+    for o in src.objects.iter().filter(|o| !o.is_entity) {
+        let Some((kind, _)) = ids.get(&o.handle).filter(|(kind, _)| !kind.starts_with("NOD")) else { continue };
+        let Ok(mut r) = src.file.read_object(o) else { continue };
+        let xdata = crate::dxf_raw::foreign_xdata(kind, &super::entities::xdata_tags(&r.xdata(), &src.tables.apps));
+        let Ok(refs) = r.common_refs() else { continue };
+        if refs.xdictionary != 0 || !refs.reactors.is_empty() || !xdata.is_empty() {
+            out.insert(o.handle, (refs, xdata));
+        }
+    }
+    out
+}
+
+/// The objects the earlier passes left, decoded.
+struct Decoded {
+    objs: HashMap<u64, Obj>,
+    /// Their handles in the file's order.
+    order: Vec<u64>,
+    /// The handles accounted for: read into the drawing, kept, or counted.
+    read: HashSet<u64>,
+    /// Table styles as the DXF groups AutoCAD writes of them.
+    style_tags: Vec<(u64, Vec<draftcraft_dxf::Tag>)>,
+    /// Dictionary entries by the handle of the object they name.
+    keys: HashMap<u64, String>,
+    /// The named object dictionary's entries.
+    root_entries: Vec<(String, u64)>,
+}
+
+/// Decode the objects the earlier passes left (`done`).
+fn decode(src: &Source, unread: &mut Unread) -> Decoded {
+    let Source { file, objects, tables, root, done, .. } = *src;
     let text_styles: Vec<(String, u64)> = tables.styles.iter().map(|(h, n)| (n.clone(), *h)).collect();
     let mut objs: HashMap<u64, Obj> = HashMap::new();
     let mut order: Vec<u64> = Vec::new();
@@ -280,7 +403,15 @@ pub(super) fn read(
             }
         }
     }
-    let root_keys: HashMap<u64, String> = root_entries.iter().map(|(k, h)| (*h, k.clone())).collect();
+    Decoded { objs, order, read, style_tags, keys, root_entries }
+}
+
+/// The drawing's part of the objects, by the DXF reader's rules: the scale list, DraftCraft's own
+/// records, the layers' plot styles, table styles, groups, the wipeout frame setting. Returns the
+/// objects read into the model.
+fn model(src: &Source, dec: &Decoded, d: &mut Drawing, unread: &mut Unread) -> HashSet<u64> {
+    let Source { tables, named, .. } = *src;
+    let Decoded { objs, order, style_tags, keys, root_entries, .. } = dec;
     let entry = |key: &str| root_entries.iter().find(|(k, _)| k.eq_ignore_ascii_case(key)).map(|(_, h)| *h);
     let dictionary = |h: u64| match objs.get(&h).and_then(|o| o.value.as_ref()) {
         Some(NonGraphic::Dictionary(dict)) => Some(dict),
@@ -342,7 +473,7 @@ pub(super) fn read(
     // Table styles, named by the ACAD_TABLESTYLE dictionary, by the DXF reader's rule: a name the
     // drawing has is replaced.
     let mut modelled: HashSet<u64> = HashSet::new();
-    for (h, tags) in &style_tags {
+    for (h, tags) in style_tags {
         let Some(name) = named.table_styles.get(h).filter(|n| !n.is_empty()) else {
             unread.count("TABLESTYLE of no dictionary entry");
             continue;
@@ -356,7 +487,7 @@ pub(super) fn read(
 
     // Groups, named by their dictionary (ACAD_GROUP), by the DXF reader's rule.
     let mut groups = Vec::new();
-    for &h in &order {
+    for &h in order.iter() {
         let Some(o) = objs.get(&h) else { continue };
         let (Some(NonGraphic::Groups(g)), "GROUP") = (&o.value, o.type_name.as_str()) else { continue };
         let Some(name) = keys.get(&h).filter(|n| !n.is_empty()) else { continue };
@@ -380,29 +511,48 @@ pub(super) fn read(
         }
     }
 
-    // What the drawing doesn't model, kept as the DXF reader keeps it; the rest of the
-    // structure (the dictionaries of what it models, their scales and placeholders, DraftCraft's
-    // records) it rebuilds on save, as it does a DXF file's. Anything else is counted.
+    modelled
+}
+
+/// What the drawing doesn't model, kept as the DXF reader keeps it; the rest of the structure
+/// (the dictionaries of what it models, their scales and placeholders, DraftCraft's records) it
+/// rebuilds on save, as it does a DXF file's. Anything else is counted.
+fn keep(src: &Source, dec: &mut Decoded, modelled: &HashSet<u64>, d: &mut Drawing, unread: &mut Unread) {
+    let Source { file, root, .. } = *src;
+    let Decoded { objs, order, read, root_entries, .. } = dec;
+    let root_keys: HashMap<u64, String> = root_entries.iter().map(|(k, h)| (*h, k.clone())).collect();
+    let ents = entity_types(d);
+    let ids = identities(src, objs, root_entries);
+    let records = record_extras(src, &ids);
+    let mut xdict_of: HashMap<u64, u64> = src.links.iter().filter(|(_, l)| l.xdictionary != 0).map(|(h, l)| (*h, l.xdictionary)).collect();
+    xdict_of.extend(records.iter().filter(|(_, (refs, _))| refs.xdictionary != 0).map(|(h, (refs, _))| (*h, refs.xdictionary)));
+    let keeping = Keeping { objs, root, root_keys: &root_keys, xdict_of: &xdict_of, ents: &ents, ids: &ids };
     let mut memo = HashMap::new();
     let mut foreign = Foreign::default();
     let mut classes: HashSet<String> = HashSet::new();
-    for &h in &order {
+    let mut kept: HashSet<u64> = HashSet::new();
+    for &h in order.iter() {
         let Some(o) = objs.get(&h) else { continue };
         if modelled.contains(&h) {
             read.insert(h);
             continue;
         }
-        if !retained(h, &objs, root, &root_keys, &mut memo) {
+        if !keeping.retained(h, &mut memo) {
             if REBUILT.contains(&o.type_name.as_str()) {
                 read.insert(h);
             }
             continue;
         }
-        let Some(tags) = object_tags(h, o) else {
+        let Some(mut tags) = object_tags(h, o) else {
             unread.count(&o.type_name);
             read.insert(h);
             continue;
         };
+        // An extension dictionary's modelled entries are written from the model.
+        if keeping.is_xdict(h) {
+            crate::dxf_raw::strip_entries(&mut tags);
+        }
+        kept.insert(h);
         if o.refs.owner == root
             && let Some(key) = root_keys.get(&h)
         {
@@ -416,11 +566,80 @@ pub(super) fn read(
         foreign.objects.push(ForeignObject { handle: Handle(h), kind: o.type_name.clone(), tags });
         read.insert(h);
     }
-    if !foreign.objects.is_empty() {
+    // What entities, table records, tables and block records carry beyond the model: the kept
+    // extension dictionary and reactors, a material, other applications' extended data.
+    let extra = |xdict: u64, reactors: &[u64]| ForeignExtra {
+        xdict: Some(xdict).filter(|x| kept.contains(x)).map(Handle),
+        reactors: reactors.iter().filter(|r| kept.contains(r)).map(|r| Handle(*r)).collect(),
+        ..ForeignExtra::default()
+    };
+    for (h, l) in src.links {
+        let Some(&unknown) = ents.get(h) else { continue };
+        let mut x = extra(l.xdictionary, &l.reactors);
+        if !unknown && l.material != 0 {
+            x.props.push(tag(347, hex(l.material)));
+        }
+        if !x.is_empty() {
+            foreign.entities.insert(Handle(*h), x);
+        }
+    }
+    for (h, (refs, xdata)) in &records {
+        let Some(key) = ids.get(h) else { continue };
+        let mut x = extra(refs.xdictionary, &refs.reactors);
+        x.xdata.clone_from(xdata);
+        if !x.is_empty() {
+            foreign.records.insert(key.clone(), x);
+        }
+    }
+    // The roles of the handles the kept data refers to, for what the drawing writes itself
+    // under a new handle.
+    let mut refs: Vec<u64> = Vec::new();
+    let mut note = |tags: &[RawTag]| {
+        refs.extend(tags.iter().filter(|t| crate::dxf_raw::is_pointer(t.code)).filter_map(|t| Handle::parse_hex(&t.value)).map(|h| h.0))
+    };
+    for o in &foreign.objects {
+        note(&o.tags);
+    }
+    for x in foreign.entities.values().chain(foreign.records.values()) {
+        note(&x.xdata);
+        note(&x.props);
+    }
+    for e in
+        std::iter::once(&d.model).chain(d.layouts.iter().map(|l| &l.entities)).chain(d.blocks.values().map(|b| &b.entities)).flat_map(|s| s.iter())
+    {
+        note(&e.common.xdata);
+    }
+    for r in refs {
+        if let (Some(k), false) = (ids.get(&r), kept.contains(&r)) {
+            foreign.targets.insert(Handle(r), k.clone());
+        }
+    }
+    if !foreign.is_empty() {
         let f = std::sync::Arc::make_mut(&mut d.foreign);
         f.objects.extend(foreign.objects);
         f.dictionary.extend(foreign.dictionary);
         f.classes.extend(foreign.classes);
+        for (h, x) in foreign.entities {
+            let e = f.entities.entry(h).or_default();
+            e.xdict = x.xdict;
+            e.reactors = x.reactors;
+            e.props.extend(x.props);
+        }
+        for (k, x) in foreign.records {
+            let e = f.records.entry(k).or_default();
+            e.xdict = x.xdict;
+            e.reactors = x.reactors;
+            e.xdata = x.xdata;
+        }
+        f.targets.extend(foreign.targets);
     }
-    read
+}
+
+/// Read the objects the earlier passes left (`done`): the drawing's part of them, and what it
+/// keeps of the rest. Returns the handles accounted for.
+pub(super) fn read(src: &Source, d: &mut Drawing, unread: &mut Unread) -> HashSet<u64> {
+    let mut dec = decode(src, unread);
+    let modelled = model(src, &dec, d, unread);
+    keep(src, &mut dec, &modelled, d, unread);
+    dec.read
 }

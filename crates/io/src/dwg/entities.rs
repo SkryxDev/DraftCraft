@@ -35,6 +35,14 @@ struct Names<'a> {
     by_hex: (HashMap<String, String>, HashMap<String, String>, HashMap<String, String>),
 }
 
+/// What an entity refers to that the objects pass keeps with the drawing's other foreign data:
+/// its extension dictionary, the objects that react to it, its material.
+pub(super) struct Link {
+    pub xdictionary: u64,
+    pub reactors: Vec<u64>,
+    pub material: u64,
+}
+
 /// One entity's place: the block record that owns it, and the entity after it in the chain.
 struct Place {
     record: u64,
@@ -113,15 +121,6 @@ fn common(r: &ObjectReader, refs: &EntityRefs, n: &Names, partial: &mut Vec<&'st
     // What the entity refers to that is read with the objects.
     if refs.plotstyle != 0 {
         partial.push("entity plot style");
-    }
-    if refs.material != 0 {
-        partial.push("entity material");
-    }
-    if refs.xdictionary != 0 {
-        partial.push("entity extension dictionary");
-    }
-    if !refs.reactors.is_empty() {
-        partial.push("entity reactors");
     }
     c.xdata = xdata(&r.xdata(), n, partial);
     c
@@ -2473,8 +2472,9 @@ pub(super) fn read(
     objects_named: &super::objects::Named,
     d: &mut Drawing,
     unread: &mut Unread,
-) -> HashSet<u64> {
+) -> (HashSet<u64>, HashMap<u64, Link>) {
     let by_hex = (super::tables::by_hex(&tables.styles), super::tables::by_hex(&blocks.names), super::tables::by_hex(&tables.linetypes));
+    let mut links: HashMap<u64, Link> = HashMap::new();
     let names = Names { tables, blocks: &blocks.names, objects: objects_named, by_hex };
     let mut read = HashSet::new();
     let mut decoded: HashMap<u64, Entity> = HashMap::new();
@@ -2501,6 +2501,9 @@ pub(super) fn read(
             }
             continue;
         };
+        if refs.xdictionary != 0 || !refs.reactors.is_empty() || refs.material != 0 {
+            links.insert(o.handle, Link { xdictionary: refs.xdictionary, reactors: refs.reactors.clone(), material: refs.material });
+        }
         let reopened = file.read_object(o).ok();
         let record = match reopened.as_ref().and_then(|r| r.entity()).map(|h| h.space) {
             Some(EntitySpace::Model) => blocks.model,
@@ -2665,7 +2668,7 @@ pub(super) fn read(
     // blocks, by the DXF reader's rule.
     crate::dxf_mleader::apply(d, &mleader_attribs, &HashMap::new());
     // An entity no block owns (a sub-entity of a type not read yet) stays unread.
-    read
+    (read, links)
 }
 
 #[cfg(test)]

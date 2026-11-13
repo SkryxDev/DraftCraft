@@ -128,10 +128,14 @@ pub fn read(bytes: &[u8]) -> Result<(Drawing, Unread)> {
             None => unread.count("header $CMLSTYLE"),
         }
     }
-    let entities = entities::read(&file, &objects, &tables, &block_table, &named, &mut d, &mut unread);
+    let (entities, links) = entities::read(&file, &objects, &tables, &block_table, &named, &mut d, &mut unread);
     let others = objects::read(&file, &objects, &tables, &named, &mut d, &mut unread);
     let done: std::collections::HashSet<u64> = tables.read.iter().chain(&block_table.read).chain(&entities).chain(&others).copied().collect();
-    let carried = carry::read(&file, &objects, &tables, &named, root, &done, &mut d, &mut unread);
+    let carried = carry::read(
+        &carry::Source { file: &file, objects: &objects, tables: &tables, blocks: &block_table, named: &named, links: &links, root, done: &done },
+        &mut d,
+        &mut unread,
+    );
     for o in &objects {
         if !done.contains(&o.handle) && !carried.contains(&o.handle) {
             unread.count(&o.type_name);
