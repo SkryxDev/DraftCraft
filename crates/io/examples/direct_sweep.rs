@@ -346,6 +346,22 @@ fn stress(case: &str, n: usize, version: Version) {
     }
 }
 
+/// Two readings of the same value: numbers within 1e-9 (relative to their size, or absolute
+/// near zero), as a value read in degrees and written in radians, or through a text format,
+/// drifts in its last digits; everything else equal.
+fn close(a: &serde_json::Value, b: &serde_json::Value) -> bool {
+    use serde_json::Value as J;
+    match (a, b) {
+        (J::Number(x), J::Number(y)) => match (x.as_f64(), y.as_f64()) {
+            (Some(x), Some(y)) => (x - y).abs() <= 1e-9 * x.abs().max(y.abs()).max(1.0),
+            _ => x == y,
+        },
+        (J::Array(x), J::Array(y)) => x.len() == y.len() && x.iter().zip(y).all(|(x, y)| close(x, y)),
+        (J::Object(x), J::Object(y)) => x.len() == y.len() && x.iter().all(|(k, v)| y.get(k).is_some_and(|w| close(v, w))),
+        _ => a == b,
+    }
+}
+
 /// Every entity's content, in order, space by space (anonymous block names aside).
 fn content_same(a: &Drawing, b: &Drawing, report: &mut Vec<String>) -> bool {
     let json = |k: &EntityKind| {
@@ -365,9 +381,10 @@ fn content_same(a: &Drawing, b: &Drawing, report: &mut Vec<String>) -> bool {
         v
     };
     let (ka, kb) = (key(a), key(b));
-    let differing = ka.iter().zip(&kb).filter(|(x, y)| x != y).count();
+    let same = |x: &String, y: &String| x == y || matches!((serde_json::from_str(x), serde_json::from_str(y)), (Ok(x), Ok(y)) if close(&x, &y));
+    let differing = ka.iter().zip(&kb).filter(|(x, y)| !same(x, y)).count();
     if differing > 0 || ka.len() != kb.len() {
-        if let Some((x, y)) = ka.iter().zip(&kb).find(|(x, y)| x != y) {
+        if let Some((x, y)) = ka.iter().zip(&kb).find(|(x, y)| !same(x, y)) {
             let at = x.chars().zip(y.chars()).position(|(a, b)| a != b).unwrap_or_else(|| x.chars().count().min(y.chars().count()));
             report.push(format!(
                 "  {differing} entities differ; first (read {} characters, saved {}; they part at {at}):\n    read  …{}\n    saved …{}",
