@@ -7,7 +7,8 @@ use std::collections::{HashMap, HashSet};
 
 use draftcraft_doc::{
     Arc, Attrib, AttribModes, AttribProps, Circle, Common, DimKind, Dimension, Drawing, Ellipse, Entity, EntityKind, Face3d, Gradient, HAlign,
-    Handle, Hatch, HatchLoop, Insert, Line, Lineweight, LwPolyline, MText, Point, PolyfaceMesh, Polyline3d, RawTag, RayLine, Solid, Text, VAlign,
+    Handle, Hatch, HatchLoop, Insert, Leader, Line, Lineweight, LwPolyline, MAX_FRAME_CHARS, MText, Point, PolyfaceMesh, Polyline3d, RawTag, RayLine,
+    Solid, Text, Tolerance, VAlign,
 };
 use draftcraft_dwg::DwgVersion as V;
 use draftcraft_dwg::file::{DwgFile, EntityLinetype, EntityRefs, EntitySpace, ObjectReader, ObjectRef, XDataBlock, XDataItem};
@@ -26,6 +27,8 @@ const MAX_ENTITIES: usize = 1 << 24;
 struct Names<'a> {
     tables: &'a Tables,
     blocks: &'a HashMap<u64, String>,
+    /// Multileader style names, by MLEADERSTYLE handle (from the ACAD_MLEADERSTYLE dictionary).
+    mleader_styles: &'a HashMap<u64, String>,
 }
 
 /// One entity's place: the block record that owns it, and the entity after it in the chain.
@@ -46,6 +49,9 @@ struct Decoded {
     polyline: Option<(PolyKind, Common, Attribs)>,
     /// A vertex or polyface face waiting for its polyline.
     vertex: Option<Vertex>,
+    /// A multileader's block attribute values (ATTDEF handle in hexadecimal, value), waiting for
+    /// the attribute definitions of its block.
+    mleader_attribs: Option<Vec<(String, String)>>,
     partial: Vec<&'static str>,
 }
 
@@ -211,6 +217,9 @@ fn reads(type_name: &str) -> bool {
             | "VERTEX_PFACE_FACE"
             | "SPLINE"
             | "HATCH"
+            | "LEADER"
+            | "TOLERANCE"
+            | "MULTILEADER"
             | "DIMENSION_ORDINATE"
             | "DIMENSION_LINEAR"
             | "DIMENSION_ALIGNED"
@@ -242,6 +251,257 @@ enum Body {
     /// A hatch, waiting for the boundary objects of its loops (how many each names) and for its
     /// extended data (origin, background, a gradient DraftCraft wrote there).
     Hatch(Box<Hatch>, Vec<u32>, Vec<RawPatternLine>),
+    /// A leader, waiting for its dimension style.
+    Leader(Box<Leader>),
+    /// A feature control frame, waiting for its dimension style.
+    Tolerance(Box<Tolerance>),
+    /// A multileader's values, waiting for the objects its references name, in their order.
+    MLeader(Box<crate::dxf_mleader::Parsed>, Vec<MlRef>),
+}
+
+/// What one of a multileader's references names, in the order the file holds them.
+#[derive(Clone, Copy)]
+enum MlRef {
+    /// Not kept in the drawing (a line type, an arrowhead).
+    Skip,
+    Style,
+    TextStyle,
+    ContextTextStyle,
+    Block,
+    ContextBlock,
+    /// The attribute definition of block attribute value `n`.
+    AttDef(usize),
+}
+
+/// Most leader roots, lines, points, breaks and attribute values of one multileader that are
+/// read: a file with more is not a multileader DraftCraft opens.
+const MAX_MLEADER_ITEMS: u32 = 100_000;
+
+/// A count read from the file, refused above `max` or above what the record can hold.
+fn bounded(r: &mut ObjectReader, n: u32, max: u32, min_bits: usize, what: &str) -> DwgResult<usize> {
+    if n > max {
+        return Err(draftcraft_dwg::records::Error::format(format!("too many {what}s: {n}")));
+    }
+    r.count(n, min_bits, what)
+}
+
+/// LEADER (§20.4.47): its vertices, arrowhead and path type. The annotation and the hook line are
+/// drawn from the dimension style, as the DXF reader has them.
+fn leader(r: &mut ObjectReader) -> DwgResult<Shape> {
+    let ver = r.version();
+    let _unknown = r.b()?;
+    let _annotation_type = r.bs()?;
+    let path_type = r.bs()?;
+    let n = r.bl()?;
+    let n = bounded(r, n, MAX_MLEADER_ITEMS, 6, "leader vertex")?;
+    let mut vertices = Vec::with_capacity(n);
+    for _ in 0..n {
+        vertices.push(v3(r.bd3()?));
+    }
+    let _origin = r.bd3()?;
+    let normal = v3(r.bd3()?);
+    let _x_direction = r.bd3()?;
+    let _block_offset = r.bd3()?;
+    if ver >= V::R14 {
+        let _annotation_offset = r.bd3()?;
+    }
+    if ver <= V::R14 {
+        let _dimgap = r.bd()?;
+    }
+    // The annotation's height and width, up to AutoCAD 2007: from 2010 on the record has
+    // neither (as acadrust reads and writes it; not yet seen in a file AutoCAD saved).
+    if ver <= V::R2007 {
+        let _text_height = r.bd()?;
+        let _text_width = r.bd()?;
+    }
+    let _hookline_on_x = r.b()?;
+    let arrow = r.b()?;
+    if ver <= V::R14 {
+        let _arrowhead_type = r.bs()?;
+        let _dimasz = r.bd()?;
+        let _ = (r.b()?, r.b()?, r.bs()?, r.bs()?, r.b()?, r.b()?);
+    } else {
+        let _ = (r.bs()?, r.b()?, r.b()?);
+    }
+    let l = Leader { vertices, arrow, spline: path_type == 1, style: "Standard".into() };
+    Ok(Shape { body: Body::Leader(Box::new(l)), thickness: 0.0, normal })
+}
+
+/// TOLERANCE (§20.4.49): the frame's insertion point, direction and contents. AutoCAD R13 and
+/// R14 store a short, the text height and the gap first.
+fn tolerance(r: &mut ObjectReader) -> DwgResult<Shape> {
+    if r.version() <= V::R14 {
+        let _ = (r.bs()?, r.bd()?, r.bd()?);
+    }
+    let insert = v3(r.bd3()?);
+    let dir = v3(r.bd3()?);
+    let normal = v3(r.bd3()?);
+    let text: String = r.text()?.chars().take(MAX_FRAME_CHARS).collect();
+    let dir = if dir.xy().is_finite() && dir.xy().len() > 1e-12 { dir } else { Vec3::new(1.0, 0.0, 0.0) };
+    let t = Tolerance { insert, dir, style: "Standard".into(), text };
+    Ok(Shape { body: Body::Tolerance(Box::new(t)), thickness: 0.0, normal })
+}
+
+/// MULTILEADER (§20.4.87, AutoCAD 2007 and later): the annotation context (the leader roots and
+/// their lines, the text or block content and the plane), then the entity's own values. The
+/// values go where the DXF reader puts the same groups, and the drawing's multileader is built
+/// from them by its rules.
+fn mleader(r: &mut ObjectReader) -> DwgResult<Shape> {
+    use crate::dxf_mleader::{P, Parsed, Root};
+    let ver = r.version();
+    let finite = |v: f64| v.is_finite().then_some(v);
+    let mut p = Parsed::default();
+    let mut refs = Vec::new();
+    if ver >= V::R2010 {
+        let _class_version = r.bs()?;
+    }
+    let n_roots = r.bl()?;
+    for _ in 0..bounded(r, n_roots, 256, 8, "leader root")? {
+        let _valid = r.b()?;
+        let _unknown = r.b()?;
+        let connection = v3(r.bd3()?);
+        let _direction = r.bd3()?;
+        let n_breaks = r.bl()?;
+        for _ in 0..bounded(r, n_breaks, MAX_MLEADER_ITEMS, 12, "leader break")? {
+            let _ = (r.bd3()?, r.bd3()?);
+        }
+        let _index = r.bl()?;
+        let landing_distance = r.bd()?;
+        let n_lines = r.bl()?;
+        let mut lines = Vec::new();
+        for _ in 0..bounded(r, n_lines, MAX_MLEADER_ITEMS, 6, "leader line")? {
+            let n_points = r.bl()?;
+            let n_points = bounded(r, n_points, MAX_MLEADER_ITEMS, 6, "leader line point")?;
+            let mut points = Vec::with_capacity(n_points);
+            for _ in 0..n_points {
+                points.push(v3(r.bd3()?));
+            }
+            let n_info = r.bl()?;
+            for _ in 0..bounded(r, n_info, MAX_MLEADER_ITEMS, 4, "leader line break")? {
+                let _segment = r.bl()?;
+                let n = r.bl()?;
+                for _ in 0..bounded(r, n, MAX_MLEADER_ITEMS, 12, "leader line break point")? {
+                    let _ = (r.bd3()?, r.bd3()?);
+                }
+            }
+            let _index = r.bl()?;
+            if ver >= V::R2010 {
+                let _path_type = r.bs()?;
+                let _color = r.color()?;
+                refs.push(MlRef::Skip);
+                let _lineweight = r.bl()?;
+                let _arrow_size = r.bd()?;
+                refs.push(MlRef::Skip);
+                let _overrides = r.bl()?;
+            }
+            lines.push(points);
+        }
+        if ver >= V::R2010 {
+            let _attachment_direction = r.bs()?;
+        }
+        p.roots.push(Root { landing: P::at(connection), dogleg: finite(landing_distance), lines });
+    }
+    let _scale = r.bd()?;
+    p.base = P::at(v3(r.bd3()?));
+    p.text_height = finite(r.bd()?);
+    p.arrow_ctx = finite(r.bd()?);
+    let _landing_gap = r.bd()?;
+    p.left_attach = Some(i64::from(r.bs()?));
+    p.right_attach = Some(i64::from(r.bs()?));
+    let _text_alignment = r.bs()?;
+    let _block_connection = r.bs()?;
+    let has_text = r.b()?;
+    p.has_text = Some(has_text);
+    if has_text {
+        p.text = Some(r.text()?);
+        let _normal = r.bd3()?;
+        refs.push(MlRef::ContextTextStyle);
+        p.text_location = P::at(v3(r.bd3()?));
+        p.text_direction = P::at(v3(r.bd3()?));
+        p.text_rotation = finite(r.bd()?);
+        p.text_width = finite(r.bd()?);
+        let _boundary_height = r.bd()?;
+        p.line_spacing = finite(r.bd()?);
+        p.line_spacing_style = Some(i64::from(r.bs()?));
+        let _color = r.color()?;
+        p.side = Some(i64::from(r.bs()?));
+        let _flow = r.bs()?;
+        let _background_color = r.color()?;
+        let _background_scale = r.bd()?;
+        let _background_transparency = r.bl()?;
+        let _ = (r.b()?, r.b()?);
+        let _column_type = r.bs()?;
+        let _auto_height = r.b()?;
+        let _ = (r.bd()?, r.bd()?);
+        let _flow_reversed = r.b()?;
+        let n = r.bl()?;
+        for _ in 0..bounded(r, n, MAX_MLEADER_ITEMS, 2, "multileader column")? {
+            let _size = r.bd()?;
+        }
+        let _ = (r.b()?, r.b()?);
+    } else {
+        let has_block = r.b()?;
+        p.has_block = Some(has_block);
+        if has_block {
+            refs.push(MlRef::ContextBlock);
+            let _normal = r.bd3()?;
+            p.block_location = P::at(v3(r.bd3()?));
+            p.block_scale_ctx = P::at(v3(r.bd3()?));
+            p.block_rotation_ctx = finite(r.bd()?);
+            let _color = r.color()?;
+            for _ in 0..16 {
+                let _matrix = r.bd()?;
+            }
+        }
+    }
+    let _ = (r.bd3()?, r.bd3()?, r.bd3()?, r.b()?);
+    if ver >= V::R2010 {
+        let _ = (r.bs()?, r.bs()?);
+    }
+    // The entity's own values.
+    refs.push(MlRef::Style);
+    let _overrides = r.bl()?;
+    p.leader_type = Some(i64::from(r.bs()?));
+    let _line_color = r.color()?;
+    refs.push(MlRef::Skip);
+    let _lineweight = r.bl()?;
+    let _landing = r.b()?;
+    p.dogleg_on = Some(r.b()?);
+    p.dogleg = finite(r.bd()?);
+    refs.push(MlRef::Skip);
+    p.arrow = finite(r.bd()?);
+    p.content = Some(i64::from(r.bs()?));
+    refs.push(MlRef::TextStyle);
+    let _ = (r.bs()?, r.bs()?, r.bs()?, r.bs()?);
+    let _text_color = r.color()?;
+    let _frame = r.b()?;
+    refs.push(MlRef::Block);
+    let _block_color = r.color()?;
+    p.block_scale = P::at(v3(r.bd3()?));
+    p.block_rotation = finite(r.bd()?);
+    let _connection = r.bs()?;
+    let _annotative = r.b()?;
+    if ver < V::R2010 {
+        let n = r.bl()?;
+        for _ in 0..bounded(r, n, MAX_MLEADER_ITEMS, 1, "multileader arrowhead")? {
+            let _default = r.b()?;
+            refs.push(MlRef::Skip);
+        }
+    }
+    let n = r.bl()?;
+    for i in 0..bounded(r, n, MAX_MLEADER_ITEMS, 4, "multileader block attribute")? {
+        refs.push(MlRef::AttDef(i));
+        p.attribs.push((String::new(), r.text()?));
+        let _ = (r.bs()?, r.bd()?);
+    }
+    let _ = (r.b()?, r.bs()?, r.bs()?, r.bd()?);
+    if ver >= V::R2010 {
+        let _ = (r.bs()?, r.bs()?, r.bs()?);
+    }
+    if ver >= V::R2013 {
+        let _extend_to_text = r.b()?;
+    }
+    Ok(Shape { body: Body::MLeader(Box::new(p), refs), thickness: 0.0, normal: UP })
 }
 
 /// A pattern definition line as the file holds it: angle in degrees, base point, offset, dashes.
@@ -263,7 +523,7 @@ fn hatch(r: &mut ObjectReader) -> DwgResult<Shape> {
         let _single_color = r.bl()?;
         let _tint = r.bd()?;
         let n = r.bl()?;
-        let n = r.count(n, 20, "gradient colour")?;
+        let n = r.count(n, 14, "gradient colour")?;
         let mut colors = Vec::with_capacity(n);
         for _ in 0..n {
             let _value = r.bd()?;
@@ -297,7 +557,7 @@ fn hatch(r: &mut ObjectReader) -> DwgResult<Shape> {
     let solid_fill = r.b()?;
     let associative = r.b()?;
     let n_loops = r.bl()?;
-    let n_loops = r.count(n_loops.min(MAX_HATCH_ITEMS), 8, "hatch loop")?;
+    let n_loops = r.count(n_loops.min(MAX_HATCH_ITEMS), 6, "hatch loop")?;
     let mut loops = Vec::with_capacity(n_loops);
     let mut sources = Vec::with_capacity(n_loops);
     let mut derived = false;
@@ -1257,6 +1517,9 @@ fn shape(r: &mut ObjectReader, type_name: &str, partial: &mut Vec<&'static str>)
         "VERTEX_PFACE_FACE" => pface_face(r)?,
         "SPLINE" => spline(r)?,
         "HATCH" => hatch(r)?,
+        "LEADER" => leader(r)?,
+        "TOLERANCE" => tolerance(r)?,
+        "MULTILEADER" => mleader(r)?,
         "DIMENSION_ORDINATE" | "DIMENSION_LINEAR" | "DIMENSION_ALIGNED" | "DIMENSION_ANG_3PT" | "DIMENSION_ANG_2LN" | "DIMENSION_RADIUS"
         | "DIMENSION_DIAMETER" => dimension(r, type_name)?,
         "ATTDEF" => attribute(r, true)?,
@@ -1276,14 +1539,14 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
     let Some(Shape { body, thickness, normal }) = shape(r, &o.type_name, &mut partial)? else {
         // A type read in a later step: only its place is known.
         let refs = r.entity_refs()?;
-        return Ok((Decoded { entity: None, attrib: None, attribs: None, polyline: None, vertex: None, partial }, refs));
+        return Ok((Decoded { entity: None, attrib: None, attribs: None, polyline: None, vertex: None, mleader_attribs: None, partial }, refs));
     };
     let refs = r.entity_refs()?;
     let style = |r: &mut ObjectReader| -> DwgResult<String> {
         let h = r.reference()?;
         Ok(n.tables.styles.get(&h).cloned().unwrap_or_else(|| "Standard".into()))
     };
-    let (mut attrib, mut attribs, mut polyline, mut vertex) = (None, None, None, None);
+    let (mut attrib, mut attribs, mut polyline, mut vertex, mut mleader_attribs) = (None, None, None, None, None);
     let kind = match body {
         Body::Ready(k) => Some(*k),
         Body::Text(mut t, align, insert) => {
@@ -1367,6 +1630,59 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
             }
             Some(EntityKind::Hatch(*h))
         }
+        Body::Leader(mut l) => {
+            let _annotation = r.reference()?;
+            let style = r.reference()?;
+            l.style = n.tables.dim_styles.get(&style).cloned().unwrap_or_else(|| "Standard".into());
+            Some(EntityKind::Leader(*l))
+        }
+        Body::Tolerance(mut t) => {
+            let style = r.reference()?;
+            t.style = n.tables.dim_styles.get(&style).cloned().unwrap_or_else(|| "Standard".into());
+            Some(EntityKind::Tolerance(*t))
+        }
+        Body::MLeader(mut p, slots) => {
+            let (mut style, mut text_style, mut block) = (None, [None, None], [None, None]);
+            for slot in slots {
+                let h = r.reference()?;
+                match slot {
+                    MlRef::Skip => {}
+                    MlRef::Style => style = Some(h),
+                    MlRef::ContextTextStyle => text_style[0] = Some(h),
+                    MlRef::TextStyle => text_style[1] = Some(h),
+                    MlRef::ContextBlock => block[0] = Some(h),
+                    MlRef::Block => block[1] = Some(h),
+                    MlRef::AttDef(i) => {
+                        if let Some(a) = p.attribs.get_mut(i) {
+                            a.0 = format!("{h:X}");
+                        }
+                    }
+                }
+            }
+            let mut m = crate::dxf_mleader::build(&p);
+            if let Some(name) = style.and_then(|h| n.mleader_styles.get(&h)).filter(|s| !s.is_empty()) {
+                m.style.clone_from(name);
+            }
+            if let Some(t) = &mut m.text
+                && let Some(name) = text_style.iter().flatten().find_map(|h| n.tables.styles.get(h)).filter(|s| !s.is_empty())
+            {
+                t.style.clone_from(name);
+            }
+            if m.block.is_some() {
+                match block.iter().flatten().find_map(|h| n.blocks.get(h)).filter(|s| !s.is_empty()) {
+                    Some(name) => {
+                        if let Some(b) = &mut m.block {
+                            b.block.clone_from(name);
+                        }
+                    }
+                    None => m.block = None,
+                }
+            }
+            if !p.attribs.is_empty() && m.block.is_some() {
+                mleader_attribs = Some(std::mem::take(&mut p.attribs));
+            }
+            Some(EntityKind::MLeader(m))
+        }
         Body::Vertex(v) => {
             vertex = Some(v);
             None
@@ -1400,20 +1716,58 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
         e.common = c;
         e
     });
-    Ok((Decoded { entity, attrib, attribs, polyline, vertex, partial }, refs))
+    Ok((Decoded { entity, attrib, attribs, polyline, vertex, mleader_attribs, partial }, refs))
+}
+
+/// What decoded entities wait for, by the handle of the entity: attributes for their block
+/// references, vertices for their polylines, multileaders for their blocks' attribute definitions.
+#[derive(Default)]
+struct Waiting {
+    attribs: HashMap<u64, (Attrib, Common)>,
+    lists: Vec<(u64, Attribs)>,
+    vertices: HashMap<u64, Vertex>,
+    polylines: Vec<(u64, PolyKind, Common, Attribs)>,
+    mleader_attribs: Vec<(Handle, crate::dxf_mleader::Pending)>,
+}
+
+impl Waiting {
+    /// Keep what one decoded entity waits for; returns the entity, when it is one already.
+    fn take(&mut self, h: u64, dec: Decoded) -> Option<Entity> {
+        if let Some(a) = dec.attrib {
+            self.attribs.insert(h, a);
+        }
+        if let Some(list) = dec.attribs {
+            self.lists.push((h, list));
+        }
+        if let Some(v) = dec.vertex {
+            self.vertices.insert(h, v);
+        }
+        if let Some(attribs) = dec.mleader_attribs {
+            self.mleader_attribs.push((Handle(h), crate::dxf_mleader::Pending { style: None, attribs }));
+        }
+        if let Some((kind, c, list)) = dec.polyline {
+            self.polylines.push((h, kind, c, list));
+        }
+        dec.entity
+    }
 }
 
 /// Read the entities into `d`, each into the space or block that owns it, in the block's order.
 /// Returns the handles of the objects read.
-pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], tables: &Tables, blocks: &Blocks, d: &mut Drawing, unread: &mut Unread) -> HashSet<u64> {
-    let names = Names { tables, blocks: &blocks.names };
+pub(super) fn read(
+    file: &DwgFile,
+    objects: &[ObjectRef],
+    tables: &Tables,
+    blocks: &Blocks,
+    mleader_styles: &HashMap<u64, String>,
+    d: &mut Drawing,
+    unread: &mut Unread,
+) -> HashSet<u64> {
+    let names = Names { tables, blocks: &blocks.names, mleader_styles };
     let mut read = HashSet::new();
     let mut decoded: HashMap<u64, Entity> = HashMap::new();
     let mut places: HashMap<u64, Place> = HashMap::new();
-    let mut attribs: HashMap<u64, (Attrib, Common)> = HashMap::new();
-    let mut lists: Vec<(u64, Attribs)> = Vec::new();
-    let mut vertices: HashMap<u64, Vertex> = HashMap::new();
-    let mut polylines: Vec<(u64, PolyKind, Common, Attribs)> = Vec::new();
+    let mut waiting = Waiting::default();
     // The entities after a polyline's own, from its polygon mesh's faces, by the polyline.
     let mut extras: HashMap<u64, Vec<Entity>> = HashMap::new();
     // New entities take handles after every one of the file's.
@@ -1441,22 +1795,10 @@ pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], tables: &Tables, block
             _ => refs.owner,
         };
         places.insert(o.handle, Place { record, next: refs.next });
-        for what in dec.partial {
+        for what in &dec.partial {
             unread.count(what);
         }
-        if let Some(a) = dec.attrib {
-            attribs.insert(o.handle, a);
-        }
-        if let Some(list) = dec.attribs {
-            lists.push((o.handle, list));
-        }
-        if let Some(v) = dec.vertex {
-            vertices.insert(o.handle, v);
-        }
-        if let Some((kind, c, list)) = dec.polyline {
-            polylines.push((o.handle, kind, c, list));
-        }
-        match dec.entity {
+        match waiting.take(o.handle, dec) {
             Some(e) => {
                 decoded.insert(o.handle, e);
             }
@@ -1480,6 +1822,7 @@ pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], tables: &Tables, block
         }
         handles
     };
+    let Waiting { mut attribs, lists, mut vertices, polylines, mleader_attribs } = waiting;
     for (h, kind, c, list) in polylines {
         let handles = walk(&list, &places);
         let Some(found) = handles.iter().map(|v| vertices.remove(v)).collect::<Option<Vec<_>>>() else {
@@ -1585,6 +1928,9 @@ pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], tables: &Tables, block
             }
         }
     }
+    // The multileaders' block attribute values, placed like the attribute definitions of their
+    // blocks, by the DXF reader's rule.
+    crate::dxf_mleader::apply(d, &mleader_attribs, &HashMap::new());
     // An entity no block owns (a sub-entity of a type not read yet) stays unread.
     read
 }

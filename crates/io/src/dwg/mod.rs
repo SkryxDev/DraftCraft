@@ -92,7 +92,10 @@ pub fn read(bytes: &[u8]) -> Result<(Drawing, Unread)> {
             None => unread.count(&format!("header ${name}")),
         }
     }
-    let entities = entities::read(&file, &objects, &tables, &block_table, &mut d, &mut unread);
+    // Multileader style names: the entries of the ACAD_MLEADERSTYLE dictionary.
+    let named = refs.as_ref().and_then(|r| r.roots.get("DICTIONARY_NAMED_OBJECTS")).copied().unwrap_or(0);
+    let mleader_styles = objects::named_entries(&file, &objects, named, "ACAD_MLEADERSTYLE");
+    let entities = entities::read(&file, &objects, &tables, &block_table, &mleader_styles, &mut d, &mut unread);
     let others = objects::read(&file, &objects, &mut d, &mut unread);
     for o in &objects {
         if !tables.read.contains(&o.handle) && !block_table.read.contains(&o.handle) && !entities.contains(&o.handle) && !others.contains(&o.handle) {
