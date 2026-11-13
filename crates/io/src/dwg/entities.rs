@@ -30,6 +30,9 @@ struct Names<'a> {
     /// What the file's objects give entities: multileader style names, image and underlay
     /// definitions.
     objects: &'a super::objects::Named,
+    /// Text styles, blocks and linetypes by handle in hexadecimal, as a dimension's overrides
+    /// name them: made once, not per dimension.
+    by_hex: (HashMap<String, String>, HashMap<String, String>, HashMap<String, String>),
 }
 
 /// One entity's place: the block record that owns it, and the entity after it in the chain.
@@ -1842,9 +1845,8 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
             // The overrides, associativity and marks the extended data holds, by the DXF
             // reader's rules for them.
             let tags = xdata_tags(&r.xdata(), &n.tables.apps);
-            let (styles, blocks, ltypes) =
-                (super::tables::by_hex(&n.tables.styles), super::tables::by_hex(n.blocks), super::tables::by_hex(&n.tables.linetypes));
-            dm.overrides = crate::dxf_ext::read_dstyle(&tags, &styles, &blocks, &ltypes);
+            let (styles, blocks, ltypes) = &n.by_hex;
+            dm.overrides = crate::dxf_ext::read_dstyle(&tags, styles, blocks, ltypes);
             dm.assoc = crate::dxf_ext::read_assoc(&tags);
             if let Some(center) = crate::dxf_ext::read_arclen(&tags) {
                 dm.kind = DimKind::ArcLength;
@@ -2129,7 +2131,8 @@ pub(super) fn read(
     d: &mut Drawing,
     unread: &mut Unread,
 ) -> HashSet<u64> {
-    let names = Names { tables, blocks: &blocks.names, objects: objects_named };
+    let by_hex = (super::tables::by_hex(&tables.styles), super::tables::by_hex(&blocks.names), super::tables::by_hex(&tables.linetypes));
+    let names = Names { tables, blocks: &blocks.names, objects: objects_named, by_hex };
     let mut read = HashSet::new();
     let mut decoded: HashMap<u64, Entity> = HashMap::new();
     let mut places: HashMap<u64, Place> = HashMap::new();
@@ -2247,6 +2250,14 @@ pub(super) fn read(
     // chain from its first entity; then any entity that names the block as its owner and was in
     // neither, in file order.
     let mut placed: HashSet<u64> = HashSet::new();
+    // Each record's entities in file order, gathered once (not searched for per record: a file
+    // has a block for every dimension).
+    let mut by_record: HashMap<u64, Vec<u64>> = HashMap::new();
+    for o in &entities {
+        if let Some(p) = places.get(&o.handle) {
+            by_record.entry(p.record).or_default().push(o.handle);
+        }
+    }
     for rec in &blocks.records {
         let mut order: Vec<u64> = rec.owned.clone();
         let mut at = rec.first;
@@ -2258,7 +2269,7 @@ pub(super) fn read(
             at = place.next.or_else(|| following.get(&at).copied()).unwrap_or(0);
         }
         let listed: HashSet<u64> = order.iter().copied().collect();
-        order.extend(entities.iter().map(|o| o.handle).filter(|h| !listed.contains(h) && places.get(h).is_some_and(|p| p.record == rec.handle)));
+        order.extend(by_record.get(&rec.handle).into_iter().flatten().copied().filter(|h| !listed.contains(h)));
         for h in order {
             if !placed.insert(h) {
                 continue;
