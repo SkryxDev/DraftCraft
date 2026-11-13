@@ -297,6 +297,9 @@ fn reads(type_name: &str) -> bool {
         "LINE"
             | "OLE2FRAME"
             | "HELIX"
+            | "3DSOLID"
+            | "REGION"
+            | "BODY"
             | "POINT"
             | "CIRCLE"
             | "ARC"
@@ -2019,6 +2022,9 @@ fn shape(r: &mut ObjectReader, type_name: &str, partial: &mut Vec<&'static str>)
         "LEADER" => leader(r)?,
         "TOLERANCE" => tolerance(r)?,
         "OLE2FRAME" => ole2frame(r)?,
+        "3DSOLID" => return modeler(r, "3DSOLID"),
+        "REGION" => return modeler(r, "REGION"),
+        "BODY" => return modeler(r, "BODY"),
         "MULTILEADER" => mleader(r)?,
         "VIEWPORT" => return viewport(r),
         "IMAGE" => raster(r, false)?,
@@ -2329,6 +2335,8 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
             let own = std::mem::take(&mut u.tags);
             u.tags = unknown_head(o.handle, &c);
             u.tags.extend(own);
+            // Its extended data is among its groups too, as in a DXF file.
+            u.tags.extend(c.xdata.iter().cloned());
         }
         e.common = c;
         e
@@ -2399,6 +2407,52 @@ fn ole_frame(data: &[u8]) -> Option<([f64; 3], [f64; 3])> {
     let [ulx, uly, ulz, urx, ury, _, lrx, lry, lrz, llx, lly, _] = v;
     let rectangle = close(uly, ury) && close(lry, lly) && close(ulx, llx) && close(urx, lrx);
     (v.iter().all(|x| x.is_finite() && x.abs() < 1e15) && rectangle).then_some(([ulx, uly, ulz], [lrx, lry, lrz]))
+}
+
+/// Most bytes of ACIS text read for one solid.
+const MAX_ACIS_TEXT: usize = 256 << 20;
+
+/// 3DSOLID, REGION and BODY (§20.4.39 to 41): the solid modeler's description of the shape, as
+/// text up to AutoCAD 2010. The drawing keeps the entity as the groups a DXF file has: each line
+/// of the text a group 1, a line longer than 255 characters continued in groups 3. The text is
+/// stored scrambled in both formats, the same way, and is kept as stored.
+/// `None` for the forms not read yet: the binary description, and the files from AutoCAD 2013
+/// on, which keep the description in a section of its own.
+fn modeler(r: &mut ObjectReader, dxf_type: &'static str) -> DwgResult<Option<Shape>> {
+    if r.version() >= V::R2013 {
+        return Ok(None);
+    }
+    let tag = |code: i32, value: String| RawTag { code, value };
+    let mut t = vec![tag(100, "AcDbModelerGeometry".into())];
+    let empty = r.b()?;
+    if !empty {
+        let _unknown = r.b()?;
+        if r.bs()? != 1 {
+            return Ok(None);
+        }
+        let mut text: Vec<u8> = Vec::new();
+        loop {
+            let n = r.bl()?;
+            if n == 0 {
+                break;
+            }
+            let n = r.count(n, 8, "ACIS text byte")?;
+            if text.len().saturating_add(n) > MAX_ACIS_TEXT {
+                return Err(draftcraft_dwg::records::Error::format("ACIS text is implausibly long"));
+            }
+            text.extend(r.bytes(n)?);
+        }
+        t.push(tag(70, "1".into()));
+        let text: String = text.iter().map(|b| char::from(*b)).collect();
+        for line in text.split('\n').map(|l| l.trim_end_matches('\r')).filter(|l| !l.is_empty()) {
+            // A DXF string writes a caret as a caret and a space.
+            let chars: Vec<char> = line.replace('^', "^ ").chars().collect();
+            for (i, part) in chars.chunks(255).enumerate() {
+                t.push(tag(if i == 0 { 1 } else { 3 }, part.iter().collect()));
+            }
+        }
+    }
+    Ok(Some(Shape { body: Body::Unknown(dxf_type, t), thickness: 0.0, normal: UP }))
 }
 
 /// OLE2FRAME (§20.4.74): an embedded or linked object. Its type, its space and its data, with
@@ -2619,10 +2673,6 @@ pub(super) fn read(
     let mut waiting = Waiting::default();
     // The entities after a polyline's own, from its polygon mesh's faces, by the polyline.
     let mut extras: HashMap<u64, Vec<Entity>> = HashMap::new();
-    // New entities take handles after every one of the file's.
-    if let Some(seed) = objects.iter().map(|o| o.handle).max() {
-        d.bump_handseed(Handle(seed));
-    }
     // The object after each one in the file, for a chain that leaves the next entity unsaid.
     let mut following: HashMap<u64, u64> = HashMap::new();
     let entities: Vec<&ObjectRef> = objects.iter().filter(|o| o.is_entity && !blocks.read.contains(&o.handle)).take(MAX_ENTITIES).collect();

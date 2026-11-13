@@ -156,6 +156,15 @@ pub fn read(bytes: &[u8]) -> Result<(Drawing, Unread)> {
             None => unread.count("header $CMLSTYLE"),
         }
     }
+    // Every handle another program's file uses is taken before anything gets a new one. A file
+    // DraftCraft wrote names its own next handle (#495): its table records and objects are
+    // numbered above it and rebuilt on save, so following the file's handles would drift every
+    // save. As the DXF reader has it.
+    let ours = objects::entries_by_handle(&file, &objects, root).values().any(|k| k == crate::dxf_ext::HANDSEED_KEY);
+    let taken = objects.iter().map(|o| o.handle).max().filter(|_| !ours);
+    if let Some(seed) = taken {
+        d.bump_handseed(draftcraft_doc::Handle(seed));
+    }
     let (entities, links) = entities::read(&file, &objects, &tables, &block_table, &named, &mut d, &mut unread);
     let others = objects::read(&file, &objects, &tables, &named, &mut d, &mut unread);
     let done: std::collections::HashSet<u64> = tables.read.iter().chain(&block_table.read).chain(&entities).chain(&others).copied().collect();
@@ -170,9 +179,6 @@ pub fn read(bytes: &[u8]) -> Result<(Drawing, Unread)> {
         if !done.contains(&o.handle) && !carried.contains(&o.handle) {
             unread.count(&o.type_name);
         }
-    }
-    if let Some(seed) = objects.iter().map(|o| o.handle).max() {
-        d.bump_handseed(draftcraft_doc::Handle(seed));
     }
     Ok((d, unread))
 }
