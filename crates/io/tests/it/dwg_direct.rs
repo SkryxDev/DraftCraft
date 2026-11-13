@@ -807,3 +807,185 @@ fn every_kind_of_dimension_reads_as_the_acadrust_reader_reads_it() {
         assert!(!unread.by_type.keys().any(|k| k.starts_with("DIMENSION")), "{version:?}: {}", unread.summary());
     }
 }
+
+/// A drawing with hatches of every kind of boundary and fill: a solid fill whose outer loop has a
+/// bulge and an island, a scaled and rotated pattern with its own origin, a pattern the library
+/// doesn't know (its definition lines kept), a gradient, a background colour, and an associative
+/// hatch whose loop names the circle it was made from.
+fn hatches_drawing() -> draftcraft_doc::Drawing {
+    use draftcraft_doc::library::PatternLine;
+    use draftcraft_doc::*;
+    use draftcraft_geom::{PolyVertex, Vec2};
+    let v = |x: f64, y: f64| PolyVertex::new(Vec2::new(x, y));
+    let square = |x: f64, y: f64, s: f64| vec![v(x, y), v(x + s, y), v(x + s, y + s), v(x, y + s)];
+    let hatch = |pattern: &str, loops: Vec<HatchLoop>| Hatch {
+        pattern: pattern.into(),
+        solid: pattern == "SOLID",
+        loops,
+        scale: 1.0,
+        angle: 0.0,
+        associative: false,
+        style: 0,
+        elevation: 0.0,
+        gradient: None,
+        origin: Vec2::ZERO,
+        background: None,
+        pattern_lines: Vec::new(),
+    };
+    let outer = |vertices: Vec<PolyVertex>| HatchLoop { vertices, outer: true, sources: Vec::new() };
+    let mut d = Drawing::new_imperial();
+    let circle = d
+        .add(&Space::Model, Common::default(), EntityKind::Circle(Circle { center: draftcraft_geom::Vec3::new(60.0, 5.0, 0.0), radius: 4.0 }))
+        .expect("circle");
+    let mut solid_loop = square(0.0, 0.0, 10.0);
+    solid_loop[1].bulge = 0.4;
+    let mut solid = hatch("SOLID", vec![outer(solid_loop), HatchLoop { vertices: square(3.0, 3.0, 2.0), outer: false, sources: Vec::new() }]);
+    solid.elevation = 1.5;
+    let mut ansi = hatch("ANSI31", vec![outer(square(15.0, 0.0, 10.0))]);
+    ansi.scale = 2.0;
+    ansi.angle = 0.5;
+    ansi.origin = Vec2::new(1.0, 2.0);
+    ansi.style = 1;
+    ansi.background = Some(color::Color::Index(3));
+    let mut own = hatch("MYGRID", vec![outer(square(30.0, 0.0, 10.0))]);
+    own.pattern_lines = vec![
+        PatternLine { angle: 0.0, origin: (0.0, 0.0), delta: (0.0, 0.5), dashes: vec![0.25, -0.25] },
+        PatternLine { angle: 90.0, origin: (0.1, 0.0), delta: (0.0, 0.5), dashes: Vec::new() },
+    ];
+    own.scale = 1.5;
+    let mut gradient = hatch("SOLID", vec![outer(square(45.0, 0.0, 10.0))]);
+    gradient.gradient = Some(Gradient {
+        name: "CYLINDER".into(),
+        color1: color::Color::Index(1),
+        color2: color::Color::True(color::Rgb(10, 200, 30)),
+        angle: 0.25,
+        centered: false,
+    });
+    let mut associative = hatch("SOLID", vec![HatchLoop { vertices: Vec::new(), outer: true, sources: vec![circle] }]);
+    associative.associative = true;
+    if let Some(l) = associative.loops.first_mut() {
+        l.vertices = vec![PolyVertex::with_bulge(Vec2::new(56.0, 5.0), 1.0), PolyVertex::with_bulge(Vec2::new(64.0, 5.0), 1.0)];
+    }
+    for h in [solid, ansi, own, gradient, associative] {
+        d.add(&Space::Model, Common::default(), EntityKind::Hatch(h)).expect("add");
+    }
+    d
+}
+
+#[test]
+fn hatches_read_as_the_acadrust_reader_reads_them() {
+    use draftcraft_doc::EntityKind;
+    use draftcraft_io::{DwgReader, SaveOptions, Version, read_dwg_with, write_with};
+    let source = hatches_drawing();
+    for version in [Version::R2000, Version::R2004, Version::R2010, Version::R2013, Version::R2018] {
+        let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
+        let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
+        let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
+        let hatches = |d: &draftcraft_doc::Drawing| d.model.iter().filter(|e| matches!(e.kind, EntityKind::Hatch(_))).cloned().collect::<Vec<_>>();
+        let (got, want) = (hatches(&d), hatches(&reference));
+        assert_eq!(want.len(), 5, "{version:?}");
+        assert_eq!(got.len(), want.len(), "{version:?}: unread {}", unread.summary());
+        for (ge, we) in got.iter().zip(&want) {
+            let (g, w) = (serde_json::to_value(ge.as_ref()).unwrap(), serde_json::to_value(we.as_ref()).unwrap());
+            assert!(close(&g["kind"], &w["kind"], false), "{version:?}\nread      {}\nreference {}", g["kind"], w["kind"]);
+            assert!(close(&g["common"], &w["common"], false), "{version:?}: properties\nread      {}\nreference {}", g["common"], w["common"]);
+        }
+        assert!(!unread.by_type.contains_key("HATCH"), "{version:?}: {}", unread.summary());
+    }
+}
+
+/// Hatches whose loops are edges, written through acadrust's own API (DraftCraft writes polyline
+/// loops): lines, a counter-clockwise and clockwise arcs, an elliptic arc ending on its axes, and
+/// a spline, with seed points, a derived loop (pixel size) and a pattern's own definition lines.
+fn hatch_edges_dwg(version: acadrust::types::DxfVersion) -> Vec<u8> {
+    use acadrust::entities::*;
+    use acadrust::types::Vector2;
+    use std::f64::consts::{FRAC_PI_2, PI};
+    let mut doc = acadrust::CadDocument::with_version(version);
+    let p = |x: f64, y: f64| Vector2::new(x, y);
+    let line = |a: Vector2, b: Vector2| BoundaryEdge::Line(LineEdge { start: a, end: b });
+    let arc = |c: Vector2, r: f64, s: f64, e: f64, ccw: bool| {
+        BoundaryEdge::CircularArc(CircularArcEdge { center: c, radius: r, start_angle: s, end_angle: e, counter_clockwise: ccw })
+    };
+    // Line, arc, line, half an ellipse (its major axis up, so it bows out to the left).
+    let mut a = BoundaryPath::with_flags(BoundaryPathFlags::EXTERNAL);
+    a.add_edge(line(p(100.0, 0.0), p(110.0, 0.0)));
+    a.add_edge(arc(p(110.0, 5.0), 5.0, -FRAC_PI_2, FRAC_PI_2, true));
+    a.add_edge(line(p(110.0, 10.0), p(100.0, 10.0)));
+    a.add_edge(BoundaryEdge::EllipticArc(EllipticArcEdge {
+        center: p(100.0, 5.0),
+        major_axis_endpoint: p(0.0, 5.0),
+        minor_axis_ratio: 0.4,
+        start_angle: 0.0,
+        end_angle: PI,
+        counter_clockwise: true,
+    }));
+    // A spline and the line that closes it.
+    let mut b = BoundaryPath::with_flags(BoundaryPathFlags::EXTERNAL);
+    b.add_edge(BoundaryEdge::Spline(SplineEdge {
+        degree: 3,
+        rational: false,
+        periodic: false,
+        knots: vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0],
+        control_points: vec![
+            acadrust::types::Vector3::new(120.0, 0.0, 1.0),
+            acadrust::types::Vector3::new(122.0, 5.0, 1.0),
+            acadrust::types::Vector3::new(128.0, 5.0, 1.0),
+            acadrust::types::Vector3::new(130.0, 0.0, 1.0),
+        ],
+        fit_points: Vec::new(),
+        start_tangent: Vector2::ZERO,
+        end_tangent: Vector2::ZERO,
+    }));
+    b.add_edge(line(p(130.0, 0.0), p(120.0, 0.0)));
+    // A circle as two clockwise arcs, derived (a pixel size follows the loops).
+    let mut c = BoundaryPath::with_flags(BoundaryPathFlags::from_bits(1 | 4));
+    c.add_edge(arc(p(140.0, 5.0), 5.0, 0.0, PI, false));
+    c.add_edge(arc(p(140.0, 5.0), 5.0, PI, 2.0 * PI, false));
+    let mut solid = Hatch::solid();
+    solid.add_path(a);
+    solid.add_seed_point(p(105.0, 5.0));
+    doc.add_entity(EntityType::Hatch(Box::new(solid))).unwrap();
+    let mut spline = Hatch::solid();
+    spline.add_path(b);
+    doc.add_entity(EntityType::Hatch(Box::new(spline))).unwrap();
+    let mut pattern = HatchPattern::new("STRIPES");
+    pattern.add_line(HatchPatternLine { angle: 0.3, base_point: p(140.0, 5.0), offset: p(-0.2, 0.6), dash_lengths: vec![0.5, -0.25] });
+    pattern.add_line(HatchPatternLine { angle: 0.3 + FRAC_PI_2, base_point: p(140.0, 5.0), offset: p(0.0, 1.0), dash_lengths: Vec::new() });
+    let mut patterned = Hatch::with_pattern(pattern);
+    patterned.is_solid = false;
+    patterned.pattern_type = HatchPatternType::Custom;
+    patterned.pattern_angle = 0.3;
+    patterned.pattern_scale = 2.0;
+    patterned.pixel_size = 0.05;
+    patterned.add_path(c);
+    patterned.add_seed_point(p(140.0, 5.0));
+    patterned.add_seed_point(p(141.0, 5.0));
+    doc.add_entity(EntityType::Hatch(Box::new(patterned))).unwrap();
+    acadrust::DwgWriter::write_to_vec(&doc).unwrap()
+}
+
+#[test]
+fn hatch_edges_read_as_the_acadrust_reader_reads_them() {
+    use acadrust::types::DxfVersion as A;
+    use draftcraft_doc::EntityKind;
+    use draftcraft_io::{DwgReader, read_dwg_with};
+    for version in [A::AC1015, A::AC1018, A::AC1024, A::AC1027, A::AC1032] {
+        let bytes = hatch_edges_dwg(version);
+        let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
+        let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
+        let hatches = |d: &draftcraft_doc::Drawing| d.model.iter().filter(|e| matches!(e.kind, EntityKind::Hatch(_))).cloned().collect::<Vec<_>>();
+        let (got, want) = (hatches(&d), hatches(&reference));
+        assert_eq!(want.len(), 3, "{version:?}");
+        assert_eq!(got.len(), want.len(), "{version:?}: unread {}", unread.summary());
+        for (ge, we) in got.iter().zip(&want) {
+            let (g, w) = (serde_json::to_value(ge.as_ref()).unwrap(), serde_json::to_value(we.as_ref()).unwrap());
+            assert!(close(&g["kind"], &w["kind"], false), "{version:?}\nread      {}\nreference {}", g["kind"], w["kind"]);
+            let EntityKind::Hatch(h) = &ge.kind else { unreachable!() };
+            assert!(h.loops.iter().all(|l| l.vertices.len() >= 2), "{version:?}: every edge loop has its vertices");
+        }
+        let EntityKind::Hatch(patterned) = &got[2].kind else { unreachable!() };
+        assert_eq!(patterned.pattern_lines.len(), 2, "{version:?}");
+        assert!(!unread.by_type.contains_key("HATCH"), "{version:?}: {}", unread.summary());
+    }
+}
