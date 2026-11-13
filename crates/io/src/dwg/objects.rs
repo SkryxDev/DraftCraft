@@ -9,6 +9,7 @@ use draftcraft_dwg::records::Result as DwgResult;
 use draftcraft_dxf::Tag;
 
 use super::Unread;
+use super::tables::Tables;
 
 /// Most references one DIMASSOC point names.
 const MAX_REFS: u32 = 64;
@@ -93,22 +94,174 @@ fn dictionary(r: &mut ObjectReader) -> DwgResult<Vec<(String, u64)>> {
 /// The entries of the dictionary named `key` in the dictionary at `root` (the named-object
 /// dictionary): each object's handle, with its name. Empty when either can't be read.
 pub(super) fn named_entries(file: &DwgFile, objects: &[ObjectRef], root: u64, key: &str) -> HashMap<u64, String> {
-    let entries = |handle: u64| {
-        objects
-            .iter()
-            .find(|o| o.handle == handle && o.type_name == "DICTIONARY")
-            .and_then(|o| file.read_object(o).and_then(|mut r| dictionary(&mut r)).ok())
-            .unwrap_or_default()
-    };
-    let Some((_, inner)) = entries(root).into_iter().find(|(name, _)| name.eq_ignore_ascii_case(key)) else {
+    let Some((_, inner)) = entries(file, objects, root).into_iter().find(|(name, _)| name.eq_ignore_ascii_case(key)) else {
         return HashMap::new();
     };
-    entries(inner).into_iter().map(|(name, h)| (h, name)).collect()
+    entries_by_handle(file, objects, inner)
+}
+
+/// The entries of the dictionary at `handle`, by name; empty when it can't be read.
+fn entries(file: &DwgFile, objects: &[ObjectRef], handle: u64) -> Vec<(String, u64)> {
+    objects
+        .iter()
+        .find(|o| o.handle == handle && o.type_name == "DICTIONARY")
+        .and_then(|o| file.read_object(o).and_then(|mut r| dictionary(&mut r)).ok())
+        .unwrap_or_default()
+}
+
+/// The names the dictionary at `handle` gives its objects, by the object's handle.
+pub(super) fn entries_by_handle(file: &DwgFile, objects: &[ObjectRef], handle: u64) -> HashMap<u64, String> {
+    entries(file, objects, handle).into_iter().map(|(name, h)| (h, name)).collect()
+}
+
+/// What entities need from the file's objects: names that dictionaries give objects, and the
+/// definitions images and underlays point to, by the object's handle.
+#[derive(Default)]
+pub(super) struct Named {
+    /// Multileader style names (the ACAD_MLEADERSTYLE dictionary).
+    pub mleader_styles: HashMap<u64, String>,
+    /// Table style names, by TABLESTYLE handle (the ACAD_TABLESTYLE dictionary).
+    pub table_styles: HashMap<u64, String>,
+    /// Multiline style names, by MLINESTYLE handle (the name is in the object itself).
+    pub mline_styles: HashMap<u64, String>,
+    pub images: HashMap<u64, ImageDef>,
+    pub pdfs: HashMap<u64, PdfDef>,
+}
+
+/// An IMAGEDEF: the image file, its name (the ACAD_IMAGE_DICT dictionary), the size of one
+/// pixel when the file says, and the resolution unit.
+pub(super) struct ImageDef {
+    pub path: String,
+    pub name: String,
+    pub pixel_size: Option<draftcraft_geom::Vec2>,
+    pub units: u8,
+}
+
+/// A PDFDEFINITION: the PDF file, the page, and its name (the ACAD_PDFDEFINITIONS dictionary).
+pub(super) struct PdfDef {
+    pub path: String,
+    pub page: String,
+    pub name: String,
+}
+
+/// IMAGEDEF (§20.4.81): class version, size in pixels, file, loaded, resolution unit, pixel size.
+fn image_def(r: &mut ObjectReader) -> DwgResult<ImageDef> {
+    r.common_refs()?;
+    let _class_version = r.bl()?;
+    let _size = r.rd2()?;
+    let path = r.text()?;
+    let _loaded = r.b()?;
+    let units = r.rc()?;
+    let [x, y] = r.rd2()?;
+    let pixel_size = (x.is_finite() && y.is_finite() && x > 0.0 && y > 0.0).then(|| draftcraft_geom::Vec2::new(x, y));
+    Ok(ImageDef { path, name: String::new(), pixel_size, units })
+}
+
+/// PDFDEFINITION (an underlay definition): the file and the page.
+fn pdf_def(r: &mut ObjectReader) -> DwgResult<PdfDef> {
+    r.common_refs()?;
+    Ok(PdfDef { path: r.text()?, page: r.text()?, name: String::new() })
+}
+
+/// The names and definitions entities need, from the named-object dictionary at `root`.
+pub(super) fn named(file: &DwgFile, objects: &[ObjectRef], root: u64) -> Named {
+    let image_names = named_entries(file, objects, root, "ACAD_IMAGE_DICT");
+    let pdf_names = named_entries(file, objects, root, "ACAD_PDFDEFINITIONS");
+    let mut n = Named {
+        mleader_styles: named_entries(file, objects, root, "ACAD_MLEADERSTYLE"),
+        table_styles: named_entries(file, objects, root, "ACAD_TABLESTYLE"),
+        ..Named::default()
+    };
+    for o in objects {
+        match o.type_name.as_str() {
+            "IMAGEDEF" => {
+                if let Ok(mut def) = file.read_object(o).and_then(|mut r| image_def(&mut r)) {
+                    def.name = image_names.get(&o.handle).cloned().unwrap_or_default();
+                    n.images.insert(o.handle, def);
+                }
+            }
+            "MLINESTYLE" => {
+                if let Ok(name) = file.read_object(o).and_then(|mut r| {
+                    r.common_refs()?;
+                    r.text()
+                }) {
+                    n.mline_styles.insert(o.handle, name);
+                }
+            }
+            "PDFDEFINITION" => {
+                if let Ok(mut def) = file.read_object(o).and_then(|mut r| pdf_def(&mut r)) {
+                    def.name = pdf_names.get(&o.handle).cloned().unwrap_or_default();
+                    n.pdfs.insert(o.handle, def);
+                }
+            }
+            _ => {}
+        }
+    }
+    n
+}
+
+/// MLINESTYLE (§20.4.73): name, description, flags, fill colour, cap angles and elements, each
+/// with its offset, colour and linetype (a handle from AutoCAD 2018 on, before that an index into
+/// the linetype table's order, 0x7FFF ByLayer and 0x7FFE ByBlock).
+fn mline_style(r: &mut ObjectReader, tables: &Tables) -> DwgResult<Option<draftcraft_doc::MLineStyle>> {
+    use draftcraft_doc::{MAX_MLINE_ELEMENTS, MLineElement, MLineStyle};
+    r.common_refs()?;
+    let mut st = MLineStyle { elements: Vec::new(), ..MLineStyle::default() };
+    st.name = r.text()?;
+    st.description = r.text()?;
+    let flags = r.bs()?;
+    let fill = super::tables::color(r.color()?.0).unwrap_or(draftcraft_color::Color::ByLayer);
+    let angle = |a: f64| if a.is_finite() { a } else { std::f64::consts::FRAC_PI_2 };
+    st.start_caps.angle = angle(r.bd()?);
+    st.end_caps.angle = angle(r.bd()?);
+    let n = usize::from(r.rc()?);
+    let by_handle = r.version() >= draftcraft_dwg::DwgVersion::R2018;
+    let mut linetypes = Vec::new();
+    for _ in 0..n {
+        let offset = r.bd()?;
+        let color = super::tables::color(r.color()?.0).unwrap_or(draftcraft_color::Color::ByLayer);
+        let linetype = if by_handle {
+            None
+        } else {
+            Some(match r.bs()? {
+                0x7FFF => "ByLayer".to_string(),
+                0x7FFE => "ByBlock".to_string(),
+                i => tables.linetype_order.get(usize::from(i)).and_then(|h| tables.linetypes.get(h)).cloned().unwrap_or_else(|| "ByLayer".into()),
+            })
+        };
+        linetypes.push(linetype);
+        if st.elements.len() < MAX_MLINE_ELEMENTS {
+            st.elements.push(MLineElement { offset: if offset.is_finite() { offset } else { 0.0 }, color, linetype: String::new() });
+        }
+    }
+    for (e, lt) in st.elements.iter_mut().zip(linetypes) {
+        e.linetype = match lt {
+            Some(name) => name,
+            None => {
+                let h = r.reference()?;
+                tables.linetypes.get(&h).cloned().unwrap_or_else(|| "ByLayer".into())
+            }
+        };
+    }
+    Ok(crate::dxf_mline::style_from(st, i64::from(flags), fill))
 }
 
 /// Read the objects into `d`. Returns the handles of the objects read.
-pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], d: &mut Drawing, unread: &mut Unread) -> HashSet<u64> {
+pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], tables: &Tables, d: &mut Drawing, unread: &mut Unread) -> HashSet<u64> {
     let mut read = HashSet::new();
+    // Multiline styles, then each multiline's elements from its style.
+    let mut styles = Vec::new();
+    for o in objects.iter().filter(|o| o.type_name == "MLINESTYLE") {
+        match file.read_object(o).and_then(|mut r| mline_style(&mut r, tables)) {
+            Ok(Some(st)) => {
+                styles.push(st);
+                read.insert(o.handle);
+            }
+            Ok(None) => unread.count("MLINESTYLE without a name"),
+            Err(_) => unread.count("MLINESTYLE (not decoded)"),
+        }
+    }
+    crate::dxf_mline::apply_styles(d, styles);
     for o in objects.iter().filter(|o| o.type_name == "DIMASSOC") {
         match file.read_object(o).and_then(|mut r| dimassoc(&mut r)) {
             Ok(tags) => {

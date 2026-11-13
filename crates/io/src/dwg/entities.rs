@@ -7,8 +7,8 @@ use std::collections::{HashMap, HashSet};
 
 use draftcraft_doc::{
     Arc, Attrib, AttribModes, AttribProps, Circle, Common, DimKind, Dimension, Drawing, Ellipse, Entity, EntityKind, Face3d, Gradient, HAlign,
-    Handle, Hatch, HatchLoop, Insert, Leader, Line, Lineweight, LwPolyline, MAX_FRAME_CHARS, MText, Point, PolyfaceMesh, Polyline3d, RawTag, RayLine,
-    Solid, Text, Tolerance, VAlign,
+    Handle, Hatch, HatchLoop, Image, Insert, Leader, Line, Lineweight, LwPolyline, MAX_FRAME_CHARS, MText, Point, PolyfaceMesh, Polyline3d, RawTag,
+    RayLine, Solid, Text, Tolerance, VAlign, Viewport, Wipeout,
 };
 use draftcraft_dwg::DwgVersion as V;
 use draftcraft_dwg::file::{DwgFile, EntityLinetype, EntityRefs, EntitySpace, ObjectReader, ObjectRef, XDataBlock, XDataItem};
@@ -27,8 +27,9 @@ const MAX_ENTITIES: usize = 1 << 24;
 struct Names<'a> {
     tables: &'a Tables,
     blocks: &'a HashMap<u64, String>,
-    /// Multileader style names, by MLEADERSTYLE handle (from the ACAD_MLEADERSTYLE dictionary).
-    mleader_styles: &'a HashMap<u64, String>,
+    /// What the file's objects give entities: multileader style names, image and underlay
+    /// definitions.
+    objects: &'a super::objects::Named,
 }
 
 /// One entity's place: the block record that owns it, and the entity after it in the chain.
@@ -38,6 +39,7 @@ struct Place {
 }
 
 /// What reading one entity gave: the entity, when its type is read, and what of it was not.
+#[derive(Default)]
 struct Decoded {
     entity: Option<Entity>,
     /// An attribute of a block reference, with its own properties, waiting for its reference.
@@ -52,6 +54,13 @@ struct Decoded {
     /// A multileader's block attribute values (ATTDEF handle in hexadecimal, value), waiting for
     /// the attribute definitions of its block.
     mleader_attribs: Option<Vec<(String, String)>>,
+    /// The sheet viewport DraftCraft's writer adds, which the drawing leaves implicit.
+    paper_view: bool,
+    /// Other objects the entity holds in the drawing (an image's definition and reactor).
+    held: Vec<u64>,
+    /// A table's block (the geometry it is drawn as, which the drawing rebuilds) and, for a
+    /// table from another writer, its style's name, whose text height it takes.
+    table: Option<(Option<String>, Option<Option<String>>)>,
     partial: Vec<&'static str>,
 }
 
@@ -129,6 +138,17 @@ fn without_app(groups: Vec<RawTag>, app: &str) -> Vec<RawTag> {
         .collect()
 }
 
+/// DraftCraft's own extended data on an entity, counted until the entity's type reads it.
+const DRAFTCRAFT_DATA: &str = "DraftCraft extended data";
+
+/// The types whose DraftCraft extended data this reader reads: a dimension's overrides,
+/// associativity and marks, a hatch's origin, background and gradient, a viewport's frozen layers
+/// and colours, a table's rows and cells, a region's loops (on the polyline it is written as).
+/// DraftCraft writes it on no other entity.
+fn reads_own_data(k: &EntityKind) -> bool {
+    matches!(k, EntityKind::Dimension(_) | EntityKind::Hatch(_) | EntityKind::Viewport(_) | EntityKind::Table(_) | EntityKind::Region(_))
+}
+
 /// Other applications' extended data as the groups the drawing keeps with the entity, by the DXF
 /// reader's rules: the applications that reader turns into properties are not kept as groups (and
 /// are counted, as this reader doesn't read them yet), and an application whose list braces don't
@@ -141,6 +161,10 @@ fn xdata(blocks: &[XDataBlock], n: &Names, partial: &mut Vec<&'static str>) -> V
             partial.push("extended data of an unknown application");
             continue;
         };
+        if name.eq_ignore_ascii_case(crate::dxf_ext::APP) {
+            partial.push(DRAFTCRAFT_DATA);
+            continue;
+        }
         if crate::dxf_raw::OWN_APPS.contains(&name.to_ascii_uppercase().as_str()) {
             partial.push("extended data read as properties");
             continue;
@@ -220,6 +244,12 @@ fn reads(type_name: &str) -> bool {
             | "LEADER"
             | "TOLERANCE"
             | "MULTILEADER"
+            | "VIEWPORT"
+            | "IMAGE"
+            | "MLINE"
+            | "ACAD_TABLE"
+            | "WIPEOUT"
+            | "PDFUNDERLAY"
             | "DIMENSION_ORDINATE"
             | "DIMENSION_LINEAR"
             | "DIMENSION_ALIGNED"
@@ -255,8 +285,174 @@ enum Body {
     Leader(Box<Leader>),
     /// A feature control frame, waiting for its dimension style.
     Tolerance(Box<Tolerance>),
+    /// A multiline, waiting for its style.
+    MLine(f64, i64, i64, Vec<crate::dxf_mline::RawVertex>),
+    /// A raster image, waiting for its image definition and reactor.
+    Raster(Box<Image>),
+    /// A PDF underlay, waiting for its definition.
+    Underlay(Box<Image>),
+    /// A paper space viewport, waiting for its frozen layers (how many it names) and clipping
+    /// boundary, with its status flags.
+    Viewport(Box<Viewport>, u32, u32),
     /// A multileader's values, waiting for the objects its references name, in their order.
     MLeader(Box<crate::dxf_mleader::Parsed>, Vec<MlRef>),
+}
+
+/// MLINE (§20.4.50): scale, justification, base point, plane, flags, then per vertex its point,
+/// segment direction, miter and per style element the distances along it (and the fill's,
+/// which the drawing does not keep).
+fn mline(r: &mut ObjectReader) -> DwgResult<Shape> {
+    use draftcraft_doc::{MAX_MLINE_CUTS, MAX_MLINE_ELEMENTS, MAX_MLINE_VERTICES};
+    let scale = r.bd()?;
+    let just = i64::from(r.rc()?);
+    let _base = r.bd3()?;
+    let normal = v3(r.bd3()?);
+    let flags = i64::from(r.bs()?);
+    let elements = usize::from(r.rc()?);
+    let n = u32::from(r.bs()?);
+    let n = bounded(r, n, u32::try_from(MAX_MLINE_VERTICES).unwrap_or(u32::MAX), 18, "multiline vertex")?;
+    let mut vertices = Vec::with_capacity(n);
+    for _ in 0..n {
+        let mut v = crate::dxf_mline::RawVertex { p: v3(r.bd3()?), dir: v3(r.bd3()?), miter: v3(r.bd3()?), params: Vec::new() };
+        for _ in 0..elements {
+            let k = u32::from(r.bs()?);
+            let k = bounded(r, k, u32::try_from(2 * MAX_MLINE_CUTS + 2).unwrap_or(u32::MAX), 2, "multiline segment parameter")?;
+            let mut list = Vec::with_capacity(k);
+            for _ in 0..k {
+                let x = r.bd()?;
+                list.push(if x.is_finite() { x } else { 0.0 });
+            }
+            let k = u32::from(r.bs()?);
+            for _ in 0..bounded(r, k, 1 << 16, 2, "multiline fill parameter")? {
+                let _fill = r.bd()?;
+            }
+            if v.params.len() < MAX_MLINE_ELEMENTS {
+                v.params.push(list);
+            }
+        }
+        vertices.push(v);
+    }
+    let scale = if scale.is_finite() { scale } else { 1.0 };
+    Ok(Shape { body: Body::MLine(scale, just, flags, vertices), thickness: 0.0, normal })
+}
+
+/// Most clip boundary vertices of an image, wipeout or underlay that are read.
+const MAX_CLIP: u32 = 100_000;
+
+/// IMAGE and WIPEOUT (AcDbRasterImage, §20.4.80): placement, size in pixels, display settings
+/// and clip boundary. A wipeout's boundary becomes its outline in the drawing.
+fn raster(r: &mut ObjectReader, wipeout: bool) -> DwgResult<Shape> {
+    let _class_version = r.bl()?;
+    let insert = v3(r.bd3()?);
+    let u = v3(r.bd3()?);
+    let v = v3(r.bd3()?);
+    let [w, h] = r.rd2()?;
+    let display = r.bs()?;
+    let clipping = r.b()?;
+    let pct = |v: u8| v.min(100);
+    let (brightness, contrast, fade) = (pct(r.rc()?), pct(r.rc()?), pct(r.rc()?));
+    if r.version() >= V::R2010 {
+        let _clip_inside = r.b()?;
+    }
+    let clip_type = r.bs()?;
+    let mut clip = Vec::new();
+    if clip_type == 1 {
+        for _ in 0..2 {
+            let [x, y] = r.rd2()?;
+            clip.push(Vec2::new(x, y));
+        }
+    } else {
+        let n = r.bl()?;
+        for _ in 0..bounded(r, n, MAX_CLIP, 128, "clip vertex")? {
+            let [x, y] = r.rd2()?;
+            clip.push(Vec2::new(x, y));
+        }
+    }
+    let normal = UP;
+    if wipeout {
+        // Clip vertices are in pixel space: origin at the image's top-left corner, y pointing down.
+        let boundary = clip.into_iter().map(|q| insert.xy() + u.xy() * (q.x + 0.5) + v.xy() * (0.5 - q.y)).collect();
+        return Ok(ready(EntityKind::Wipeout(Wipeout { boundary }), 0.0, normal));
+    }
+    let def = Image::default();
+    let image = Image { insert, u, v, size: Vec2::new(w, h), clip, clipping, display, brightness, contrast, fade, ..def };
+    Ok(Shape { body: Body::Raster(Box::new(image)), thickness: 0.0, normal })
+}
+
+/// PDFUNDERLAY (an underlay reference): plane, insertion point, rotation, scales, flags,
+/// contrast, fade and clip boundary. The definition comes first among its references.
+fn underlay(r: &mut ObjectReader) -> DwgResult<Shape> {
+    let normal = v3(r.bd3()?);
+    let insert = v3(r.bd3()?);
+    let rotation = r.bd()?;
+    let (sx, sy, _sz) = (r.bd()?, r.bd()?, r.bd()?);
+    let flags = r.rc()?;
+    let pct = |v: u8| v.min(100);
+    let (contrast, fade) = (pct(r.rc()?), pct(r.rc()?));
+    let n = r.bl()?;
+    let mut clip = Vec::new();
+    for _ in 0..bounded(r, n, MAX_CLIP, 128, "underlay clip vertex")? {
+        let [x, y] = r.rd2()?;
+        clip.push(Vec2::new(x, y));
+    }
+    let image = crate::dxf_underlay::reference(insert, (Some(sx), Some(sy)), rotation, i64::from(flags), (contrast, fade), clip);
+    Ok(Shape { body: Body::Underlay(Box::new(image)), thickness: 0.0, normal })
+}
+
+/// VIEWPORT (§20.4.38), AutoCAD 2000 and later: the sheet rectangle, the view it shows (its
+/// centre is in display coordinates around the view target), the twist and the status flags.
+/// Before 2000 the view is in the ACAD extended data: such a viewport is left unread.
+fn viewport(r: &mut ObjectReader) -> DwgResult<Option<Shape>> {
+    let ver = r.version();
+    let center = v3(r.bd3()?);
+    let width = r.bd()?;
+    let height = r.bd()?;
+    if ver < V::R2000 {
+        return Ok(None);
+    }
+    let [tx, ty, _] = r.bd3()?;
+    let _direction = r.bd3()?;
+    let twist = r.bd()?;
+    let view_height = r.bd()?;
+    let _lens = r.bd()?;
+    let _clip = (r.bd()?, r.bd()?);
+    let _snap_angle = r.bd()?;
+    let [cx, cy] = r.rd2()?;
+    let _snap = (r.rd2()?, r.rd2()?);
+    let _grid = r.rd2()?;
+    let _circle_zoom = r.bs()?;
+    if ver >= V::R2007 {
+        let _grid_major = r.bs()?;
+    }
+    let frozen = r.bl()?;
+    let status = r.bl()?;
+    let _style_sheet = r.text()?;
+    let _render_mode = r.rc()?;
+    let _ucs = (r.b()?, r.b()?, r.bd3()?, r.bd3()?, r.bd3()?, r.bd()?, r.bs()?);
+    if ver >= V::R2004 {
+        let _shade_plot = r.bs()?;
+    }
+    if ver >= V::R2007 {
+        let _lights = (r.b()?, r.rc()?, r.bd()?, r.bd()?);
+        let _ambient = r.color()?;
+    }
+    let twist = if twist.is_finite() { draftcraft_geom::norm_angle(twist) } else { 0.0 };
+    let v = Viewport {
+        center,
+        width,
+        height,
+        view_center: crate::dxf_ext::dcs_center_to_model(Vec2::new(cx, cy), twist, Vec2::new(tx, ty)),
+        view_height,
+        // Numbered in its layout once the layouts are read (DWG keeps no number).
+        id: 0,
+        locked: status & 16384 != 0,
+        frozen_layers: Vec::new(),
+        layer_colors: Vec::new(),
+        clip: None,
+        on: status & 131_072 == 0,
+        twist,
+    };
+    Ok(Some(Shape { body: Body::Viewport(Box::new(v), frozen, status), thickness: 0.0, normal: UP }))
 }
 
 /// What one of a multileader's references names, in the order the file holds them.
@@ -1520,6 +1716,11 @@ fn shape(r: &mut ObjectReader, type_name: &str, partial: &mut Vec<&'static str>)
         "LEADER" => leader(r)?,
         "TOLERANCE" => tolerance(r)?,
         "MULTILEADER" => mleader(r)?,
+        "VIEWPORT" => return viewport(r),
+        "IMAGE" => raster(r, false)?,
+        "MLINE" => mline(r)?,
+        "WIPEOUT" => raster(r, true)?,
+        "PDFUNDERLAY" => underlay(r)?,
         "DIMENSION_ORDINATE" | "DIMENSION_LINEAR" | "DIMENSION_ALIGNED" | "DIMENSION_ANG_3PT" | "DIMENSION_ANG_2LN" | "DIMENSION_RADIUS"
         | "DIMENSION_DIAMETER" => dimension(r, type_name)?,
         "ATTDEF" => attribute(r, true)?,
@@ -1533,13 +1734,50 @@ fn shape(r: &mut ObjectReader, type_name: &str, partial: &mut Vec<&'static str>)
     }))
 }
 
+/// A table (ACAD_TABLE): its block reference's fields, then its own, read with its references
+/// (they sit between its fields). A table from another writer waits for its style's text height.
+fn table_entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded, EntityRefs)> {
+    let Shape { body: Body::Insert(ins, has_attributes, _), normal, .. } = insert(r, false)? else {
+        return Err(draftcraft_dwg::records::Error::format("table without its block reference"));
+    };
+    let refs = r.entity_refs()?;
+    let block = r.reference()?;
+    if has_attributes {
+        return Err(draftcraft_dwg::records::Error::format("table with attributes"));
+    }
+    let t = super::table::read(r)?;
+    let mut partial = t.partial;
+    let tags = xdata_tags(&r.xdata(), &n.tables.apps);
+    let ours = crate::dxf_ext::xdata(&tags, crate::dxf_ext::APP).iter().any(|t| t.code == 1000 && t.str() == "TABLE");
+    let size = |v: f64| if v.is_finite() && v > 0.0 { v } else { 0.27 };
+    let kind = crate::dxf_read::table_from(
+        ins.insert,
+        t.col_widths.into_iter().map(size).collect(),
+        t.row_heights.into_iter().map(size).collect(),
+        t.cells,
+        &tags,
+    );
+    let mut c = common(r, &refs, n, &mut partial);
+    partial.retain(|p| *p != DRAFTCRAFT_DATA);
+    c.extrusion = normal;
+    let mut e = Entity::new(Handle(o.handle), EntityKind::Table(kind));
+    e.common = c;
+    let fix = (!ours).then(|| n.objects.table_styles.get(&t.style).cloned());
+    let table = Some((n.blocks.get(&block).cloned(), fix));
+    let d = Decoded { entity: Some(e), table, partial, ..Decoded::default() };
+    Ok((d, refs))
+}
+
 /// One entity. The type's own fields come first, then its references.
 fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded, EntityRefs)> {
+    if o.type_name == "ACAD_TABLE" {
+        return table_entity(r, o, n);
+    }
     let mut partial = Vec::new();
     let Some(Shape { body, thickness, normal }) = shape(r, &o.type_name, &mut partial)? else {
         // A type read in a later step: only its place is known.
         let refs = r.entity_refs()?;
-        return Ok((Decoded { entity: None, attrib: None, attribs: None, polyline: None, vertex: None, mleader_attribs: None, partial }, refs));
+        return Ok((Decoded { partial, ..Decoded::default() }, refs));
     };
     let refs = r.entity_refs()?;
     let style = |r: &mut ObjectReader| -> DwgResult<String> {
@@ -1547,8 +1785,22 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
         Ok(n.tables.styles.get(&h).cloned().unwrap_or_else(|| "Standard".into()))
     };
     let (mut attrib, mut attribs, mut polyline, mut vertex, mut mleader_attribs) = (None, None, None, None, None);
+    let mut paper_view = false;
+    let mut held = Vec::new();
     let kind = match body {
-        Body::Ready(k) => Some(*k),
+        Body::Ready(k) => match *k {
+            // A region DraftCraft wrote is closed polylines, the first with the region's other
+            // loops in its extended data, the others marked as its parts: by the DXF reader's rule.
+            EntityKind::LwPolyline(pl) => {
+                let tags = xdata_tags(&r.xdata(), &n.tables.apps);
+                let kind = crate::dxf_region::from_polyline(&tags, pl);
+                if kind.is_none() {
+                    held.push(o.handle);
+                }
+                kind
+            }
+            k => Some(k),
+        },
         Body::Text(mut t, align, insert) => {
             t.style = style(r)?;
             if normal.z < 0.0 {
@@ -1630,6 +1882,59 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
             }
             Some(EntityKind::Hatch(*h))
         }
+        Body::MLine(scale, just, flags, vertices) => {
+            let style = r.reference()?;
+            let name = n.objects.mline_styles.get(&style).cloned().unwrap_or_default();
+            Some(EntityKind::MLine(crate::dxf_mline::build(name, scale, draftcraft_doc::MLineJust::from_dxf(just), flags, vertices)))
+        }
+        Body::Raster(mut i) => {
+            let def = r.reference()?;
+            let reactor = r.reference()?;
+            if let Some(d) = n.objects.images.get(&def) {
+                i.path.clone_from(&d.path);
+                i.name.clone_from(&d.name);
+                if let Some(p) = d.pixel_size {
+                    i.pixel_size = p;
+                }
+                i.resolution_units = d.units;
+                held.extend([def, reactor].into_iter().filter(|h| *h != 0));
+            }
+            Some(EntityKind::Image(*i))
+        }
+        Body::Underlay(mut i) => {
+            let def = r.reference()?;
+            if let Some(d) = n.objects.pdfs.get(&def) {
+                i.path.clone_from(&d.path);
+                i.name.clone_from(&d.name);
+                if let Some(u) = &mut i.underlay {
+                    u.page.clone_from(&d.page);
+                }
+                held.push(def);
+            }
+            Some(EntityKind::Image(*i))
+        }
+        Body::Viewport(mut v, frozen, status) => {
+            // The frozen layers it names, then those DraftCraft keeps in its extended data (the
+            // ones without a layer record), each once; then the clipping boundary.
+            let mut handles = Vec::new();
+            for _ in 0..frozen.min(1 << 16) {
+                handles.push(r.reference()?);
+            }
+            let clip = r.reference()?;
+            if r.version() == V::R2000 {
+                let _header = r.reference()?;
+            }
+            let tags = xdata_tags(&r.xdata(), &n.tables.apps);
+            let named = handles.iter().filter_map(|h| n.tables.layers.get(h)).cloned();
+            let mut seen = HashSet::new();
+            v.frozen_layers = named.chain(crate::dxf_ext::read_frozen(&tags)).filter(|l| seen.insert(l.to_ascii_uppercase())).collect();
+            v.layer_colors = crate::dxf_ext::read_layer_colors(&tags);
+            v.clip = (clip != 0 && status & 65536 != 0).then_some(Handle(clip));
+            // The sheet viewport DraftCraft's writer adds is numbered with the others, then
+            // left implicit again, as the DXF reader does.
+            paper_view = crate::dxf_ext::is_paper_view(&tags);
+            Some(EntityKind::Viewport(*v))
+        }
         Body::Leader(mut l) => {
             let _annotation = r.reference()?;
             let style = r.reference()?;
@@ -1660,7 +1965,7 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
                 }
             }
             let mut m = crate::dxf_mleader::build(&p);
-            if let Some(name) = style.and_then(|h| n.mleader_styles.get(&h)).filter(|s| !s.is_empty()) {
+            if let Some(name) = style.and_then(|h| n.objects.mleader_styles.get(&h)).filter(|s| !s.is_empty()) {
                 m.style.clone_from(name);
             }
             if let Some(t) = &mut m.text
@@ -1716,7 +2021,56 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
         e.common = c;
         e
     });
-    Ok((Decoded { entity, attrib, attribs, polyline, vertex, mleader_attribs, partial }, refs))
+    if entity.as_ref().is_some_and(|e| reads_own_data(&e.kind)) {
+        partial.retain(|p| *p != DRAFTCRAFT_DATA);
+    }
+    Ok((Decoded { entity, attrib, attribs, polyline, vertex, mleader_attribs, paper_view, held, table: None, partial }, refs))
+}
+
+/// Each layout's viewports numbered in their order, the first (the sheet) 1, as a DXF file
+/// numbers them (group 69): DWG keeps no number. The sheet viewports DraftCraft's writer added
+/// are numbered, then taken out: the drawing leaves them implicit.
+fn number_viewports(d: &mut Drawing, paper_views: &HashSet<Handle>) {
+    for l in &mut d.layouts {
+        let handles: Vec<Handle> = l.entities.iter().filter(|e| matches!(e.kind, EntityKind::Viewport(_))).map(|e| e.handle).collect();
+        for (i, h) in handles.into_iter().enumerate() {
+            let id = u32::try_from(i + 1).unwrap_or(u32::MAX);
+            l.entities.modify(h, |e| {
+                if let EntityKind::Viewport(v) = &mut e.kind {
+                    v.id = id;
+                }
+            });
+            if paper_views.contains(&h) {
+                l.entities.remove(h);
+            }
+        }
+    }
+}
+
+/// The tables' blocks taken out (the drawing rebuilds a table's geometry, as the DXF reader has
+/// it), and a table from another writer given its style's name and text height.
+fn finish_tables(d: &mut Drawing, tables: Vec<(Handle, Option<String>, Option<Option<String>>)>) {
+    for (h, block, fix) in tables {
+        if let Some(b) = block {
+            d.blocks.remove(&b);
+        }
+        let Some(name) = fix else { continue };
+        let height = {
+            let style = name.as_deref().unwrap_or("Standard");
+            d.table_styles
+                .iter()
+                .find(|s| s.name.eq_ignore_ascii_case(style))
+                .map_or(draftcraft_doc::TableStyle::default().text_height, |s| s.text_height)
+        };
+        let _ = d.modify_entity(h, |e| {
+            if let EntityKind::Table(t) = &mut e.kind {
+                if let Some(name) = name {
+                    t.style = name;
+                }
+                t.text_height = height;
+            }
+        });
+    }
 }
 
 /// What decoded entities wait for, by the handle of the entity: attributes for their block
@@ -1728,6 +2082,8 @@ struct Waiting {
     vertices: HashMap<u64, Vertex>,
     polylines: Vec<(u64, PolyKind, Common, Attribs)>,
     mleader_attribs: Vec<(Handle, crate::dxf_mleader::Pending)>,
+    paper_views: HashSet<Handle>,
+    tables: Vec<(Handle, Option<String>, Option<Option<String>>)>,
 }
 
 impl Waiting {
@@ -1748,6 +2104,12 @@ impl Waiting {
         if let Some((kind, c, list)) = dec.polyline {
             self.polylines.push((h, kind, c, list));
         }
+        if dec.paper_view {
+            self.paper_views.insert(Handle(h));
+        }
+        if let Some((block, fix)) = dec.table {
+            self.tables.push((Handle(h), block, fix));
+        }
         dec.entity
     }
 }
@@ -1759,11 +2121,11 @@ pub(super) fn read(
     objects: &[ObjectRef],
     tables: &Tables,
     blocks: &Blocks,
-    mleader_styles: &HashMap<u64, String>,
+    objects_named: &super::objects::Named,
     d: &mut Drawing,
     unread: &mut Unread,
 ) -> HashSet<u64> {
-    let names = Names { tables, blocks: &blocks.names, mleader_styles };
+    let names = Names { tables, blocks: &blocks.names, objects: objects_named };
     let mut read = HashSet::new();
     let mut decoded: HashMap<u64, Entity> = HashMap::new();
     let mut places: HashMap<u64, Place> = HashMap::new();
@@ -1798,6 +2160,7 @@ pub(super) fn read(
         for what in &dec.partial {
             unread.count(what);
         }
+        read.extend(dec.held.iter().copied());
         match waiting.take(o.handle, dec) {
             Some(e) => {
                 decoded.insert(o.handle, e);
@@ -1822,7 +2185,7 @@ pub(super) fn read(
         }
         handles
     };
-    let Waiting { mut attribs, lists, mut vertices, polylines, mleader_attribs } = waiting;
+    let Waiting { mut attribs, lists, mut vertices, polylines, mleader_attribs, paper_views, tables } = waiting;
     for (h, kind, c, list) in polylines {
         let handles = walk(&list, &places);
         let Some(found) = handles.iter().map(|v| vertices.remove(v)).collect::<Option<Vec<_>>>() else {
@@ -1928,6 +2291,8 @@ pub(super) fn read(
             }
         }
     }
+    number_viewports(d, &paper_views);
+    finish_tables(d, tables);
     // The multileaders' block attribute values, placed like the attribute definitions of their
     // blocks, by the DXF reader's rule.
     crate::dxf_mleader::apply(d, &mleader_attribs, &HashMap::new());
