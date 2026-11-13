@@ -35,6 +35,8 @@ pub(super) struct Tables {
     pub linetype_order: Vec<u64>,
     /// The handles of the objects this category read.
     pub read: HashSet<u64>,
+    /// Each layer's plot style placeholder, named by the plot style dictionary the objects read.
+    pub layer_plot_styles: Vec<(String, u64)>,
 }
 
 /// A colour of the file as the drawing's colour.
@@ -68,11 +70,21 @@ fn xdata<'a>(blocks: &'a [draftcraft_dwg::file::XDataBlock], apps: &HashMap<u64,
     blocks.iter().find(|b| apps.get(&b.app).is_some_and(|n| n.eq_ignore_ascii_case(app))).map_or(&[], |b| &b.items)
 }
 
-fn put<T>(list: &mut Vec<T>, item: T, name: impl Fn(&T) -> &str) {
+/// Put `item` in `list`, in place of the record of the same name (in any case) or at the end.
+/// `index` holds the list's positions by lower-case name, kept as records go in: one index per
+/// table, made on its first use, so a table of many records (100 000 layers) goes in at once,
+/// not with a search of the list per record.
+fn put<T>(list: &mut Vec<T>, index: &mut HashMap<String, usize>, item: T, name: impl Fn(&T) -> &str) {
+    if index.is_empty() && !list.is_empty() {
+        *index = list.iter().enumerate().map(|(i, x)| (name(x).to_ascii_lowercase(), i)).collect();
+    }
     let key = name(&item).to_ascii_lowercase();
-    match list.iter_mut().find(|x| name(x).to_ascii_lowercase() == key) {
+    match index.get(&key).and_then(|i| list.get_mut(*i)) {
         Some(slot) => *slot = item,
-        None => list.push(item),
+        None => {
+            index.insert(key, list.len());
+            list.push(item);
+        }
     }
 }
 
@@ -89,13 +101,14 @@ pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], d: &mut Drawing, unrea
         }
     }
     // Text styles before linetypes, whose text and shape elements name one.
+    let mut index = HashMap::new();
     for o in of("STYLE") {
         match file.read_object(o).and_then(|mut r| style(&mut r, &t.apps)) {
             Ok((st, shape_file)) => {
                 t.styles.insert(o.handle, if st.name.trim().is_empty() { shape_file } else { st.name.clone() });
                 // An unnamed style is a shape file that linetypes refer to, not a text style.
                 if !st.name.is_empty() {
-                    put(&mut d.text_styles, st, |x| &x.name);
+                    put(&mut d.text_styles, &mut index, st, |x| &x.name);
                 }
                 t.read.insert(o.handle);
             }
@@ -107,13 +120,14 @@ pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], d: &mut Drawing, unrea
             t.linetype_order = list;
         }
     }
+    let mut have: HashSet<String> = d.linetypes.iter().map(|x| x.name.to_ascii_lowercase()).collect();
     for o in of("LTYPE") {
         match file.read_object(o).and_then(|mut r| linetype(&mut r, &t.styles)) {
             Ok(lt) => {
                 t.linetypes.insert(o.handle, lt.name.clone());
                 // A name the drawing already has (ByLayer, ByBlock, Continuous) keeps the
                 // drawing's own record, as the DXF reader does.
-                if !lt.name.is_empty() && !d.linetypes.iter().any(|x| x.name.eq_ignore_ascii_case(&lt.name)) {
+                if !lt.name.is_empty() && have.insert(lt.name.to_ascii_lowercase()) {
                     d.linetypes.push(lt);
                 }
                 t.read.insert(o.handle);
@@ -121,16 +135,25 @@ pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], d: &mut Drawing, unrea
             Err(_) => unread.count("LTYPE (not decoded)"),
         }
     }
+    let mut index = HashMap::new();
     for o in of("LAYER") {
         match file.read_object(o).and_then(|mut r| layer(&mut r, &t)) {
-            Ok((l, plot_style)) => {
+            Ok((l, plot_style, book)) => {
                 t.layers.insert(o.handle, l.name.clone());
+                let name_of_layer = l.name.clone();
                 if !l.name.is_empty() {
-                    put(&mut d.layers, l, |x| &x.name);
+                    if let Some(book) = book {
+                        std::sync::Arc::make_mut(&mut d.foreign)
+                            .records
+                            .entry(("LAYER".into(), l.name.trim().to_ascii_uppercase()))
+                            .or_default()
+                            .color_book = Some(book);
+                    }
+                    put(&mut d.layers, &mut index, l, |x| &x.name);
                 }
                 // The plot style is named by the plot style dictionary, read with the objects.
                 if plot_style != 0 {
-                    unread.count("LAYER plot style");
+                    t.layer_plot_styles.push((name_of_layer, plot_style));
                 }
                 t.read.insert(o.handle);
             }
@@ -144,8 +167,11 @@ pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], d: &mut Drawing, unrea
 /// shape style.
 fn style(r: &mut ObjectReader, apps: &HashMap<u64, String>) -> DwgResult<(TextStyle, String)> {
     let name = record_name(r)?;
-    let vertical = r.b()?;
+    // The shape file flag, then vertical: AutoCAD's files show it (ACadSharp's samples, saved by
+    // AutoCAD: the unnamed styles of ltypeshp.shx and a .shx of shapes, flag 1 in AutoCAD's DXF,
+    // have the first bit set). BlackCAD reads them the other way round.
     let _shape_file = r.b()?;
+    let vertical = r.b()?;
     let height = r.bd()?;
     let width_factor = r.bd()?;
     let oblique = r.bd()?;
@@ -267,7 +293,7 @@ fn linetype(r: &mut ObjectReader, styles: &HashMap<u64, String>) -> DwgResult<Li
 }
 
 /// LAYER (specification §20.4.54). Returns the layer and the handle of its plot style.
-fn layer(r: &mut ObjectReader, t: &Tables) -> DwgResult<(Layer, u64)> {
+fn layer(r: &mut ObjectReader, t: &Tables) -> DwgResult<(Layer, u64, Option<(String, String)>)> {
     let name = record_name(r)?;
     let mut l = Layer { name, ..Layer::default() };
     let before_2000 = r.version() <= V::R14;
@@ -285,7 +311,8 @@ fn layer(r: &mut ObjectReader, t: &Tables) -> DwgResult<(Layer, u64)> {
         l.plot = flags & 0x10 != 0;
         l.lineweight = Lineweight::from_dxf(i16::try_from(super::header::lineweight(i64::from((flags & 0x03E0) >> 5))).unwrap_or(-3));
     }
-    let (c, index) = r.color()?;
+    let named = r.named_color()?;
+    let (c, index) = (named.color, named.index);
     // Up to R14 a negative colour number marks a layer that is off. From AutoCAD 2000 on it is
     // the 0x02 bit of the flags: set on a layer that is off, in AutoCAD's own files.
     l.on = if before_2000 { index >= 0 } else { flags & 0x02 == 0 };
@@ -320,7 +347,22 @@ fn layer(r: &mut ObjectReader, t: &Tables) -> DwgResult<(Layer, u64)> {
     if let Some(n) = t.linetypes.get(&lt) {
         l.linetype.clone_from(n);
     }
-    Ok((l, plot_style))
+    let book = color_book(l.color, named.name, named.book);
+    Ok((l, plot_style, book))
+}
+
+/// What a colour book colour keeps for saving, as the DXF reader keeps it
+/// ([`draftcraft_doc::ForeignExtra::color_book`]): the true colour (group 420) and the book and
+/// colour names, `$` between (group 430: `RAL CLASSIC$RAL 1006`). `None` for a colour that is not
+/// a true colour of a book.
+pub(super) fn color_book(color: Color, name: Option<String>, book: Option<String>) -> Option<(String, String)> {
+    let Color::True(rgb) = color else { return None };
+    let name = name.filter(|n| !n.trim().is_empty())?;
+    let full = match book.filter(|b| !b.trim().is_empty()) {
+        Some(b) => format!("{b}${name}"),
+        None => name,
+    };
+    Some((rgb.to_u32().to_string(), full))
 }
 
 /// A colour as an AutoCAD Color Index number (0 ByBlock, 256 ByLayer), as a dimension style holds
@@ -346,36 +388,39 @@ pub(super) fn by_hex(names: &HashMap<u64, String>) -> HashMap<String, String> {
 pub(super) fn read_more(file: &DwgFile, objects: &[ObjectRef], blocks: &HashMap<u64, String>, t: &mut Tables, d: &mut Drawing, unread: &mut Unread) {
     let of = |name: &'static str| objects.iter().filter(move |o| o.type_name == name).take(MAX_RECORDS);
     let (styles, mut arrows, ltypes) = (by_hex(&t.styles), by_hex(blocks), by_hex(&t.linetypes));
+    let mut index = HashMap::new();
     for o in of("DIMSTYLE") {
         match file.read_object(o).and_then(|mut r| dim_style(&mut r, &t.apps, &styles, &mut arrows, &ltypes)) {
             Ok(st) => {
                 t.dim_styles.insert(o.handle, st.name.clone());
                 if !st.name.is_empty() {
-                    put(&mut d.dim_styles, st, |x| &x.name);
+                    put(&mut d.dim_styles, &mut index, st, |x| &x.name);
                 }
                 t.read.insert(o.handle);
             }
             Err(_) => unread.count("DIMSTYLE (not decoded)"),
         }
     }
+    let mut index = HashMap::new();
     for o in of("UCS") {
         match file.read_object(o).and_then(|mut r| ucs(&mut r)) {
             Ok(u) => {
                 t.ucss.insert(o.handle, u.name.clone());
                 let finite = [u.origin, u.x_axis, u.y_axis].iter().all(|p| p.x.is_finite() && p.y.is_finite() && p.z.is_finite());
                 if !u.name.is_empty() && finite {
-                    put(&mut d.ucss, u, |x| &x.name);
+                    put(&mut d.ucss, &mut index, u, |x| &x.name);
                 }
                 t.read.insert(o.handle);
             }
             Err(_) => unread.count("UCS (not decoded)"),
         }
     }
+    let mut index = HashMap::new();
     for o in of("VIEW") {
         match file.read_object(o).and_then(|mut r| view(&mut r, &t.apps)) {
             Ok(v) => {
                 if let Some(v) = v {
-                    put(&mut d.views, v, |x| &x.name);
+                    put(&mut d.views, &mut index, v, |x| &x.name);
                 }
                 t.read.insert(o.handle);
             }
@@ -614,6 +659,9 @@ fn dim_style(
             fields.insert(field.to_string(), v);
         }
     }
+    // The variables newer than the file's version, which DraftCraft keeps in its extended data
+    // for older files: as the DXF reader takes them, after the style's own fields.
+    fields.extend(crate::dxf_ext::read_newer_dimvars(&super::entities::xdata_tags(&x, apps), styles, arrows, ltypes));
     let mut st = DimStyle { name, annotative, ..DimStyle::default() };
     st.apply_fields(&fields);
     Ok(st)
@@ -694,7 +742,10 @@ fn vport(r: &mut ObjectReader) -> DwgResult<Vport> {
     let name = record_name(r)?.trim().to_string();
     let ver = r.version();
     let height = r.bd()?;
-    let aspect = r.bd()?;
+    // The file holds the view's width: the aspect ratio times the height (AutoCAD's *Active
+    // viewport: 2988.21 for a height of 1100.22, where its DXF has the ratio 2.716).
+    let width = r.bd()?;
+    let aspect = if height.is_finite() && height > 0.0 { width / height } else { 0.0 };
     let [cx, cy] = r.rd2()?;
     let target = r.bd3()?;
     let _direction = r.bd3()?;

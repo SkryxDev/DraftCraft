@@ -4,6 +4,7 @@
 use std::collections::{HashMap, HashSet};
 
 use draftcraft_doc::Drawing;
+use draftcraft_dwg::DwgVersion as V;
 use draftcraft_dwg::file::{DwgFile, ObjectReader, ObjectRef};
 use draftcraft_dwg::records::Result as DwgResult;
 use draftcraft_dxf::Tag;
@@ -14,9 +15,15 @@ use super::tables::Tables;
 /// Most references one DIMASSOC point names.
 const MAX_REFS: u32 = 64;
 
-/// DIMASSOC (from AutoCAD's own files: the specification does not describe it), as the DXF groups
-/// it is in a DXF file: the dimension it belongs to, which of its points are associated, and for
-/// each point the object snap and the objects it names.
+/// Most point references one DIMASSOC holds.
+const MAX_POINT_REFS: usize = 16;
+
+/// DIMASSOC (the specification does not describe it; its layout is the one AutoCAD's files and
+/// acadrust's agree on), as the DXF groups it is in a DXF file: the dimension it belongs to,
+/// which of its points are associated, and for each point its references, each with its object
+/// snap, the objects it names (with their subentity when it snaps to one), where it snapped, the
+/// objects an intersection snap names too, and whether another reference for the same point
+/// follows.
 fn dimassoc(r: &mut ObjectReader) -> DwgResult<Vec<Tag>> {
     r.common_refs()?;
     let flags = r.bl()?;
@@ -30,37 +37,67 @@ fn dimassoc(r: &mut ObjectReader) -> DwgResult<Vec<Tag>> {
         Tag::i(70, i64::from(trans)),
         Tag::i(71, i64::from(rotated)),
     ];
-    for bit in 0..4 {
-        if flags & (1 << bit) == 0 {
-            continue;
-        }
-        let class = r.text()?;
-        let osnap = r.rc()?;
+    let objects = |r: &mut ObjectReader| -> DwgResult<Vec<u64>> {
         let n = r.bl()?;
         if n > MAX_REFS {
             return Err(draftcraft_dwg::records::Error::format("DIMASSOC: object count"));
         }
-        let mut mains = Vec::new();
+        (0..n).map(|_| r.reference()).collect()
+    };
+    // A subentity: its type, marker and the external reference paths to it.
+    let subentity = |r: &mut ObjectReader| -> DwgResult<(u32, u32)> {
+        let (kind, marker) = (r.bl()?, r.bl()?);
+        let n = r.bl()?;
+        if n > MAX_REFS {
+            return Err(draftcraft_dwg::records::Error::format("DIMASSOC: path count"));
+        }
         for _ in 0..n {
-            mains.push(r.reference()?);
+            let _path = r.text()?;
         }
-        let subentity = r.bs()?;
-        let marker = r.bl()?;
-        // Intersection and external reference data are not in AutoCAD's files of this layout.
-        if r.bl()? != 0 {
-            return Err(draftcraft_dwg::records::Error::format("DIMASSOC: intersection or xref data"));
+        Ok((kind, marker))
+    };
+    let mut refs = 0usize;
+    for bit in 0..4 {
+        if flags & (1 << bit) == 0 {
+            continue;
         }
-        let param = r.bd()?;
-        let [x, y, z] = r.bd3()?;
-        let last = r.b()?;
-        tags.push(Tag::s(1, class));
-        tags.push(Tag::i(72, i64::from(osnap)));
-        tags.extend(mains.into_iter().map(|m| Tag::s(331, format!("{m:X}"))));
-        tags.push(Tag::i(73, i64::from(subentity)));
-        tags.push(Tag::i(91, i64::from(marker)));
-        tags.push(Tag::f(40, param));
-        tags.extend([Tag::f(10, x), Tag::f(20, y), Tag::f(30, z)]);
-        tags.push(Tag::i(75, i64::from(last)));
+        loop {
+            if refs >= MAX_POINT_REFS {
+                return Err(draftcraft_dwg::records::Error::format("DIMASSOC: too many point references"));
+            }
+            refs += 1;
+            let class = r.text()?;
+            let osnap = r.rc()?;
+            let mains = objects(r)?;
+            let (kind, marker) = if osnap != 0 && !mains.is_empty() { subentity(r)? } else { (0, 0) };
+            let param = r.bd()?;
+            let [x, y, z] = r.bd3()?;
+            let mut others = Vec::new();
+            let mut other_sub = None;
+            if matches!(osnap, 6 | 11) {
+                others = objects(r)?;
+                if !others.is_empty() {
+                    other_sub = Some(subentity(r)?);
+                }
+            }
+            let more = r.b()?;
+            tags.push(Tag::s(1, class));
+            tags.push(Tag::i(72, i64::from(osnap)));
+            tags.extend(mains.into_iter().map(|m| Tag::s(331, format!("{m:X}"))));
+            tags.push(Tag::i(73, i64::from(kind)));
+            tags.push(Tag::i(91, i64::from(marker)));
+            tags.push(Tag::f(40, param));
+            tags.extend([Tag::f(10, x), Tag::f(20, y), Tag::f(30, z)]);
+            tags.extend(others.into_iter().map(|o| Tag::s(332, format!("{o:X}"))));
+            if let Some((kind, marker)) = other_sub {
+                tags.push(Tag::i(74, i64::from(kind)));
+                tags.push(Tag::i(92, i64::from(marker)));
+            }
+            tags.push(Tag::i(75, i64::from(more)));
+            if !more {
+                break;
+            }
+        }
     }
     Ok(tags)
 }
@@ -126,6 +163,23 @@ pub(super) struct Named {
     pub mline_styles: HashMap<u64, String>,
     pub images: HashMap<u64, ImageDef>,
     pub pdfs: HashMap<u64, PdfDef>,
+    /// Colour book colours (DBCOLOR), which entities with such a colour point to.
+    pub colors: HashMap<u64, BookColor>,
+}
+
+/// A DBCOLOR object: the colour of a colour book, with what saving keeps of it
+/// ([`super::tables::color_book`]).
+pub(super) struct BookColor {
+    pub color: draftcraft_color::Color,
+    pub book: Option<(String, String)>,
+}
+
+/// DBCOLOR: one CMC colour, with its name and its book's (AutoCAD's own files store nothing else).
+fn book_color(r: &mut ObjectReader) -> DwgResult<Option<BookColor>> {
+    r.common_refs()?;
+    let c = r.named_color()?;
+    let Some(color) = super::tables::color(c.color) else { return Ok(None) };
+    Ok(Some(BookColor { color, book: super::tables::color_book(color, c.name, c.book) }))
 }
 
 /// An IMAGEDEF: the image file, its name (the ACAD_IMAGE_DICT dictionary), the size of one
@@ -180,6 +234,11 @@ pub(super) fn named(file: &DwgFile, objects: &[ObjectRef], root: u64) -> Named {
                     n.images.insert(o.handle, def);
                 }
             }
+            "DBCOLOR" => {
+                if let Ok(Some(c)) = file.read_object(o).and_then(|mut r| book_color(&mut r)) {
+                    n.colors.insert(o.handle, c);
+                }
+            }
             "MLINESTYLE" => {
                 if let Ok(name) = file.read_object(o).and_then(|mut r| {
                     r.common_refs()?;
@@ -198,6 +257,69 @@ pub(super) fn named(file: &DwgFile, objects: &[ObjectRef], root: u64) -> Named {
         }
     }
     n
+}
+
+/// MLEADERSTYLE: its leader, landing, arrow, text and block settings, in the order AutoCAD's own
+/// files hold them (ACadSharp's samples: every version reads to the end of the record, with the
+/// values of AutoCAD's DXF). From 2010 on a version comes first and the attachment directions
+/// last; 2013 adds a flag. The drawing keeps what the DXF reader keeps: the arrow size, text
+/// height, landing gap, dogleg length, text style and whether it is annotative.
+fn mleader_style(r: &mut ObjectReader, name: &str, tables: &Tables) -> DwgResult<draftcraft_doc::MLeaderStyle> {
+    use draftcraft_doc::MLeaderStyle;
+    let def = MLeaderStyle::default();
+    let ver = r.version();
+    r.common_refs()?;
+    if ver >= V::R2010 {
+        let _version = r.bs()?;
+    }
+    let _content = (r.bs()?, r.bs()?, r.bs()?);
+    let _max_points = r.bl()?;
+    let _angles = (r.bd()?, r.bd()?);
+    let _leader_type = r.bs()?;
+    let _line_color = r.color()?;
+    let _line_type = r.reference()?;
+    let _line_weight = r.bl()?;
+    let _landing = r.b()?;
+    let landing_gap = r.bd()?;
+    let _dogleg = r.b()?;
+    let dogleg = r.bd()?;
+    let _description = r.text()?;
+    let _arrow_block = r.reference()?;
+    let arrow_size = r.bd()?;
+    let _text_default = r.text()?;
+    let text_style = r.reference()?;
+    let _attachments = (r.bs()?, r.bs()?, r.bs()?, r.bs()?);
+    let _text_color = r.color()?;
+    let text_height = r.bd()?;
+    let _frame = r.b()?;
+    let _align_left = r.b()?;
+    let _align_space = r.bd()?;
+    let _block = r.reference()?;
+    let _block_color = r.color()?;
+    let _block_scale = r.bd3()?;
+    let _block_scale_on = r.b()?;
+    let _block_rotation = (r.bd()?, r.b()?);
+    let _block_connection = r.bs()?;
+    let _scale = r.bd()?;
+    let annotative = r.b()?;
+    let _changed = r.b()?;
+    let _break_size = r.bd()?;
+    if ver >= V::R2010 {
+        let _attachment = (r.bs()?, r.bs()?, r.bs()?);
+    }
+    if ver >= V::R2013 {
+        let _text_extended = r.b()?;
+    }
+    let num = |v: f64, d: f64| if v.is_finite() && v >= 0.0 { v } else { d };
+    Ok(MLeaderStyle {
+        name: name.to_string(),
+        arrow_size: num(arrow_size, def.arrow_size),
+        text_height: if text_height.is_finite() && text_height > 0.0 { text_height } else { def.text_height },
+        landing_gap: num(landing_gap, def.landing_gap),
+        dogleg: num(dogleg, def.dogleg),
+        text_style: tables.styles.get(&text_style).filter(|n| !n.is_empty()).cloned().unwrap_or(def.text_style),
+        annotative,
+    })
 }
 
 /// MLINESTYLE (§20.4.73): name, description, flags, fill colour, cap angles and elements, each
@@ -247,8 +369,26 @@ fn mline_style(r: &mut ObjectReader, tables: &Tables) -> DwgResult<Option<draftc
 }
 
 /// Read the objects into `d`. Returns the handles of the objects read.
-pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], tables: &Tables, d: &mut Drawing, unread: &mut Unread) -> HashSet<u64> {
+pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], tables: &Tables, named: &Named, d: &mut Drawing, unread: &mut Unread) -> HashSet<u64> {
     let mut read = HashSet::new();
+    // Multileader styles, named by the ACAD_MLEADERSTYLE dictionary, by the DXF reader's rule: a
+    // name the drawing has is replaced.
+    for o in objects.iter().filter(|o| o.type_name == "MLEADERSTYLE") {
+        let Some(name) = named.mleader_styles.get(&o.handle).filter(|n| !n.is_empty()) else {
+            unread.count("MLEADERSTYLE of no dictionary entry");
+            continue;
+        };
+        match file.read_object(o).and_then(|mut r| mleader_style(&mut r, name, tables)) {
+            Ok(st) => {
+                match d.mleader_styles.iter_mut().find(|s| s.name.eq_ignore_ascii_case(name)) {
+                    Some(x) => *x = st,
+                    None => d.mleader_styles.push(st),
+                }
+                read.insert(o.handle);
+            }
+            Err(_) => unread.count("MLEADERSTYLE (not decoded)"),
+        }
+    }
     // Multiline styles, then each multiline's elements from its style.
     let mut styles = Vec::new();
     for o in objects.iter().filter(|o| o.type_name == "MLINESTYLE") {

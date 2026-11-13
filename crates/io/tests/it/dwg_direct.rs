@@ -13,15 +13,13 @@ const DWGS: &[(&str, &str, &[u8])] = &[
     ("mi201-r14.dwg", "AC1014", include_bytes!("../data/mi201/mi201-r14.dwg")),
     ("mi201-r2000.dwg", "AC1015", include_bytes!("../data/mi201/mi201-r2000.dwg")),
     ("mi201-r2004.dwg", "AC1018", include_bytes!("../data/mi201/mi201-r2004.dwg")),
+    ("mi201-r2007.dwg", "AC1021", include_bytes!("../data/mi201/mi201-r2007.dwg")),
     ("mi201-r2010.dwg", "AC1024", include_bytes!("../data/mi201/mi201-r2010.dwg")),
     ("mi201-r2013.dwg", "AC1027", include_bytes!("../data/mi201/mi201-r2013.dwg")),
     ("mi201-r2018.dwg", "AC1032", include_bytes!("../data/mi201/mi201-r2018.dwg")),
     ("mi201-r2018-from-ascii-dxf.dwg", "AC1032", include_bytes!("../data/mi201/mi201-r2018-from-ascii-dxf.dwg")),
     ("mi201-r2018-from-binary-dxf.dwg", "AC1032", include_bytes!("../data/mi201/mi201-r2018-from-binary-dxf.dwg")),
 ];
-
-/// The 2007 file: its container is not read yet.
-const DWG_2007: &[u8] = include_bytes!("../data/mi201/mi201-r2007.dwg");
 
 /// AutoCAD's DXF of each version: the references the reader is compared with as it grows.
 const DXFS: &[(&str, &[u8])] = &[
@@ -42,24 +40,50 @@ fn every_object_of_every_version_is_accounted_for() {
         assert!(file.object_count() > 100, "{name}: {} objects", file.object_count());
         let (d, unread) = dwg::read(bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
         assert_eq!(d.header.str("ACADVER", ""), *code, "{name}");
-        // Every object is in the drawing or counted as unread: the categories read so far leave
-        // none of their own behind, and nothing else is dropped.
-        // A key with a space is a part of an object that waits for a later category (a header
-        // variable's name, a layer's plot style), not an object.
-        let objects: usize = unread.by_type.iter().filter(|(k, _)| !k.contains(' ')).map(|(_, n)| n).sum();
-        let tables = file.objects().filter(|o| READ_SO_FAR.contains(&o.type_name.as_str())).count();
-        assert_eq!(objects + tables, file.object_count(), "{name}: {}", unread.summary());
-        assert!(!unread.by_type.contains_key("?"), "{name}: {}", unread.summary());
-        for t in READ_SO_FAR {
-            assert!(!unread.by_type.keys().any(|k| k == t || *k == format!("{t} (not decoded)")), "{name}: {t} left unread: {}", unread.summary());
+        // Every object is in the drawing or counted as unread, a type at a time: the reader reads
+        // all the objects of a type or counts them all, and the types read so far leave none
+        // behind. A key with a space is a part of an object that waits for a later step (a
+        // header variable's name, an entity's reactors), or the objects of a type the codec
+        // can't decode yet ("… (not decoded)").
+        let mut types: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+        for o in file.objects() {
+            *types.entry(o.type_name.clone()).or_default() += 1;
         }
-        // A type of a later step is still counted, not dropped.
-        assert!(unread.by_type.contains_key("DICTIONARY"), "{name}: no DICTIONARY among {}", unread.summary());
+        let unread_of =
+            |t: &str| unread.by_type.get(t).copied().unwrap_or(0) + unread.by_type.get(&format!("{t} (not decoded)")).copied().unwrap_or(0);
+        for (t, n) in &types {
+            let u = unread_of(t);
+            assert!(u == 0 || u == *n, "{name}: {u} of the {n} {t} unread: {}", unread.summary());
+            assert!(u == 0 || !READ_SO_FAR.contains(&t.as_str()), "{name}: {t} left unread: {}", unread.summary());
+        }
+        // Nothing is counted that the file doesn't have.
+        for k in unread.by_type.keys() {
+            let t = k.strip_suffix(" (not decoded)").unwrap_or(k);
+            assert!(types.contains_key(t) || (t.contains(' ') && t == k), "{name}: {k} counted, not in the file: {}", unread.summary());
+        }
+        assert!(!unread.by_type.contains_key("?"), "{name}: {}", unread.summary());
+        // A type of a later step is still counted, not dropped: the codec decodes visual styles
+        // from AutoCAD 2013 on.
+        if *code < "AC1027" {
+            assert_eq!(unread_of("VISUALSTYLE"), types.get("VISUALSTYLE").copied().unwrap_or(0), "{name}: {}", unread.summary());
+            assert!(unread_of("VISUALSTYLE") > 0, "{name}: no VISUALSTYLE among {}", unread.summary());
+        }
     }
 }
 
 /// The object types the reader puts in the drawing so far.
 const READ_SO_FAR: &[&str] = &[
+    "DICTIONARY",
+    "ACDBDICTIONARYWDFLT",
+    "ACDBPLACEHOLDER",
+    "XRECORD",
+    "SCALE",
+    "DICTIONARYVAR",
+    "GROUP",
+    "WIPEOUTVARIABLES",
+    "RASTERVARIABLES",
+    "TABLESTYLE",
+    "MLEADERSTYLE",
     "DIMENSION_LINEAR",
     "DIMASSOC",
     "LINE",
@@ -101,12 +125,6 @@ const READ_SO_FAR: &[&str] = &[
 ];
 
 #[test]
-fn the_2007_container_is_refused_by_name() {
-    let err = dwg::read(DWG_2007).err().map(|e| e.to_string()).unwrap_or_default();
-    assert!(err.contains("AC1021"), "{err}");
-}
-
-#[test]
 fn the_references_read() {
     for (name, bytes) in DXFS {
         let d = draftcraft_io::read(bytes, name).unwrap_or_else(|e| panic!("{name}: {e}"));
@@ -138,6 +156,7 @@ fn pairs() -> Vec<(&'static str, &'static [u8], &'static [u8])> {
                 "mi201-r14.dwg" => "mi201-r12.dxf",
                 "mi201-r2000.dwg" => "mi201-r2000.dxf",
                 "mi201-r2004.dwg" => "mi201-r2004.dxf",
+                "mi201-r2007.dwg" => "mi201-r2007.dxf",
                 "mi201-r2010.dwg" => "mi201-r2010.dxf",
                 "mi201-r2013.dwg" => "mi201-r2013.dxf",
                 _ => "mi201-r2018.dxf",
@@ -228,9 +247,9 @@ fn header_variables_match_autocads_dxf() {
                 assert!(d.header.get(v).is_some(), "{name}");
                 continue;
             }
-            // A 2004 DXF holds $XCLIPFRAME as a yes/no and keeps the drawing's real value, 2, in a
-            // dictionary variable; the 2004 DWG's header holds the 2 itself, as later DXFs do.
-            if v == "XCLIPFRAME" && name.contains("r2004") {
+            // A 2004 or 2007 DXF holds $XCLIPFRAME as a yes/no and keeps the drawing's real value,
+            // 2, in a dictionary variable; the DWG's header holds the 2 itself, as later DXFs do.
+            if v == "XCLIPFRAME" && (name.contains("r2004") || name.contains("r2007")) {
                 assert_eq!(d.header.i64(v, -1), 2, "{name}");
                 continue;
             }
@@ -545,8 +564,7 @@ fn attributes_of(d: &draftcraft_doc::Drawing) -> Vec<(String, serde_json::Value)
 fn attributes_read_as_the_acadrust_reader_reads_them() {
     use draftcraft_io::{DwgReader, SaveOptions, Version, read_dwg_with, write_with};
     let source = attributes_drawing();
-    // The 2007 container is not read yet.
-    for version in [Version::R2000, Version::R2004, Version::R2010, Version::R2013, Version::R2018] {
+    for version in [Version::R2000, Version::R2004, Version::R2007, Version::R2010, Version::R2013, Version::R2018] {
         let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
         let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
         let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
@@ -578,18 +596,48 @@ fn multiline_fixture() -> String {
     dxf
 }
 
-/// Multiline attributes (AutoCAD 2018 DWG) embed MTEXT fields whose layout no AutoCAD-saved file
-/// here confirms, so the reader does not decode them yet. It must count them, and leave out the
-/// block reference that owns one whole, rather than lose any part silently.
+/// Multiline attributes (AutoCAD 2018 DWG) embed an MTEXT in the record: an entity's common
+/// properties, then the MTEXT's fields (AutoCAD's own files show the layout: ACadSharp's samples,
+/// [`autocad_samples_entities_read_as_autocads_dxf`]). DraftCraft's saved ones read back as the
+/// drawing has them: the definition with its multiline text, the reference with its own. (The
+/// acadrust reader loses the reference's vertical alignment; the writer places an aligned text's
+/// insertion point itself, from its alignment point, so that is not compared.)
 #[test]
-fn multiline_attributes_are_counted_not_dropped() {
+fn multiline_attributes_read_back_as_saved() {
     use draftcraft_io::{SaveOptions, Version, write_with};
     let d = draftcraft_io::read(multiline_fixture().as_bytes(), "m.dxf").unwrap();
+    // An aligned text's insertion point is the writer's: left out of both sides.
+    let unplaced = |list: Vec<(String, serde_json::Value)>| -> Vec<(String, serde_json::Value)> {
+        let strip = |a: &mut serde_json::Value| {
+            if let Some(t) = a.get_mut("text").and_then(|t| t.as_object_mut())
+                && t.get("alignPt").is_some_and(|p| !p.is_null())
+            {
+                t.remove("insert");
+            }
+        };
+        list.into_iter()
+            .map(|(p, mut v)| {
+                if let Some(list) = v.get_mut("attribs").and_then(|a| a.as_array_mut()) {
+                    list.iter_mut().for_each(strip);
+                } else {
+                    strip(&mut v);
+                }
+                (p, v)
+            })
+            .collect()
+    };
+    let want = unplaced(attributes_of(&d));
+    assert!(!want.is_empty(), "the fixture has its multiline attributes");
     let bytes = write_with(&d, "t.dwg", &SaveOptions { version: Some(Version::R2018), binary: false }).unwrap();
     let (read, unread) = dwg::read(&bytes).unwrap();
-    assert!(attributes_of(&read).is_empty(), "nothing of a multiline attribute's block or reference is read in part");
     for what in ["ATTDEF (not decoded)", "ATTRIB (not decoded)", "INSERT whose attributes were not all read"] {
-        assert_eq!(unread.by_type.get(what), Some(&1), "{what}: {}", unread.summary());
+        assert_eq!(unread.by_type.get(what), None, "{what}: {}", unread.summary());
+    }
+    let got = unplaced(attributes_of(&read));
+    assert_eq!(got.len(), want.len(), "{got:#?}");
+    for ((gp, g), (wp, w)) in got.iter().zip(&want) {
+        assert_eq!(gp, wp);
+        assert!(close(g, w, false), "{gp}\nread  {g}\nsaved {w}");
     }
 }
 
@@ -669,8 +717,7 @@ fn polylines_and_splines_read_as_the_acadrust_reader_reads_them() {
             EntityKind::LwPolyline(_) | EntityKind::Polyline3d(_) | EntityKind::PolyfaceMesh(_) | EntityKind::Face3d(_) | EntityKind::Spline(_)
         )
     };
-    // The 2007 container is not read yet.
-    for version in [DxfVersion::AC1015, DxfVersion::AC1018, DxfVersion::AC1024, DxfVersion::AC1027, DxfVersion::AC1032] {
+    for version in [DxfVersion::AC1015, DxfVersion::AC1018, DxfVersion::AC1021, DxfVersion::AC1024, DxfVersion::AC1027, DxfVersion::AC1032] {
         let bytes = curves_dwg(version);
         let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
         let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
@@ -684,6 +731,24 @@ fn polylines_and_splines_read_as_the_acadrust_reader_reads_them() {
             // acadrust's DXF gives a vertex stored with no width the polyline's default width and
             // leaves the default out, so 2D polylines are checked against what was written.
             if matches!(g.kind, EntityKind::LwPolyline(_)) {
+                continue;
+            }
+            // From AutoCAD 2013 on a fit spline's tangents are its end derivatives, length included
+            // (AutoCAD's own file and DXF show it: SPLINE 434 of ACadSharp's samples), where the
+            // acadrust reader takes them as directions. The fit spline here stores (1, 1) and
+            // (1, -1): AutoCAD's curve, the same fit points.
+            if let (EntityKind::Spline(gs), EntityKind::Spline(ws)) = (&g.kind, &w.kind)
+                && !ws.fit.is_empty()
+                && matches!(version, DxfVersion::AC1027 | DxfVersion::AC1032)
+            {
+                use draftcraft_geom::{FitOptions, Spline, Vec2};
+                let opts = FitOptions { knots: ws.fit_opts.knots, tolerance: ws.fit_opts.tolerance, ..FitOptions::default() };
+                let autocad = Spline::fit_with_derivatives(&ws.fit, opts, Some(Vec2::new(1.0, 1.0)), Some(Vec2::new(1.0, -1.0)));
+                assert_eq!(gs.fit, ws.fit, "{version:?}");
+                assert_eq!(gs.control.len(), autocad.control.len(), "{version:?}");
+                for (a, b) in gs.control.iter().zip(&autocad.control) {
+                    assert!(a.near(*b, 1e-9), "{version:?}: control point {a:?}, AutoCAD's {b:?}");
+                }
                 continue;
             }
             let (g, w) = (serde_json::to_value(g.as_ref()).unwrap(), serde_json::to_value(w.as_ref()).unwrap());
@@ -781,7 +846,7 @@ fn every_kind_of_dimension_reads_as_the_acadrust_reader_reads_it() {
     use draftcraft_doc::EntityKind;
     use draftcraft_io::{DwgReader, SaveOptions, Version, read_dwg_with, write_with};
     let source = dimensions_drawing();
-    for version in [Version::R2000, Version::R2004, Version::R2010, Version::R2013, Version::R2018] {
+    for version in [Version::R2000, Version::R2004, Version::R2007, Version::R2010, Version::R2013, Version::R2018] {
         let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
         let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
         let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
@@ -867,7 +932,10 @@ fn hatches_drawing() -> draftcraft_doc::Drawing {
     if let Some(l) = associative.loops.first_mut() {
         l.vertices = vec![PolyVertex::with_bulge(Vec2::new(56.0, 5.0), 1.0), PolyVertex::with_bulge(Vec2::new(64.0, 5.0), 1.0)];
     }
-    for h in [solid, ansi, own, gradient, associative] {
+    let mut by_layer = hatch("SOLID", vec![outer(square(70.0, 0.0, 10.0))]);
+    by_layer.gradient =
+        Some(Gradient { name: "CURVED".into(), color1: color::Color::Index(5), color2: color::Color::ByLayer, angle: 0.0, centered: true });
+    for h in [solid, ansi, own, gradient, associative, by_layer] {
         d.add(&Space::Model, Common::default(), EntityKind::Hatch(h)).expect("add");
     }
     d
@@ -878,13 +946,13 @@ fn hatches_read_as_the_acadrust_reader_reads_them() {
     use draftcraft_doc::EntityKind;
     use draftcraft_io::{DwgReader, SaveOptions, Version, read_dwg_with, write_with};
     let source = hatches_drawing();
-    for version in [Version::R2000, Version::R2004, Version::R2010, Version::R2013, Version::R2018] {
+    for version in [Version::R2000, Version::R2004, Version::R2007, Version::R2010, Version::R2013, Version::R2018] {
         let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
         let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
         let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
         let hatches = |d: &draftcraft_doc::Drawing| d.model.iter().filter(|e| matches!(e.kind, EntityKind::Hatch(_))).cloned().collect::<Vec<_>>();
         let (got, want) = (hatches(&d), hatches(&reference));
-        assert_eq!(want.len(), 5, "{version:?}");
+        assert_eq!(want.len(), 6, "{version:?}");
         assert_eq!(got.len(), want.len(), "{version:?}: unread {}", unread.summary());
         for (ge, we) in got.iter().zip(&want) {
             let (g, w) = (serde_json::to_value(ge.as_ref()).unwrap(), serde_json::to_value(we.as_ref()).unwrap());
@@ -971,7 +1039,7 @@ fn hatch_edges_read_as_the_acadrust_reader_reads_them() {
     use acadrust::types::DxfVersion as A;
     use draftcraft_doc::EntityKind;
     use draftcraft_io::{DwgReader, read_dwg_with};
-    for version in [A::AC1015, A::AC1018, A::AC1024, A::AC1027, A::AC1032] {
+    for version in [A::AC1015, A::AC1018, A::AC1021, A::AC1024, A::AC1027, A::AC1032] {
         let bytes = hatch_edges_dwg(version);
         let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
         let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
@@ -1091,16 +1159,16 @@ fn leaders_tolerances_and_multileaders_read_as_the_acadrust_reader_reads_them() 
     use draftcraft_doc::EntityKind;
     use draftcraft_io::{DwgReader, SaveOptions, Version, read_dwg_with, write_with};
     let source = annotation_drawing();
-    for version in [Version::R2000, Version::R2004, Version::R2010, Version::R2013, Version::R2018] {
+    for version in [Version::R2000, Version::R2004, Version::R2007, Version::R2010, Version::R2013, Version::R2018] {
         let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
         let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
         let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
         // Up to 2004 a multileader is saved as a leader and its text or block reference: every
-        // entity is compared.
+        // entity is compared. From 2007 it is a MULTILEADER.
         let (got, want) = (d.model.iter().cloned().collect::<Vec<_>>(), reference.model.iter().cloned().collect::<Vec<_>>());
         let count = |f: fn(&EntityKind) -> bool| (got.iter().filter(|e| f(&e.kind)).count(), want.iter().filter(|e| f(&e.kind)).count());
         assert_eq!(count(|k| matches!(k, EntityKind::Tolerance(_))), (1, 1), "{version:?}");
-        let multileaders = if version >= Version::R2010 { 5 } else { 0 };
+        let multileaders = if version >= Version::R2007 { 5 } else { 0 };
         assert_eq!(count(|k| matches!(k, EntityKind::MLeader(_))), (multileaders, multileaders), "{version:?}");
         assert_eq!(got.len(), want.len(), "{version:?}: unread {}", unread.summary());
         let with_value = got.iter().filter_map(|e| match &e.kind {
@@ -1158,7 +1226,7 @@ fn mirrored_text_reads_as_the_acadrust_reader_reads_it() {
     use acadrust::types::DxfVersion as A;
     use draftcraft_doc::EntityKind;
     use draftcraft_io::{DwgReader, read_dwg_with};
-    for version in [A::AC1015, A::AC1018, A::AC1024, A::AC1027, A::AC1032] {
+    for version in [A::AC1015, A::AC1018, A::AC1021, A::AC1024, A::AC1027, A::AC1032] {
         let bytes = mirrored_text_dwg(version);
         let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
         let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
@@ -1245,7 +1313,7 @@ fn viewports_drawing() -> draftcraft_doc::Drawing {
 fn viewports_read_as_the_acadrust_reader_reads_them() {
     use draftcraft_io::{DwgReader, SaveOptions, Version, read_dwg_with, write_with};
     let source = viewports_drawing();
-    for version in [Version::R2000, Version::R2004, Version::R2010, Version::R2013, Version::R2018] {
+    for version in [Version::R2000, Version::R2004, Version::R2007, Version::R2010, Version::R2013, Version::R2018] {
         let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
         let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
         let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
@@ -1327,7 +1395,7 @@ fn images_wipeouts_and_underlays_read_as_the_acadrust_reader_reads_them() {
     use draftcraft_doc::EntityKind;
     use draftcraft_io::{DwgReader, SaveOptions, Version, read_dwg_with, write_with};
     let source = images_drawing();
-    for version in [Version::R2000, Version::R2004, Version::R2010, Version::R2013, Version::R2018] {
+    for version in [Version::R2000, Version::R2004, Version::R2007, Version::R2010, Version::R2013, Version::R2018] {
         let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
         let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
         let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
@@ -1408,7 +1476,7 @@ fn multilines_read_as_the_acadrust_reader_reads_them() {
     use draftcraft_doc::EntityKind;
     use draftcraft_io::{DwgReader, SaveOptions, Version, read_dwg_with, write_with};
     let source = mlines_drawing();
-    for version in [Version::R2000, Version::R2004, Version::R2010, Version::R2013, Version::R2018] {
+    for version in [Version::R2000, Version::R2004, Version::R2007, Version::R2010, Version::R2013, Version::R2018] {
         let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
         let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
         let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
@@ -1475,7 +1543,7 @@ fn tables_read_as_the_acadrust_reader_reads_them() {
     use draftcraft_doc::EntityKind;
     use draftcraft_io::{DwgReader, SaveOptions, Version, read_dwg_with, write_with};
     let source = tables_drawing();
-    for version in [Version::R2000, Version::R2004, Version::R2010, Version::R2013, Version::R2018] {
+    for version in [Version::R2000, Version::R2004, Version::R2007, Version::R2010, Version::R2013, Version::R2018] {
         let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
         let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
         let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
@@ -1522,7 +1590,7 @@ fn regions_read_as_the_acadrust_reader_reads_them() {
     use draftcraft_doc::EntityKind;
     use draftcraft_io::{DwgReader, SaveOptions, Version, read_dwg_with, write_with};
     let source = regions_drawing();
-    for version in [Version::R2000, Version::R2004, Version::R2010, Version::R2013, Version::R2018] {
+    for version in [Version::R2000, Version::R2004, Version::R2007, Version::R2010, Version::R2013, Version::R2018] {
         let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
         let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
         let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
@@ -1535,5 +1603,176 @@ fn regions_read_as_the_acadrust_reader_reads_them() {
             assert!(close(&g["common"], &w["common"], false), "{version:?}: properties\nread      {}\nreference {}", g["common"], w["common"]);
         }
         assert!(!unread.by_type.keys().any(|k| k.starts_with("LWPOLYLINE") || k.starts_with("DraftCraft")), "{version:?}: {}", unread.summary());
+    }
+}
+
+/// DIMASSOC objects as DraftCraft's save path writes them (through acadrust) name subentities
+/// with values AutoCAD's own files have as zero: each is read, in every version.
+#[test]
+fn saved_dimension_associations_are_read() {
+    use draftcraft_io::{SaveOptions, Version, write_with};
+    let source = draftcraft_io::read(include_bytes!("../../../../examples/apartment.dxf"), "apartment.dxf").unwrap();
+    for version in [Version::R2000, Version::R2004, Version::R2007, Version::R2010, Version::R2013, Version::R2018] {
+        let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
+        let file = DwgFile::open(&bytes).unwrap();
+        assert!(file.objects().any(|o| o.type_name == "DIMASSOC"), "{version:?}: the drawing has associative dimensions");
+        let (_, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
+        assert!(!unread.by_type.keys().any(|k| k.starts_with("DIMASSOC")), "{version:?}: {}", unread.summary());
+    }
+}
+
+/// Writes every step's test drawing as DWG in every version to `DWG_FIXTURES_OUT`, for checking
+/// them with other programs (BlackCAD, AutoCAD, the web build): `DWG_FIXTURES_OUT=dir cargo test
+/// -p draftcraft-io --test it write_dwg_fixtures -- --ignored`.
+#[test]
+#[ignore = "writes files for other programs to read"]
+fn write_dwg_fixtures() {
+    use draftcraft_io::{SaveOptions, Version, write_with};
+    let Ok(dir) = std::env::var("DWG_FIXTURES_OUT") else { return };
+    let drawings = [
+        ("attributes", attributes_drawing()),
+        ("dimensions", dimensions_drawing()),
+        ("hatches", hatches_drawing()),
+        ("annotation", annotation_drawing()),
+        ("viewports", viewports_drawing()),
+        ("images", images_drawing()),
+        ("mlines", mlines_drawing()),
+        ("tables", tables_drawing()),
+        ("regions", regions_drawing()),
+    ];
+    for (name, d) in &drawings {
+        for version in [Version::R2000, Version::R2004, Version::R2007, Version::R2010, Version::R2013, Version::R2018] {
+            let bytes = write_with(d, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
+            std::fs::write(std::path::Path::new(&dir).join(format!("{name}-{version:?}.dwg")), bytes).unwrap();
+        }
+    }
+    let acad = [
+        ("curves", curves_dwg as fn(acadrust::types::DxfVersion) -> Vec<u8>),
+        ("hatch-edges", hatch_edges_dwg),
+        ("mirrored-text", mirrored_text_dwg),
+    ];
+    for (name, make) in acad {
+        for v in [
+            acadrust::types::DxfVersion::AC1015,
+            acadrust::types::DxfVersion::AC1018,
+            acadrust::types::DxfVersion::AC1024,
+            acadrust::types::DxfVersion::AC1027,
+            acadrust::types::DxfVersion::AC1032,
+        ] {
+            std::fs::write(std::path::Path::new(&dir).join(format!("{name}-{v:?}.dwg")), make(v)).unwrap();
+        }
+    }
+}
+
+/// AutoCAD's own sample drawings, when `DRAFTCRAFT_DWG_SAMPLES` names their folder (ACadSharp's
+/// `samples`, MIT: `sample_AC1015.dwg` to `sample_AC1032.dwg`, saved by AutoCAD). Colour book
+/// colours read as AutoCAD has them in every version: from the DBCOLOR object the entity names
+/// (2004 on: its colour stores no true colour, which used to lose the entity) and from AutoCAD's
+/// round-trip data (2000), which no entity keeps as extended data.
+#[test]
+fn autocad_samples_colour_book_colours() {
+    use draftcraft_color::{Color, Rgb};
+    use draftcraft_doc::Handle;
+    let Some(dir) = std::env::var_os("DRAFTCRAFT_DWG_SAMPLES").map(std::path::PathBuf::from) else {
+        eprintln!("DRAFTCRAFT_DWG_SAMPLES is not set: AutoCAD's sample drawings skipped");
+        return;
+    };
+    let ral = Some(("14848000".to_string(), "RAL CLASSIC$RAL 1006".to_string()));
+    for code in ["AC1015", "AC1018", "AC1021", "AC1024", "AC1027", "AC1032"] {
+        let bytes = std::fs::read(dir.join(format!("sample_{code}.dwg"))).unwrap_or_else(|e| panic!("{code}: {e}"));
+        let (d, _) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{code}: {e}"));
+        let circle = d.entity(Handle(0x99F)).unwrap_or_else(|| panic!("{code}: CIRCLE 99F is read"));
+        assert_eq!(circle.common.color, Color::True(Rgb::from_u32(0xE2_9000)), "{code}: AutoCAD's 420 of CIRCLE 99F");
+        assert_eq!(d.foreign.entities.get(&Handle(0x99F)).and_then(|x| x.color_book.clone()), ral, "{code}: its 430");
+        // A true colour of no book, from 2000's round-trip data as from 2004's colour.
+        let line = d.entity(Handle(0x99E)).unwrap_or_else(|| panic!("{code}: LINE 99E"));
+        assert_eq!(line.common.color, Color::True(Rgb::from_u32(0x34_C918)), "{code}: AutoCAD's 420 of LINE 99E");
+        for e in d.model.iter() {
+            let rt = e.common.xdata.iter().any(|t| t.code == 1000 && (t.value == "RTTcAl" || t.value == "RTMaterial"));
+            assert!(!rt, "{code}: {} {:X} keeps AutoCAD's round-trip data", e.kind.dxf_name(), e.handle.0);
+        }
+        if code != "AC1015" {
+            let layer = d.foreign.records.get(&("LAYER".to_string(), "LAYER_COLOR_BOOK".to_string())).and_then(|x| x.color_book.clone());
+            assert_eq!(layer, Some(("16564615".to_string(), "DIC COLOR GUIDE(R)$DIC 7".to_string())), "{code}: layer's 420 and 430");
+        }
+    }
+}
+
+/// AutoCAD's own sample drawings (as [`autocad_samples_colour_book_colours`]): entities read as
+/// AutoCAD's DXF of the same drawing has them, in every version. The leader gets its hook line,
+/// the tolerance frame its `^J` line breaks, and the spline that AutoCAD 2013 and later store as
+/// fit points and end derivatives AutoCAD's control points.
+#[test]
+fn autocad_samples_entities_read_as_autocads_dxf() {
+    use draftcraft_doc::{EntityKind, Handle};
+    let Some(dir) = std::env::var_os("DRAFTCRAFT_DWG_SAMPLES").map(std::path::PathBuf::from) else {
+        eprintln!("DRAFTCRAFT_DWG_SAMPLES is not set: AutoCAD's sample drawings skipped");
+        return;
+    };
+    let near = |a: f64, b: f64| (a - b).abs() < 1e-9;
+    for code in ["AC1015", "AC1018", "AC1021", "AC1024", "AC1027", "AC1032"] {
+        let bytes = std::fs::read(dir.join(format!("sample_{code}.dwg"))).unwrap_or_else(|e| panic!("{code}: {e}"));
+        let (d, _) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{code}: {e}"));
+        let kind = |h: u64| d.entity(Handle(h)).map(|e| e.kind.clone()).unwrap_or_else(|| panic!("{code}: {h:X} is read"));
+        let EntityKind::Leader(l) = kind(0x512) else { panic!("{code}: LEADER 512") };
+        let xs: Vec<f64> = l.vertices.iter().map(|v| v.x).collect();
+        assert_eq!(xs.len(), 4, "{code}: AutoCAD's DXF lists four vertices: {xs:?}");
+        assert!(near(xs[2], 737.898_750_025_284_9) && near(xs[3], 740.398_750_025_284_9), "{code}: {xs:?}");
+        // The DWG stores the clip polygon open and AutoCAD's DXF closed: the drawing holds either,
+        // the same four vertices (`Wipeout::vertices`).
+        let EntityKind::Wipeout(w) = kind(0x44D) else { panic!("{code}: WIPEOUT 44D") };
+        assert_eq!(w.vertices().len(), 4, "{code}: AutoCAD's four clip vertices");
+        let EntityKind::Tolerance(t) = kind(0x823) else { panic!("{code}: TOLERANCE 823") };
+        assert_eq!(t.text, "99^Ja", "{code}");
+        let EntityKind::Spline(s) = kind(0x434) else { panic!("{code}: SPLINE 434") };
+        let want = [
+            (250.458_790_783_224_1, 17.426_024_184_844_77),
+            (254.713_771_109_526_1, 28.254_981_364_991_63),
+            (259.387_964_086_943_8, 17.503_121_515_419_48),
+            (259.224_551_110_004_1, 27.287_504_552_472_21),
+        ];
+        assert_eq!(s.control.len(), 4, "{code}");
+        for (c, (x, y)) in s.control.iter().zip(want) {
+            assert!(near(c.x, x) && near(c.y, y), "{code}: control point {c:?}, AutoCAD's ({x}, {y})");
+        }
+        // Multileader styles (MLEADERSTYLE objects, written from 2004 on): AutoCAD's Standard and
+        // Annotative, with the values of its DXF.
+        if code != "AC1015" {
+            for (name, annotative) in [("Standard", false), ("Annotative", true)] {
+                let st = d.mleader_styles.iter().find(|s| s.name == name).unwrap_or_else(|| panic!("{code}: multileader style {name}"));
+                assert!(
+                    near(st.arrow_size, 0.18) && near(st.text_height, 0.18) && near(st.landing_gap, 0.09) && near(st.dogleg, 0.36),
+                    "{code}: {st:?}"
+                );
+                assert_eq!((st.text_style.as_str(), st.annotative), ("Standard", annotative), "{code}: {name}");
+            }
+        }
+        // No entity keeps AutoCAD's round-trip spline data as extended data.
+        assert!(d.model.iter().all(|e| !e.common.xdata.iter().any(|t| t.code == 1001 && t.value == "ACAD_SPLINE_DATA")), "{code}");
+        if code != "AC1032" {
+            continue;
+        }
+        // 2018: MTEXT columns (an embedded object in AutoCAD's DXF), whose height AutoCAD stores
+        // negative and its DXF has as 0.
+        let EntityKind::MText(m) = kind(0x3EC) else { panic!("{code}: MTEXT 3EC") };
+        let c = m.columns.unwrap_or_else(|| panic!("{code}: MTEXT 3EC has its columns"));
+        assert_eq!((c.kind, c.count, c.auto_height, c.flow_reversed), (draftcraft_doc::MTextColumnType::Dynamic, 1, false, false), "{code}");
+        assert!(near(c.gutter, 110.223_167_038_119_5) && c.heights == vec![0.0], "{code}: {c:?}");
+        assert!(near(m.width, 15.741_414_244_987_48), "{code}");
+        // 2018: multiline attributes, their text an MTEXT embedded in the record.
+        let block = d.blocks.get("my_block_v2").unwrap_or_else(|| panic!("{code}: block my_block_v2"));
+        let def = block.entities.iter().find_map(|e| match &e.kind {
+            EntityKind::AttDef(a) if a.tag == "MULTI_LINE_ATT" => Some(a.clone()),
+            _ => None,
+        });
+        let def = def.unwrap_or_else(|| panic!("{code}: the multiline ATTDEF 796 is read"));
+        assert!(def.multiline.is_some(), "{code}");
+        assert_eq!(def.prompt, "this is an example of prompt", "{code}");
+        assert!(def.modes.lock_position, "{code}");
+        let EntityKind::Insert(i) = kind(0x79C) else { panic!("{code}: INSERT 79C is read") };
+        let att = i.attribs.iter().find(|a| a.tag == "MULTI_LINE_ATT").unwrap_or_else(|| panic!("{code}: its multiline ATTRIB"));
+        assert_eq!(att.text.value, "my multi line text for the attrrib", "{code}");
+        assert_eq!(att.multiline.as_ref().map(|m| m.mtext.contents.as_str()), Some("my multi line text for the attrrib"), "{code}");
+        assert!(near(att.text.height, 1.720_654_456_209_621), "{code}");
     }
 }

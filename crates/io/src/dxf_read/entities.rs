@@ -371,6 +371,23 @@ pub(super) fn acad_table(tags: &[Tag], table_cells_left: &mut usize) -> Table {
         let c = T(cell);
         let mut text: String = cell.iter().filter(|x| x.code == 2 || x.code == 3).map(Tag::str).collect();
         text.push_str(&c.s(1).unwrap_or_default());
+        // A value that is no string (a number, angle, date, point…) shows as its value block's
+        // formatted text (302), as AutoCAD writes it: "0.500000", "60", "35.00%". The DWG reader
+        // has the same rule.
+        if text.is_empty() {
+            let mut in_value = false;
+            for x in cell {
+                match x.code {
+                    301 => in_value = true,
+                    304 => in_value = false,
+                    302 if in_value => {
+                        text = x.str();
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+        }
         let span = |code: i32| c.i(code).and_then(|v| u32::try_from(v).ok());
         // A merge starts at the cell whose span (rows 176, columns 175) is more than one cell.
         // Its own merged flag (173) varies by writer: DraftCraft sets it, while AutoCAD-style
@@ -672,7 +689,7 @@ pub(crate) fn mesh_faces_of(verts: &[Vec3], size: Option<(i64, i64)>, smooth: Op
 /// A HELIX (DXF Reference): the axis base point, start point, axis, radius, turns, turn height,
 /// handedness and constraint after the AcDbHelix marker; the top radius is how far the end of its
 /// spline (AcDbSpline: the last control point, else fit point) lies from the axis.
-fn helix(tags: &[Tag]) -> Helix {
+pub(crate) fn helix(tags: &[Tag]) -> Helix {
     let hs = tags.iter().position(|t| t.code == 100 && t.str() == "AcDbHelix").unwrap_or(tags.len());
     let ss = tags.iter().position(|t| t.code == 100 && t.str() == "AcDbSpline").unwrap_or(0).min(hs);
     let spline = tags.get(ss..hs).unwrap_or(&[]);

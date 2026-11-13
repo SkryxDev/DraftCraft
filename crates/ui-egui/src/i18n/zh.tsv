@@ -1626,3 +1626,10 @@ menu	Palettes	选项板
 menu	Customize	自定义
 menu	Workspaces	工作空间
 menu	CAD Standards	CAD 标准
+	Export Attribute Information...	导出属性信息...
+	Import Attribute Information...	导入属性信息...
+	Export Attributes	导出属性
+	Import Attributes	导入属性
+	Text, tab-delimited (TXT)	制表符分隔的文本 (TXT)
+	Enter output file name	输入要写入的文件名
+	Enter input file name	输入要读取的文件名

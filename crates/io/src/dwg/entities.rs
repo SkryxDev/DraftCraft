@@ -7,11 +7,11 @@ use std::collections::{HashMap, HashSet};
 
 use draftcraft_doc::{
     Arc, Attrib, AttribModes, AttribProps, Circle, Common, DimKind, Dimension, Drawing, Ellipse, Entity, EntityKind, Face3d, Gradient, HAlign,
-    Handle, Hatch, HatchLoop, Image, Insert, Leader, Line, Lineweight, LwPolyline, MAX_FRAME_CHARS, MText, Point, PolyfaceMesh, Polyline3d, RawTag,
-    RayLine, Solid, Text, Tolerance, VAlign, Viewport, Wipeout,
+    Handle, Hatch, HatchLoop, Image, Insert, Leader, Line, Lineweight, LwPolyline, MAX_FRAME_CHARS, MText, MTextColumnType, MTextColumns,
+    MultilineAttrib, Point, PolyfaceMesh, Polyline3d, RawTag, RayLine, Solid, Text, Tolerance, VAlign, Viewport, Wipeout,
 };
 use draftcraft_dwg::DwgVersion as V;
-use draftcraft_dwg::file::{DwgFile, EntityLinetype, EntityRefs, EntitySpace, ObjectReader, ObjectRef, XDataBlock, XDataItem};
+use draftcraft_dwg::file::{ColorValue, DwgFile, EntityLinetype, EntityRefs, EntitySpace, ObjectReader, ObjectRef, XDataBlock, XDataItem};
 use draftcraft_dwg::records::Result as DwgResult;
 use draftcraft_geom::{PolyVertex, Vec2, Vec3};
 
@@ -30,6 +30,17 @@ struct Names<'a> {
     /// What the file's objects give entities: multileader style names, image and underlay
     /// definitions.
     objects: &'a super::objects::Named,
+    /// Text styles, blocks and linetypes by handle in hexadecimal, as a dimension's overrides
+    /// name them: made once, not per dimension.
+    by_hex: (HashMap<String, String>, HashMap<String, String>, HashMap<String, String>),
+}
+
+/// What an entity refers to that the objects pass keeps with the drawing's other foreign data:
+/// its extension dictionary, the objects that react to it, its material.
+pub(super) struct Link {
+    pub xdictionary: u64,
+    pub reactors: Vec<u64>,
+    pub material: u64,
 }
 
 /// One entity's place: the block record that owns it, and the entity after it in the chain.
@@ -61,6 +72,11 @@ struct Decoded {
     /// A table's block (the geometry it is drawn as, which the drawing rebuilds) and, for a
     /// table from another writer, its style's name, whose text height it takes.
     table: Option<(Option<String>, Option<Option<String>>)>,
+    /// The colour book colour's true colour and names, kept for saving (as the DXF reader keeps
+    /// group 430).
+    color_book: Option<(String, String)>,
+    /// A leader to text: its hook direction flag and x direction ([`add_hook_lines`]).
+    leader_hook: Option<(bool, Vec2)>,
     partial: Vec<&'static str>,
 }
 
@@ -83,6 +99,13 @@ fn common(r: &ObjectReader, refs: &EntityRefs, n: &Names, partial: &mut Vec<&'st
     if let Some(color) = super::tables::color(head.color) {
         c.color = color;
     }
+    // A colour book colour is its DBCOLOR object's; in an older version's file, the true colour
+    // AutoCAD kept in its round-trip data.
+    if let Some(book) = n.objects.colors.get(&refs.color_book) {
+        c.color = book.color;
+    } else if let Some((color, _)) = round_trip_color(r, n) {
+        c.color = color;
+    }
     c.linetype = match refs.linetype {
         EntityLinetype::ByLayer => "ByLayer".into(),
         EntityLinetype::ByBlock => "ByBlock".into(),
@@ -99,15 +122,6 @@ fn common(r: &ObjectReader, refs: &EntityRefs, n: &Names, partial: &mut Vec<&'st
     if refs.plotstyle != 0 {
         partial.push("entity plot style");
     }
-    if refs.material != 0 {
-        partial.push("entity material");
-    }
-    if refs.xdictionary != 0 {
-        partial.push("entity extension dictionary");
-    }
-    if !refs.reactors.is_empty() {
-        partial.push("entity reactors");
-    }
     c.xdata = xdata(&r.xdata(), n, partial);
     c
 }
@@ -122,6 +136,63 @@ fn attrib_props(c: &Common, insert_layer: &str) -> AttribProps {
         linetype: (!c.linetype.eq_ignore_ascii_case("ByLayer")).then(|| c.linetype.clone()),
         lineweight: (c.lineweight != Lineweight::ByLayer).then_some(c.lineweight),
     }
+}
+
+/// What AutoCAD keeps of a later version's properties in a file saved as an older version: ACAD
+/// extended data sequences that its own DXF of the file holds as the properties instead. `RTTcAl`
+/// is the colour (its flags and index, its colour word, its colour book name or `$$NoName$$`),
+/// `RTMaterial` the material. Returns the items without them, and the colour sequence's values.
+fn round_trip(items: &[XDataItem]) -> (Vec<&XDataItem>, Option<(i16, i32, &str)>) {
+    let mut kept = Vec::with_capacity(items.len());
+    let mut color = None;
+    let mut i = 0;
+    while let Some(item) = items.get(i) {
+        match (item, items.get(i + 1), items.get(i + 2), items.get(i + 3)) {
+            (XDataItem::Text(t), Some(XDataItem::Int16(flags)), Some(XDataItem::Int32(word)), Some(XDataItem::Text(book))) if t == "RTTcAl" => {
+                color = Some((*flags, *word, book.as_str()));
+                i += 4;
+            }
+            (XDataItem::Text(t), Some(XDataItem::Handle(_)), _, _) if t == "RTMaterial" => i += 2,
+            _ => {
+                kept.push(item);
+                i += 1;
+            }
+        }
+    }
+    (kept, color)
+}
+
+/// The true colour and colour book name an older version's file keeps in AutoCAD's round-trip
+/// data ([`round_trip`]), while the entity's colour is still the index AutoCAD saved with them: a
+/// program that changed the colour since left them stale.
+fn round_trip_color(r: &ObjectReader, n: &Names) -> Option<(draftcraft_color::Color, Option<String>)> {
+    let head = r.entity()?;
+    let index = match head.color {
+        ColorValue::ByBlock => 0,
+        ColorValue::ByLayer => 256,
+        ColorValue::Index(i) => i16::from(i),
+        _ => return None,
+    };
+    let blocks = r.xdata();
+    let acad = blocks.iter().find(|b| n.tables.apps.get(&b.app).is_some_and(|a| a.eq_ignore_ascii_case("ACAD")))?;
+    let (_, Some((flags, word, book))) = round_trip(&acad.items) else { return None };
+    let word = u32::from_ne_bytes(word.to_ne_bytes());
+    if (flags & 0x01FF) != index || word >> 24 != 0xC2 {
+        return None;
+    }
+    let color = draftcraft_color::Color::True(draftcraft_color::Rgb::from_u32(word & 0x00FF_FFFF));
+    let book = (book != "$$NoName$$" && !book.trim().is_empty()).then(|| book.to_string());
+    Some((color, book))
+}
+
+/// The colour book colour's true colour and names, kept for saving: its DBCOLOR object's, or the
+/// ones of AutoCAD's round-trip data.
+fn color_book(r: &ObjectReader, refs: &EntityRefs, n: &Names) -> Option<(String, String)> {
+    if let Some(book) = n.objects.colors.get(&refs.color_book) {
+        return book.book.clone();
+    }
+    let (color, book) = round_trip_color(r, n)?;
+    super::tables::color_book(color, book, None)
 }
 
 /// Extended data groups without the application `app`'s.
@@ -169,9 +240,19 @@ fn xdata(blocks: &[XDataBlock], n: &Names, partial: &mut Vec<&'static str>) -> V
             partial.push("extended data read as properties");
             continue;
         }
+        // A spline's method and knot spacing that an older version's file keeps for AutoCAD 2013
+        // and later: AutoCAD's DXF of the file has none of it.
+        if name.eq_ignore_ascii_case("ACAD_SPLINE_DATA") {
+            continue;
+        }
         let mut groups = vec![RawTag { code: 1001, value: name.clone() }];
         let (mut depth, mut ok) = (0i32, true);
-        for v in &b.items {
+        // AutoCAD's round-trip data are properties (`common`), not kept as groups.
+        let items: Vec<&XDataItem> = if name.eq_ignore_ascii_case("ACAD") { round_trip(&b.items).0 } else { b.items.iter().collect() };
+        if items.is_empty() {
+            continue;
+        }
+        for v in items {
             let pt = |base: i32, p: &[f64; 3]| [real(base, p[0]), real(base + 10, p[1]), real(base + 20, p[2])];
             match v {
                 XDataItem::Text(t) => groups.push(RawTag { code: 1000, value: t.clone() }),
@@ -214,6 +295,11 @@ fn reads(type_name: &str) -> bool {
     matches!(
         type_name,
         "LINE"
+            | "OLE2FRAME"
+            | "HELIX"
+            | "3DSOLID"
+            | "REGION"
+            | "BODY"
             | "POINT"
             | "CIRCLE"
             | "ARC"
@@ -263,6 +349,9 @@ fn reads(type_name: &str) -> bool {
 /// The fields of one entity's type, held until its references (a text style, a block) are read.
 enum Body {
     Ready(Box<EntityKind>),
+    /// An entity of a type the drawing keeps without modelling it: its DXF type and its own
+    /// groups (from its `100` subclass marker on), as AutoCAD's DXF has them.
+    Unknown(&'static str, Vec<RawTag>),
     /// A text, with its alignment and insertion points in its own coordinate system.
     Text(Box<Text>, Option<Vec3>, Vec3),
     MText(Box<MText>),
@@ -270,7 +359,8 @@ enum Body {
     Insert(Box<Insert>, bool, u32),
     /// An attribute (of a block reference) or an attribute definition, with its alignment and
     /// insertion points in its own coordinate system.
-    Attrib(Box<Attrib>, Option<Vec3>, Vec3, bool),
+    /// With the handles a multiline attribute's embedded text has, when it has one.
+    Attrib(Box<Attrib>, Option<Vec3>, Vec3, bool, Option<EmbeddedRefs>),
     /// A polyline, waiting for its vertices, and how many it lists (2004 and later).
     Polyline(PolyKind, u32),
     /// A vertex or a polyface face, waiting for its polyline.
@@ -282,7 +372,9 @@ enum Body {
     /// extended data (origin, background, a gradient DraftCraft wrote there).
     Hatch(Box<Hatch>, Vec<u32>, Vec<RawPatternLine>),
     /// A leader, waiting for its dimension style.
-    Leader(Box<Leader>),
+    /// A leader, and what its hook line needs when its annotation is text: the hook direction
+    /// flag and the annotation's x direction.
+    Leader(Box<Leader>, Option<(bool, Vec2)>),
     /// A feature control frame, waiting for its dimension style.
     Tolerance(Box<Tolerance>),
     /// A multiline, waiting for its style.
@@ -486,7 +578,7 @@ fn bounded(r: &mut ObjectReader, n: u32, max: u32, min_bits: usize, what: &str) 
 fn leader(r: &mut ObjectReader) -> DwgResult<Shape> {
     let ver = r.version();
     let _unknown = r.b()?;
-    let _annotation_type = r.bs()?;
+    let annotation_type = r.bs()?;
     let path_type = r.bs()?;
     let n = r.bl()?;
     let n = bounded(r, n, MAX_MLEADER_ITEMS, 6, "leader vertex")?;
@@ -496,7 +588,7 @@ fn leader(r: &mut ObjectReader) -> DwgResult<Shape> {
     }
     let _origin = r.bd3()?;
     let normal = v3(r.bd3()?);
-    let _x_direction = r.bd3()?;
+    let x_direction = r.bd3()?;
     let _block_offset = r.bd3()?;
     if ver >= V::R14 {
         let _annotation_offset = r.bd3()?;
@@ -510,7 +602,7 @@ fn leader(r: &mut ObjectReader) -> DwgResult<Shape> {
         let _text_height = r.bd()?;
         let _text_width = r.bd()?;
     }
-    let _hookline_on_x = r.b()?;
+    let hook_on_x = r.b()?;
     let arrow = r.b()?;
     if ver <= V::R14 {
         let _arrowhead_type = r.bs()?;
@@ -520,7 +612,10 @@ fn leader(r: &mut ObjectReader) -> DwgResult<Shape> {
         let _ = (r.bs()?, r.b()?, r.b()?);
     }
     let l = Leader { vertices, arrow, spline: path_type == 1, style: "Standard".into() };
-    Ok(Shape { body: Body::Leader(Box::new(l)), thickness: 0.0, normal })
+    // A straight leader to text (annotation type 0) may end in a hook line ([`add_hook_lines`]).
+    let x = Vec2::new(x_direction[0], x_direction[1]);
+    let hook = (annotation_type == 0 && path_type == 0 && x.is_finite() && x.len() > 1e-12).then(|| (hook_on_x, x.normalized()));
+    Ok(Shape { body: Body::Leader(Box::new(l), hook), thickness: 0.0, normal })
 }
 
 /// TOLERANCE (§20.4.49): the frame's insertion point, direction and contents. AutoCAD R13 and
@@ -532,7 +627,9 @@ fn tolerance(r: &mut ObjectReader) -> DwgResult<Shape> {
     let insert = v3(r.bd3()?);
     let dir = v3(r.bd3()?);
     let normal = v3(r.bd3()?);
-    let text: String = r.text()?.chars().take(MAX_FRAME_CHARS).collect();
+    // A line break of the frame is `^J` in the drawing, as in AutoCAD's DXF; the DWG stores the
+    // character itself.
+    let text = frame_text(&r.text()?);
     let dir = if dir.xy().is_finite() && dir.xy().len() > 1e-12 { dir } else { Vec3::new(1.0, 0.0, 0.0) };
     let t = Tolerance { insert, dir, style: "Standard".into(), text };
     Ok(Shape { body: Body::Tolerance(Box::new(t)), thickness: 0.0, normal })
@@ -730,10 +827,14 @@ fn hatch(r: &mut ObjectReader) -> DwgResult<Shape> {
         }
         let name = r.text()?;
         if is_gradient {
-            // A colour word: 0xC3 in its top byte names a colour index, otherwise it is RGB.
+            // A colour word: its top byte says how (0xC0 ByLayer, 0xC1 ByBlock, 0xC3 a colour
+            // index in the low byte, 0xC8 none), otherwise the low bytes are RGB.
             let color = |w: Option<&u32>, d: draftcraft_color::Color| {
                 w.map_or(d, |&w| match w >> 24 {
+                    0xC0 => draftcraft_color::Color::ByLayer,
+                    0xC1 => draftcraft_color::Color::ByBlock,
                     0xC3 => draftcraft_color::Color::from_aci(i16::from(u8::try_from(w & 0xff).unwrap_or(7))),
+                    0xC8 => d,
                     _ => draftcraft_color::Color::True(draftcraft_color::Rgb::from_u32(w & 0xff_ffff)),
                 })
             };
@@ -981,7 +1082,7 @@ fn dimension(r: &mut ObjectReader, type_name: &str) -> DwgResult<Shape> {
         p14,
         p15,
         p16,
-        text: mtext_dxf::decode_line(&text),
+        text,
         style: "Standard".into(),
         measurement,
         text_rotation,
@@ -998,7 +1099,7 @@ fn dimension(r: &mut ObjectReader, type_name: &str) -> DwgResult<Shape> {
 /// An object's extended data as the DXF groups it would be in a DXF file, for the DXF reader's
 /// rules that read properties from them (a dimension's overrides, DraftCraft's own data).
 /// References are written as their handles in hexadecimal, as a DXF holds them.
-fn xdata_tags(blocks: &[XDataBlock], apps: &HashMap<u64, String>) -> Vec<draftcraft_dxf::Tag> {
+pub(super) fn xdata_tags(blocks: &[XDataBlock], apps: &HashMap<u64, String>) -> Vec<draftcraft_dxf::Tag> {
     use draftcraft_dxf::Tag;
     let mut out = Vec::new();
     for b in blocks {
@@ -1153,19 +1254,54 @@ fn pface_face(r: &mut ObjectReader) -> DwgResult<Shape> {
 /// SPLINE (§20.4.44): a spline defined by its fit points or by its control points and knots. From
 /// AutoCAD 2013 on, flags and the knot parameterisation say which.
 fn spline(r: &mut ObjectReader) -> DwgResult<Shape> {
+    spline_with(r, &mut None)
+}
+
+/// HELIX (§20.4.?): a spline's data, then the helix: its version, the axis's base point, the
+/// start point, the axis's direction, the radius, the turns, the height of a turn, whether it
+/// turns counter-clockwise and what stays fixed when it is edited. The drawing's helix by the
+/// DXF reader's rule, from the same groups (the spline gives the top's radius by its last point).
+fn helix(r: &mut ObjectReader) -> DwgResult<Shape> {
+    let mut last = None;
+    spline_with(r, &mut last)?;
+    let (_major, _maintenance) = (r.bl()?, r.bl()?);
+    let (base, start, axis) = (r.bd3()?, r.bd3()?, r.bd3()?);
+    let (radius, turns, turn_height) = (r.bd()?, r.bd()?, r.bd()?);
+    let ccw = r.b()?;
+    let constraint = r.rc()?;
+    use draftcraft_dxf::Tag;
+    let point = |code: i32, p: [f64; 3]| [Tag::f(code, p[0]), Tag::f(code + 10, p[1]), Tag::f(code + 20, p[2])];
+    let mut tags = vec![Tag::s(100, "AcDbSpline")];
+    tags.extend(last.into_iter().flat_map(|p| point(10, p)));
+    tags.push(Tag::s(100, "AcDbHelix"));
+    tags.extend(point(10, base));
+    tags.extend(point(11, start));
+    tags.extend(point(12, axis));
+    tags.extend([Tag::f(40, radius), Tag::f(41, turns), Tag::f(42, turn_height), Tag::i(290, i64::from(ccw)), Tag::i(280, i64::from(constraint))]);
+    Ok(ready(EntityKind::Helix(crate::dxf_read::helix(&tags)), 0.0, UP))
+}
+
+/// A spline's data; `last` takes the last control point, or fit point, as the file has it.
+fn spline_with(r: &mut ObjectReader, last: &mut Option<[f64; 3]>) -> DwgResult<Shape> {
     let ver = r.version();
     let mut scenario = r.bl()?;
     let mut closed = false;
+    let mut knot_param = None;
     if ver >= V::R2013 {
         let flags = r.bl()?;
-        let knot_param = r.bl()?;
+        let param = r.bl()?;
         if flags & 1 != 0 {
             scenario = 2;
         }
-        if knot_param == 15 {
+        if param == 15 {
             scenario = 1;
         }
         closed = flags & 4 != 0;
+        knot_param = Some(match param {
+            1 => draftcraft_geom::KnotParam::SqrtChord,
+            2 => draftcraft_geom::KnotParam::Uniform,
+            _ => draftcraft_geom::KnotParam::Chord,
+        });
     }
     let degree = usize::try_from(r.bl()?).unwrap_or(3);
     let (mut knots, mut control, mut weights, mut fit) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
@@ -1181,7 +1317,23 @@ fn spline(r: &mut ObjectReader) -> DwgResult<Shape> {
             let n = r.bl()?;
             let n = r.count(n, 6, "SPLINE fit point")?;
             for _ in 0..n {
-                fit.push(flat(r.bd3()?));
+                let p = r.bd3()?;
+                *last = Some(p);
+                fit.push(flat(p));
+            }
+            // From AutoCAD 2013 on the file says how the knots are spaced, and AutoCAD's tangents
+            // are the curve's end derivatives, length included: the control points are AutoCAD's
+            // (its DXF lists them). Tangents of unit length are directions, as DraftCraft's writer
+            // (acadrust) stores them and the drawing holds them: the drawing's own fit.
+            if let Some(knots) = knot_param.filter(|_| !closed && fit.len() >= 2) {
+                let opts = draftcraft_geom::FitOptions { knots, start_tangent, end_tangent, tolerance: tolerance.max(0.0) };
+                let unit = |t: Option<Vec2>| t.is_none_or(|v| (v.len() - 1.0).abs() <= 1e-9);
+                let sp = if unit(start_tangent) && unit(end_tangent) {
+                    draftcraft_geom::Spline::fit_with(&fit, false, opts)
+                } else {
+                    draftcraft_geom::Spline::fit_with_derivatives(&fit, opts, start_tangent, end_tangent)
+                };
+                return Ok(ready(EntityKind::Spline(sp), 0.0, UP));
             }
         }
         1 => {
@@ -1199,7 +1351,9 @@ fn spline(r: &mut ObjectReader) -> DwgResult<Shape> {
                 knots.push(r.bd()?);
             }
             for _ in 0..n_control {
-                control.push(flat(r.bd3()?));
+                let p = r.bd3()?;
+                *last = Some(p);
+                control.push(flat(p));
                 if weighted {
                     weights.push(r.bd()?);
                 }
@@ -1391,7 +1545,10 @@ fn text_fields(r: &mut ObjectReader) -> DwgResult<TextFields> {
             elevation = r.rd()?;
         }
         insertion = r.rd2()?;
-        alignment = if flags & 0x02 == 0 { [r.dd(insertion[0])?, r.dd(insertion[1])?] } else { insertion };
+        // Not stored (flag 0x02): the alignment point is (0, 0). AutoCAD's own files show it: the
+        // R14 file stores (0, 0) for a left-aligned text, and the 2018 file of the same drawing
+        // leaves the same text's point out (its insertion point is not (0, 0)).
+        alignment = if flags & 0x02 == 0 { [r.dd(insertion[0])?, r.dd(insertion[1])?] } else { [0.0, 0.0] };
         normal = v3(r.extrusion()?);
         thickness = r.thickness()?;
         if flags & 0x04 == 0 {
@@ -1435,7 +1592,7 @@ fn text_fields(r: &mut ObjectReader) -> DwgResult<TextFields> {
         insert: at(insertion),
         align_pt: (!plain).then(|| at(alignment)),
         height: height.max(1e-9),
-        value: mtext_dxf::decode_line(&value),
+        value,
         rotation,
         width_factor,
         oblique,
@@ -1447,18 +1604,29 @@ fn text_fields(r: &mut ObjectReader) -> DwgResult<TextFields> {
 }
 
 /// ATTRIB and ATTDEF (§20.4.4, §20.4.5): a text's fields, then the attribute's own.
-fn attribute(r: &mut ObjectReader, definition: bool) -> DwgResult<Shape> {
+fn attribute(r: &mut ObjectReader, definition: bool, partial: &mut Vec<&'static str>) -> DwgResult<Shape> {
     let ver = r.version();
     let f = text_fields(r)?;
     if ver >= V::R2010 {
         let _version = r.rc()?;
     }
+    let (mut multiline, mut embedded) = (None, None);
     if ver >= V::R2018 {
         // 1 a single line; 2 a multiline attribute, 4 a multiline definition, whose text is an
-        // embedded MTEXT this reader does not decode yet.
+        // MTEXT embedded here: an entity's common properties (its own copy, as AutoCAD's files
+        // show), the MTEXT's fields, then the number of secondary attributes. As in the DXF
+        // reader, the attribute's value is the text's plain reading.
         let kind = r.rc()?;
         if kind > 1 {
-            return Err(draftcraft_dwg::records::Error::format("multiline attribute"));
+            embedded = Some(embedded_entity_head(r)?);
+            let Shape { body: Body::MText(m), .. } = mtext(r, partial)? else {
+                return Err(draftcraft_dwg::records::Error::format("multiline attribute without its text"));
+            };
+            if r.bs()? != 0 {
+                partial.push("multiline attribute's secondary attributes");
+            }
+            let read_as = draftcraft_fonts::plain_mtext(&m.contents);
+            multiline = Some(MultilineAttrib { mtext: *m, read_as });
         }
     }
     let tag = r.text()?;
@@ -1470,19 +1638,82 @@ fn attribute(r: &mut ObjectReader, definition: bool) -> DwgResult<Shape> {
         if ver >= V::R2010 {
             let _version = r.rc()?;
         }
-        prompt = mtext_dxf::decode_line(&r.text()?);
+        prompt = r.text()?;
+    }
+    let mut text = f.text;
+    if let Some(m) = &multiline {
+        text.value.clone_from(&m.read_as);
     }
     let a = Attrib {
         tag,
-        text: f.text,
+        text,
         invisible: flags & 1 != 0,
         constant: flags & 2 != 0,
         prompt,
         props: AttribProps::default(),
-        multiline: None,
+        multiline,
         modes: AttribModes { verify: flags & 4 != 0, preset: flags & 8 != 0, lock_position },
     };
-    Ok(Shape { body: Body::Attrib(Box::new(a), Some(f.align), f.insert, definition), thickness: f.thickness, normal: f.normal })
+    Ok(Shape { body: Body::Attrib(Box::new(a), Some(f.align), f.insert, definition, embedded), thickness: f.thickness, normal: f.normal })
+}
+
+/// The common properties an entity embedded in another has (AutoCAD 2018's multiline attribute
+/// text): its mode, reactors, extension dictionary and binary data flags, colour, linetype scale,
+/// linetype, plot style and material flags, shadows, visual styles, visibility and lineweight.
+/// The attribute's own properties are the ones the drawing keeps.
+fn embedded_entity_head(r: &mut ObjectReader) -> DwgResult<EmbeddedRefs> {
+    let mode = r.bb()?;
+    let reactors = r.bl()?;
+    let no_extension_dictionary = r.b()?;
+    let _binary_data = r.b()?;
+    let color = r.bs()?;
+    if color & 0x8000 != 0 && color & 0x4000 == 0 {
+        let _true_color = r.bl()?;
+    }
+    if color & 0x2000 != 0 {
+        let _transparency = r.bl()?;
+    }
+    let _linetype_scale = r.bd()?;
+    // Linetype, material and plot style: 3 when the entity names one by a handle.
+    let (linetype, material, plot_style) = (r.bb()? == 3, r.bb()? == 3, r.bb()? == 3);
+    let _shadows = r.rc()?;
+    let visual_styles = usize::from(r.b()?) + usize::from(r.b()?) + usize::from(r.b()?);
+    let _invisible = r.bs()?;
+    let _lineweight = r.rc()?;
+    // Its handles, in the order the handle stream holds them: an owner (when the mode names
+    // none), the reactors, an extension dictionary, the layer, then the ones flagged above.
+    let handles = usize::from(mode == 0)
+        + usize::try_from(reactors).unwrap_or(usize::MAX).min(MAX_EMBEDDED_REACTORS)
+        + usize::from(!no_extension_dictionary)
+        + 1
+        + usize::from(linetype)
+        + usize::from(material)
+        + usize::from(plot_style)
+        + visual_styles;
+    Ok(EmbeddedRefs { handles })
+}
+
+/// The most reactors an embedded entity's handles are skipped for.
+const MAX_EMBEDDED_REACTORS: usize = 4096;
+
+/// What the handle stream holds for an entity embedded in another: `handles` of its own (owner,
+/// reactors, extension dictionary, layer, linetype, material, plot style, visual styles), which
+/// the drawing takes from the entity that holds it, then the embedded text's style.
+#[derive(Clone, Copy, Debug)]
+struct EmbeddedRefs {
+    handles: usize,
+}
+
+/// A multiline attribute's text: its own handles (AutoCAD's files: a null owner, the layer, the
+/// linetype, the material), then its text style.
+fn attrib_text(a: &mut Attrib, embedded: Option<EmbeddedRefs>, r: &mut ObjectReader, styles: &HashMap<u64, String>) -> DwgResult<()> {
+    let (Some(e), Some(m)) = (embedded, a.multiline.as_mut()) else { return Ok(()) };
+    for _ in 0..e.handles {
+        r.reference()?;
+    }
+    let h = r.reference()?;
+    m.mtext.style = styles.get(&h).cloned().unwrap_or_else(|| "Standard".into());
+    Ok(())
 }
 
 /// MTEXT (§20.4.46).
@@ -1492,14 +1723,12 @@ fn mtext(r: &mut ObjectReader, partial: &mut Vec<&'static str>) -> DwgResult<Sha
     let normal = v3(r.bd3()?);
     let x_axis = v3(r.bd3()?);
     let width = r.bd()?;
-    if ver >= V::R2007 {
-        let _rect_height = r.bd()?;
-    }
+    let defined_height = if ver >= V::R2007 { r.bd()? } else { 0.0 };
     let height = r.bd()?;
     let attach = r.bs()?;
     let _direction = r.bs()?;
     let _extents_height = r.bd()?;
-    let _extents_width = r.bd()?;
+    let extents_width = r.bd()?;
     let contents = r.text()?;
     let (mut line_spacing, mut line_spacing_exact) = (1.0, false);
     if ver >= V::R2000 {
@@ -1507,9 +1736,29 @@ fn mtext(r: &mut ObjectReader, partial: &mut Vec<&'static str>) -> DwgResult<Sha
         line_spacing = r.bd()?;
         let _unknown = r.b()?;
     }
-    // A background fill follows from AutoCAD 2004 on, and column data in AutoCAD 2018.
-    if ver >= V::R2004 && r.bl().is_ok_and(|background| background != 0) {
-        partial.push("MTEXT background fill");
+    // From AutoCAD 2004 on a background fill: its flags and, when it is filled, its scale,
+    // colour and transparency. The drawing has no background fill.
+    let mut columns = None;
+    if ver >= V::R2004 {
+        let background = r.bl()?;
+        if background != 0 {
+            partial.push("MTEXT background fill");
+        }
+        if background & 0x03 != 0 {
+            let _scale = r.bd()?;
+            let _color = r.color()?;
+            let _transparency = r.bl()?;
+        }
+        // AutoCAD 2018: a text that is not annotative carries its columns (an annotative one has
+        // them in its context data). Read only after the background flags AutoCAD's files show,
+        // and kept only when they end where the record does.
+        if ver >= V::R2018 && background & !0x13 == 0 && r.b()? {
+            columns = mtext_columns(r, defined_height, extents_width)?;
+            if columns.is_some() && r.remaining_bits() != 0 {
+                columns = None;
+                partial.push("MTEXT columns");
+            }
+        }
     }
     let mut rotation = Vec2::new(x_axis.x, x_axis.y).angle();
     let mut attach = u8::try_from(attach.clamp(1, 9)).unwrap_or(1);
@@ -1526,16 +1775,72 @@ fn mtext(r: &mut ObjectReader, partial: &mut Vec<&'static str>) -> DwgResult<Sha
     let t = MText {
         insert,
         height: height.max(1e-9),
-        width: width.max(0.0),
+        // An MTEXT's width is one column's, as the DXF reader has it.
+        width: match &columns {
+            Some((_, w)) if *w > 0.0 => *w,
+            _ => width.max(0.0),
+        },
         attach,
         rotation,
         style: "Standard".into(),
-        contents: mtext_dxf::decode_contents(&contents),
+        contents,
         line_spacing,
         line_spacing_exact,
-        columns: None,
+        columns: columns.map(|(c, _)| c),
     };
     Ok(Shape { body: Body::MText(Box::new(t)), thickness: 0.0, normal })
+}
+
+/// The columns of an AutoCAD 2018 MTEXT that is not annotative, and their width: its own copy of
+/// the text's attachment, direction, insertion, size and extents (the MTEXT's own fields have
+/// them), then the column type and, with columns, their count, width, gutter, auto height and
+/// flow flags and (dynamic columns of manual heights) each column's height. By the DXF reader's
+/// rules for the same groups of AutoCAD's DXF (group 101): a height AutoCAD stores negative (the
+/// text's extents, negated) is 0 there, and dynamic auto-height columns store no count, which
+/// follows from the extents.
+fn mtext_columns(r: &mut ObjectReader, defined_height: f64, extents_width: f64) -> DwgResult<Option<(MTextColumns, f64)>> {
+    let _version = r.bs()?;
+    let _default = r.b()?;
+    let _attach = r.bl()?;
+    let _x_axis = r.bd3()?;
+    let _insert = r.bd3()?;
+    let (_rect_width, rect_height) = (r.bd()?, r.bd()?);
+    let _extents = (r.bd()?, r.bd()?);
+    let kind = match r.bl()? {
+        1 => MTextColumnType::Static,
+        2 => MTextColumnType::Dynamic,
+        _ => return Ok(None),
+    };
+    let finite = |v: f64| if v.is_finite() { v } else { 0.0 };
+    let count = r.bl()?;
+    let width = finite(r.bd()?).max(0.0);
+    let gutter = finite(r.bd()?).max(0.0);
+    let auto_height = r.b()?;
+    let flow_reversed = r.b()?;
+    let manual = kind == MTextColumnType::Dynamic && !auto_height;
+    let mut heights = Vec::new();
+    if manual {
+        let max = u32::try_from(mtext_dxf::MAX_COLUMNS).unwrap_or(u32::MAX);
+        for _ in 0..bounded(r, count, max, 2, "MTEXT column height")? {
+            heights.push(finite(r.bd()?).max(0.0));
+        }
+    }
+    let count = match i64::from(count) {
+        n if n > 0 => n,
+        _ if width + gutter > 0.0 && extents_width > 0.0 => ((extents_width + gutter) / (width + gutter)).round() as i64,
+        _ => 1,
+    };
+    let defined = [defined_height, rect_height, heights.first().copied().unwrap_or(0.0)].into_iter().map(finite).find(|h| *h > 0.0).unwrap_or(0.0);
+    let c = MTextColumns {
+        kind,
+        count: u16::try_from(count.clamp(1, mtext_dxf::MAX_COLUMNS as i64)).unwrap_or(1),
+        gutter,
+        height: if manual { heights.iter().copied().fold(0.0, f64::max) } else { defined },
+        auto_height,
+        heights: if manual { heights } else { Vec::new() },
+        flow_reversed,
+    };
+    Ok(Some((c, width)))
 }
 
 /// INSERT and MINSERT (§20.4.7, §20.4.8). From AutoCAD 2000 on the scale is stored against what it
@@ -1703,7 +2008,7 @@ fn shape(r: &mut ObjectReader, type_name: &str, partial: &mut Vec<&'static str>)
         "TEXT" => text(r)?,
         "MTEXT" => mtext(r, partial)?,
         "INSERT" => insert(r, false)?,
-        "ATTRIB" => attribute(r, false)?,
+        "ATTRIB" => attribute(r, false, partial)?,
         "POLYLINE_2D" => polyline_2d(r)?,
         "POLYLINE_3D" => polyline_3d(r)?,
         "POLYLINE_PFACE" => polyline_pface(r)?,
@@ -1723,15 +2028,28 @@ fn shape(r: &mut ObjectReader, type_name: &str, partial: &mut Vec<&'static str>)
         "PDFUNDERLAY" => underlay(r)?,
         "DIMENSION_ORDINATE" | "DIMENSION_LINEAR" | "DIMENSION_ALIGNED" | "DIMENSION_ANG_3PT" | "DIMENSION_ANG_2LN" | "DIMENSION_RADIUS"
         | "DIMENSION_DIAMETER" => dimension(r, type_name)?,
-        "ATTDEF" => attribute(r, true)?,
+        "ATTDEF" => attribute(r, true, partial)?,
         "MINSERT" => insert(r, true)?,
         "SOLID" => solid(r, false)?,
         "TRACE" => solid(r, true)?,
         "3DFACE" => face3d(r)?,
         "XLINE" => ray_line(r, false)?,
         "RAY" => ray_line(r, true)?,
-        _ => return Ok(None),
+        _ => return more_shapes(r, type_name),
     }))
+}
+
+/// The entity types added after the first: a helix, and the types the drawing keeps as their
+/// DXF groups without modelling them.
+fn more_shapes(r: &mut ObjectReader, type_name: &str) -> DwgResult<Option<Shape>> {
+    match type_name {
+        "HELIX" => helix(r).map(Some),
+        "OLE2FRAME" => ole2frame(r).map(Some),
+        "3DSOLID" => modeler(r, "3DSOLID"),
+        "REGION" => modeler(r, "REGION"),
+        "BODY" => modeler(r, "BODY"),
+        _ => Ok(None),
+    }
 }
 
 /// A table (ACAD_TABLE): its block reference's fields, then its own, read with its references
@@ -1785,6 +2103,7 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
         Ok(n.tables.styles.get(&h).cloned().unwrap_or_else(|| "Standard".into()))
     };
     let (mut attrib, mut attribs, mut polyline, mut vertex, mut mleader_attribs) = (None, None, None, None, None);
+    let mut leader_hook = None;
     let mut paper_view = false;
     let mut held = Vec::new();
     let kind = match body {
@@ -1801,6 +2120,7 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
             }
             k => Some(k),
         },
+        Body::Unknown(dxf_type, tags) => Some(EntityKind::Unknown(draftcraft_doc::Unknown { dxf_type: dxf_type.into(), tags })),
         Body::Text(mut t, align, insert) => {
             t.style = style(r)?;
             if normal.z < 0.0 {
@@ -1838,9 +2158,8 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
             // The overrides, associativity and marks the extended data holds, by the DXF
             // reader's rules for them.
             let tags = xdata_tags(&r.xdata(), &n.tables.apps);
-            let (styles, blocks, ltypes) =
-                (super::tables::by_hex(&n.tables.styles), super::tables::by_hex(n.blocks), super::tables::by_hex(&n.tables.linetypes));
-            dm.overrides = crate::dxf_ext::read_dstyle(&tags, &styles, &blocks, &ltypes);
+            let (styles, blocks, ltypes) = &n.by_hex;
+            dm.overrides = crate::dxf_ext::read_dstyle(&tags, styles, blocks, ltypes);
             dm.assoc = crate::dxf_ext::read_assoc(&tags);
             if let Some(center) = crate::dxf_ext::read_arclen(&tags) {
                 dm.kind = DimKind::ArcLength;
@@ -1935,10 +2254,11 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
             paper_view = crate::dxf_ext::is_paper_view(&tags);
             Some(EntityKind::Viewport(*v))
         }
-        Body::Leader(mut l) => {
-            let _annotation = r.reference()?;
+        Body::Leader(mut l, hook) => {
+            let annotation = r.reference()?;
             let style = r.reference()?;
             l.style = n.tables.dim_styles.get(&style).cloned().unwrap_or_else(|| "Standard".into());
+            leader_hook = hook.filter(|_| annotation != 0);
             Some(EntityKind::Leader(*l))
         }
         Body::Tolerance(mut t) => {
@@ -1992,8 +2312,9 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
             vertex = Some(v);
             None
         }
-        Body::Attrib(mut a, align, insert, definition) => {
+        Body::Attrib(mut a, align, insert, definition, embedded) => {
             a.text.style = style(r)?;
+            attrib_text(&mut a, embedded, r, &n.tables.styles)?;
             if normal.z < 0.0 {
                 mirror_text(&mut a.text, align.map(|p| ocs_n(normal, p)), ocs_n(normal, insert));
             }
@@ -2018,13 +2339,157 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
         c.thickness = thickness;
         c.extrusion = normal;
         let mut e = Entity::new(Handle(o.handle), kind);
+        if let EntityKind::Unknown(u) = &mut e.kind {
+            let own = std::mem::take(&mut u.tags);
+            u.tags = unknown_head(o.handle, &c);
+            u.tags.extend(own);
+            // Its extended data is among its groups too, as in a DXF file.
+            u.tags.extend(c.xdata.iter().cloned());
+        }
         e.common = c;
         e
     });
     if entity.as_ref().is_some_and(|e| reads_own_data(&e.kind)) {
         partial.retain(|p| *p != DRAFTCRAFT_DATA);
     }
-    Ok((Decoded { entity, attrib, attribs, polyline, vertex, mleader_attribs, paper_view, held, table: None, partial }, refs))
+    Ok((Decoded { entity, attrib, attribs, polyline, vertex, mleader_attribs, paper_view, held, leader_hook, partial, ..Decoded::default() }, refs))
+}
+
+/// An entity kept as its DXF groups names its owner, as every entity of a DXF file does.
+fn name_owner(dec: &mut Decoded, record: u64) {
+    if let Some(EntityKind::Unknown(u)) = dec.entity.as_mut().map(|e| &mut e.kind)
+        && record != 0
+    {
+        let at = usize::from(u.tags.first().is_some_and(|t| t.code == 5));
+        u.tags.insert(at, RawTag { code: 330, value: format!("{record:X}") });
+    }
+}
+
+/// The groups an entity kept without modelling it starts with, as a DXF file has them: its
+/// handle, then the properties every entity has (its owner is added once its place is known).
+fn unknown_head(handle: u64, c: &Common) -> Vec<RawTag> {
+    let tag = |code: i32, value: String| RawTag { code, value };
+    let mut t = vec![tag(5, format!("{handle:X}")), tag(100, "AcDbEntity".into())];
+    t.push(tag(8, c.layer.clone()));
+    if !c.linetype.eq_ignore_ascii_case("bylayer") {
+        t.push(tag(6, c.linetype.clone()));
+    }
+    match c.color {
+        draftcraft_color::Color::ByLayer => {}
+        draftcraft_color::Color::True(rgb) => {
+            t.push(tag(62, draftcraft_color::nearest_aci(rgb).to_string()));
+            t.push(tag(420, rgb.to_u32().to_string()));
+        }
+        color => t.push(tag(62, color.to_aci().to_string())),
+    }
+    if c.lineweight != Lineweight::ByLayer {
+        t.push(tag(370, c.lineweight.to_dxf().to_string()));
+    }
+    if (c.ltscale - 1.0).abs() > 1e-12 {
+        t.push(tag(48, draftcraft_dxf::Value::Real(c.ltscale).as_str()));
+    }
+    if !c.visible {
+        t.push(tag(60, "1".into()));
+    }
+    t
+}
+
+/// The compound file an OLE object's data holds starts with these bytes; what is before them is
+/// AutoCAD's own wrapper.
+const COMPOUND_FILE: [u8; 8] = [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
+
+/// The frame an OLE object's data starts with, when it has one: after a two-byte marker, the
+/// frame's corners (upper left, upper right, lower right, lower left), which are the corners of
+/// a rectangle along the axes. Returns the upper left and lower right ones.
+fn ole_frame(data: &[u8]) -> Option<([f64; 3], [f64; 3])> {
+    let end = data.windows(COMPOUND_FILE.len()).position(|w| w == COMPOUND_FILE).unwrap_or(data.len());
+    let wrapper = data.get(..end)?;
+    if wrapper.len() < 98 {
+        return None;
+    }
+    let mut v = [0.0f64; 12];
+    for (i, x) in v.iter_mut().enumerate() {
+        *x = f64::from_le_bytes(wrapper.get(2 + i * 8..10 + i * 8)?.try_into().ok()?);
+    }
+    let close = |a: f64, b: f64| (a - b).abs() <= 1e-6 * (1.0 + a.abs().max(b.abs()));
+    let [ulx, uly, ulz, urx, ury, _, lrx, lry, lrz, llx, lly, _] = v;
+    let rectangle = close(uly, ury) && close(lry, lly) && close(ulx, llx) && close(urx, lrx);
+    (v.iter().all(|x| x.is_finite() && x.abs() < 1e15) && rectangle).then_some(([ulx, uly, ulz], [lrx, lry, lrz]))
+}
+
+/// Most bytes of ACIS text read for one solid.
+const MAX_ACIS_TEXT: usize = 256 << 20;
+
+/// 3DSOLID, REGION and BODY (§20.4.39 to 41): the solid modeler's description of the shape, as
+/// text up to AutoCAD 2010. The drawing keeps the entity as the groups a DXF file has: each line
+/// of the text a group 1, a line longer than 255 characters continued in groups 3. The text is
+/// stored scrambled in both formats, the same way, and is kept as stored.
+/// `None` for the forms not read yet: the binary description, and the files from AutoCAD 2013
+/// on, which keep the description in a section of its own.
+fn modeler(r: &mut ObjectReader, dxf_type: &'static str) -> DwgResult<Option<Shape>> {
+    if r.version() >= V::R2013 {
+        return Ok(None);
+    }
+    let tag = |code: i32, value: String| RawTag { code, value };
+    let mut t = vec![tag(100, "AcDbModelerGeometry".into())];
+    let empty = r.b()?;
+    if !empty {
+        let _unknown = r.b()?;
+        if r.bs()? != 1 {
+            return Ok(None);
+        }
+        let mut text: Vec<u8> = Vec::new();
+        loop {
+            let n = r.bl()?;
+            if n == 0 {
+                break;
+            }
+            let n = r.count(n, 8, "ACIS text byte")?;
+            if text.len().saturating_add(n) > MAX_ACIS_TEXT {
+                return Err(draftcraft_dwg::records::Error::format("ACIS text is implausibly long"));
+            }
+            text.extend(r.bytes(n)?);
+        }
+        t.push(tag(70, "1".into()));
+        let text: String = text.iter().map(|b| char::from(*b)).collect();
+        for line in text.split('\n').map(|l| l.trim_end_matches('\r')).filter(|l| !l.is_empty()) {
+            // A DXF string writes a caret as a caret and a space.
+            let chars: Vec<char> = line.replace('^', "^ ").chars().collect();
+            for (i, part) in chars.chunks(255).enumerate() {
+                t.push(tag(if i == 0 { 1 } else { 3 }, part.iter().collect()));
+            }
+        }
+    }
+    Ok(Some(Shape { body: Body::Unknown(dxf_type, t), thickness: 0.0, normal: UP }))
+}
+
+/// OLE2FRAME (§20.4.74): an embedded or linked object. Its type, its space and its data, with
+/// (from AutoCAD 2000) whether it keeps its proportions. The drawing keeps it as the groups a
+/// DXF file has: the frame's corners come from the data's wrapper, and the data is the DXF
+/// file's binary data as it is.
+fn ole2frame(r: &mut ObjectReader) -> DwgResult<Shape> {
+    let ver = r.version();
+    let kind = r.bs()?;
+    let mode = if ver >= V::R2000 { r.bs()? } else { 0 };
+    let n = r.bl()?;
+    let n = r.count(n, 8, "OLE data byte")?;
+    let data = r.bytes(n)?;
+    let lock_aspect = if ver >= V::R2000 { r.rc()? } else { 0 };
+    // Without a wrapper: the corners a DXF file of such an object has.
+    let (upper_left, lower_right) = ole_frame(&data).unwrap_or(([1.0, 1.0, 0.0], [0.0, 0.0, 0.0]));
+    let tag = |code: i32, value: String| RawTag { code, value };
+    let real = |v: f64| draftcraft_dxf::Value::Real(v).as_str();
+    let mut t = vec![tag(100, "AcDbOle2Frame".into()), tag(70, "2".into())];
+    for (base, p) in [(10, upper_left), (11, lower_right)] {
+        t.extend([tag(base, real(p[0])), tag(base + 10, real(p[1])), tag(base + 20, real(p[2]))]);
+    }
+    t.extend([tag(71, kind.to_string()), tag(72, mode.to_string()), tag(73, lock_aspect.to_string())]);
+    if !data.is_empty() {
+        t.push(tag(90, data.len().to_string()));
+        t.extend(data.chunks(127).map(|c| tag(310, c.iter().map(|b| format!("{b:02X}")).collect())));
+    }
+    t.push(tag(1, "OLE".into()));
+    Ok(Shape { body: Body::Unknown("OLE2FRAME", t), thickness: 0.0, normal: Vec3::new(0.0, 0.0, 1.0) })
 }
 
 /// Each layout's viewports numbered in their order, the first (the sheet) 1, as a DXF file
@@ -2073,6 +2538,80 @@ fn finish_tables(d: &mut Drawing, tables: Vec<(Handle, Option<String>, Option<Op
     }
 }
 
+/// A leader to text ends in a hook line when its last segment is more than 15 degrees from the
+/// text's horizontal (AutoCAD's documented landing rule): a segment of the arrow size (DIMASZ ×
+/// DIMSCALE of its style) along the x direction, towards the end, opposite the x direction unless
+/// the hook flag says along it. The DWG stores the leader without it; AutoCAD's DXF lists its
+/// first point before the last vertex (group 75 set), which is how the drawing holds it. Seen in
+/// AutoCAD's own sample (LEADER 512 of ACadSharp's samples, every version).
+fn add_hook_lines(d: &mut Drawing, hooks: &[(Handle, bool, Vec2)]) {
+    if hooks.is_empty() {
+        return;
+    }
+    let by: HashMap<Handle, (bool, Vec2)> = hooks.iter().map(|&(h, on_x, x)| (h, (on_x, x))).collect();
+    let dimscale = d.header.f64("DIMSCALE", 1.0);
+    let start_of = |e: &Entity| -> Option<Vec3> {
+        let (&(on_x, x), EntityKind::Leader(l)) = (by.get(&e.handle)?, &e.kind) else { return None };
+        let style = d.dim_style(&l.style).cloned().unwrap_or_default();
+        hook_start(&l.vertices, x, on_x, style.arrow_size * style.effective_scale(dimscale))
+    };
+    let spaces: Vec<(Handle, Vec3)> =
+        d.model.iter().chain(d.layouts.iter().flat_map(|l| l.entities.iter())).filter_map(|e| start_of(e.as_ref()).map(|p| (e.handle, p))).collect();
+    let mut in_blocks: Vec<(String, Handle, Vec3)> = Vec::new();
+    for (name, b) in &d.blocks {
+        in_blocks.extend(b.entities.iter().filter_map(|e| start_of(e.as_ref()).map(|p| (name.clone(), e.handle, p))));
+    }
+    let insert = |e: &mut Entity, p: Vec3| {
+        if let EntityKind::Leader(l) = &mut e.kind {
+            let at = l.vertices.len().saturating_sub(1);
+            l.vertices.insert(at, p);
+        }
+    };
+    for (h, p) in spaces {
+        let _ = d.modify_entity(h, |e| insert(e, p));
+    }
+    for (name, h, p) in in_blocks {
+        if let Some(b) = d.blocks.get_mut(&name) {
+            std::sync::Arc::make_mut(b).entities.modify(h, |e| insert(e, p));
+        }
+    }
+}
+
+/// The first point of a leader's hook line, which goes before its last vertex: `len` from the
+/// end along the text's x direction `x`, the other way unless `on_x`. `None` when the last
+/// segment is within 15 degrees of that direction (it is the landing itself) or the leader is
+/// degenerate.
+fn hook_start(vertices: &[Vec3], x: Vec2, on_x: bool, len: f64) -> Option<Vec3> {
+    let a = vertices.get(vertices.len().checked_sub(2)?)?;
+    let b = vertices.last()?;
+    let seg = b.xy() - a.xy();
+    if !(len.is_finite() && len > 0.0 && x.is_finite() && seg.is_finite() && seg.len() > 1e-12 && x.len() > 1e-12) {
+        return None;
+    }
+    let x = x.normalized();
+    let off = seg.normalized().dot(x).clamp(-1.0, 1.0).abs().acos();
+    if off <= 15f64.to_radians() + 1e-9 {
+        return None;
+    }
+    let p = b.xy() + x * (if on_x { len } else { -len });
+    Some(Vec3::new(p.x, p.y, b.z))
+}
+
+/// A tolerance frame's text as the drawing holds it: each line break `^J`, as in AutoCAD's DXF
+/// (the DWG stores the character itself, which the DXF writer could only make a space).
+fn frame_text(raw: &str) -> String {
+    raw.replace("\r\n", "\n").replace(['\r', '\n'], "^J").chars().take(MAX_FRAME_CHARS).collect()
+}
+
+/// The colour book names of the entities placed (`read`), kept as the DXF reader keeps them.
+fn keep_color_books(d: &mut Drawing, books: Vec<(Handle, (String, String))>, read: &HashSet<u64>) {
+    for (h, book) in books {
+        if read.contains(&h.0) {
+            std::sync::Arc::make_mut(&mut d.foreign).entities.entry(h).or_default().color_book = Some(book);
+        }
+    }
+}
+
 /// What decoded entities wait for, by the handle of the entity: attributes for their block
 /// references, vertices for their polylines, multileaders for their blocks' attribute definitions.
 #[derive(Default)]
@@ -2084,6 +2623,8 @@ struct Waiting {
     mleader_attribs: Vec<(Handle, crate::dxf_mleader::Pending)>,
     paper_views: HashSet<Handle>,
     tables: Vec<(Handle, Option<String>, Option<Option<String>>)>,
+    color_books: Vec<(Handle, (String, String))>,
+    hooks: Vec<(Handle, bool, Vec2)>,
 }
 
 impl Waiting {
@@ -2110,6 +2651,12 @@ impl Waiting {
         if let Some((block, fix)) = dec.table {
             self.tables.push((Handle(h), block, fix));
         }
+        if let Some(book) = dec.color_book {
+            self.color_books.push((Handle(h), book));
+        }
+        if let Some((on_x, x)) = dec.leader_hook {
+            self.hooks.push((Handle(h), on_x, x));
+        }
         dec.entity
     }
 }
@@ -2124,18 +2671,16 @@ pub(super) fn read(
     objects_named: &super::objects::Named,
     d: &mut Drawing,
     unread: &mut Unread,
-) -> HashSet<u64> {
-    let names = Names { tables, blocks: &blocks.names, objects: objects_named };
+) -> (HashSet<u64>, HashMap<u64, Link>) {
+    let by_hex = (super::tables::by_hex(&tables.styles), super::tables::by_hex(&blocks.names), super::tables::by_hex(&tables.linetypes));
+    let mut links: HashMap<u64, Link> = HashMap::new();
+    let names = Names { tables, blocks: &blocks.names, objects: objects_named, by_hex };
     let mut read = HashSet::new();
     let mut decoded: HashMap<u64, Entity> = HashMap::new();
     let mut places: HashMap<u64, Place> = HashMap::new();
     let mut waiting = Waiting::default();
     // The entities after a polyline's own, from its polygon mesh's faces, by the polyline.
     let mut extras: HashMap<u64, Vec<Entity>> = HashMap::new();
-    // New entities take handles after every one of the file's.
-    if let Some(seed) = objects.iter().map(|o| o.handle).max() {
-        d.bump_handseed(Handle(seed));
-    }
     // The object after each one in the file, for a chain that leaves the next entity unsaid.
     let mut following: HashMap<u64, u64> = HashMap::new();
     let entities: Vec<&ObjectRef> = objects.iter().filter(|o| o.is_entity && !blocks.read.contains(&o.handle)).take(MAX_ENTITIES).collect();
@@ -2145,18 +2690,24 @@ pub(super) fn read(
         }
     }
     for o in &entities {
-        let Ok((dec, refs)) = file.read_object(o).and_then(|mut r| entity(&mut r, o, &names)) else {
+        let Ok((mut dec, refs)) = file.read_object(o).and_then(|mut r| entity(&mut r, o, &names)) else {
             if reads(&o.type_name) {
                 unread.count(&format!("{} (not decoded)", o.type_name));
             }
             continue;
         };
-        let record = match file.read_object(o).ok().and_then(|r| r.entity()).map(|h| h.space) {
+        if refs.xdictionary != 0 || !refs.reactors.is_empty() || refs.material != 0 {
+            links.insert(o.handle, Link { xdictionary: refs.xdictionary, reactors: refs.reactors.clone(), material: refs.material });
+        }
+        let reopened = file.read_object(o).ok();
+        let record = match reopened.as_ref().and_then(|r| r.entity()).map(|h| h.space) {
             Some(EntitySpace::Model) => blocks.model,
             Some(EntitySpace::Paper) => blocks.paper,
             _ => refs.owner,
         };
         places.insert(o.handle, Place { record, next: refs.next });
+        name_owner(&mut dec, record);
+        dec.color_book = reopened.as_ref().and_then(|r| color_book(r, &refs, &names));
         for what in &dec.partial {
             unread.count(what);
         }
@@ -2185,7 +2736,7 @@ pub(super) fn read(
         }
         handles
     };
-    let Waiting { mut attribs, lists, mut vertices, polylines, mleader_attribs, paper_views, tables } = waiting;
+    let Waiting { mut attribs, lists, mut vertices, polylines, mleader_attribs, paper_views, tables, color_books, hooks } = waiting;
     for (h, kind, c, list) in polylines {
         let handles = walk(&list, &places);
         let Some(found) = handles.iter().map(|v| vertices.remove(v)).collect::<Option<Vec<_>>>() else {
@@ -2243,6 +2794,15 @@ pub(super) fn read(
     // chain from its first entity; then any entity that names the block as its owner and was in
     // neither, in file order.
     let mut placed: HashSet<u64> = HashSet::new();
+    let mut layers: HashSet<String> = d.layers.iter().map(|l| l.name.to_ascii_lowercase()).collect();
+    // Each record's entities in file order, gathered once (not searched for per record: a file
+    // has a block for every dimension).
+    let mut by_record: HashMap<u64, Vec<u64>> = HashMap::new();
+    for o in &entities {
+        if let Some(p) = places.get(&o.handle) {
+            by_record.entry(p.record).or_default().push(o.handle);
+        }
+    }
     for rec in &blocks.records {
         let mut order: Vec<u64> = rec.owned.clone();
         let mut at = rec.first;
@@ -2254,7 +2814,7 @@ pub(super) fn read(
             at = place.next.or_else(|| following.get(&at).copied()).unwrap_or(0);
         }
         let listed: HashSet<u64> = order.iter().copied().collect();
-        order.extend(entities.iter().map(|o| o.handle).filter(|h| !listed.contains(h) && places.get(h).is_some_and(|p| p.record == rec.handle)));
+        order.extend(by_record.get(&rec.handle).into_iter().flatten().copied().filter(|h| !listed.contains(h)));
         for h in order {
             if !placed.insert(h) {
                 continue;
@@ -2264,7 +2824,12 @@ pub(super) fn read(
             let more = extras.remove(&h).unwrap_or_default();
             match &rec.space {
                 Space::Model => {
-                    d.ensure_layer(&e.common.layer);
+                    // A layer the table doesn't have is added once (the layers are many in some
+                    // drawings: not a search of the list per entity).
+                    if !layers.contains(&e.common.layer.to_ascii_lowercase()) {
+                        d.ensure_layer(&e.common.layer);
+                        layers.insert(e.common.layer.to_ascii_lowercase());
+                    }
                     d.model.push(e);
                     for x in more {
                         d.model.push(x);
@@ -2293,9 +2858,78 @@ pub(super) fn read(
     }
     number_viewports(d, &paper_views);
     finish_tables(d, tables);
+    keep_color_books(d, color_books, &read);
+    add_hook_lines(d, &hooks);
     // The multileaders' block attribute values, placed like the attribute definitions of their
     // blocks, by the DXF reader's rule.
     crate::dxf_mleader::apply(d, &mleader_attribs, &HashMap::new());
     // An entity no block owns (a sub-entity of a type not read yet) stays unread.
-    read
+    (read, links)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// AutoCAD's round-trip data of a file saved as 2000 (CIRCLE 99F of ACadSharp's sample, saved
+    /// by AutoCAD): the colour sequence is read and left out, with the material's, and the ACAD
+    /// data around them is kept.
+    #[test]
+    fn round_trip_sequences_are_read_and_left_out() {
+        let items = vec![
+            XDataItem::Text("RTTcAl".into()),
+            XDataItem::Int16(-16342),
+            XDataItem::Int32(-1_025_339_392),
+            XDataItem::Text("RAL CLASSIC$RAL 1006".into()),
+            XDataItem::Text("RTMaterial".into()),
+            XDataItem::Handle(0x97),
+            XDataItem::Text("MTEXTBEGIN".into()),
+            XDataItem::Int16(73),
+        ];
+        let (kept, color) = round_trip(&items);
+        assert_eq!(color, Some((-16342, -1_025_339_392, "RAL CLASSIC$RAL 1006")));
+        assert_eq!(kept, vec![&XDataItem::Text("MTEXTBEGIN".into()), &XDataItem::Int16(73)]);
+        // 0xC02A: colour 42 of a book; 0xC2E29000: the true colour E29000.
+        assert_eq!(u32::from_ne_bytes((-1_025_339_392i32).to_ne_bytes()), 0xC2E2_9000);
+        assert_eq!(-16342i16 & 0x01FF, 42);
+    }
+
+    /// AutoCAD's LEADER 512 (ACadSharp's samples): the DWG stores three vertices, AutoCAD's DXF
+    /// four, the hook line's first point 2.5 (DIMASZ of ISO-25) before the last, opposite the x
+    /// direction (hook flag clear).
+    #[test]
+    fn a_leader_to_text_gets_autocads_hook_line() {
+        let v = [
+            Vec3::new(717.868_715_432_339_7, 2.941_179_455_067_987, 0.0),
+            Vec3::new(729.268_117_078_097_2, 48.538_786_038_098_59, 0.0),
+            Vec3::new(740.398_750_025_284_9, 14.071_812_402_255_56, 0.0),
+        ];
+        let p = hook_start(&v, Vec2::new(1.0, 0.0), false, 2.5).expect("a hook line");
+        assert!((p.x - 737.898_750_025_284_9).abs() < 1e-9 && (p.y - 14.071_812_402_255_56).abs() < 1e-9, "{p:?}");
+        // The hook flag set: the other way.
+        assert!(hook_start(&v, Vec2::new(1.0, 0.0), true, 2.5).is_some_and(|p| (p.x - 742.898_750_025_284_9).abs() < 1e-9));
+        // A last segment within 15 degrees of the text's direction is the landing itself.
+        let flat = [Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 2.0, 0.0)];
+        assert_eq!(hook_start(&flat, Vec2::new(1.0, 0.0), false, 2.5), None);
+        assert_eq!(hook_start(&v[..1], Vec2::new(1.0, 0.0), false, 2.5), None);
+        assert_eq!(hook_start(&v, Vec2::new(f64::NAN, 0.0), false, 2.5), None);
+        assert_eq!(hook_start(&v, Vec2::new(1.0, 0.0), false, 0.0), None);
+    }
+
+    /// AutoCAD's TOLERANCE 823 stores "99", a line break and "a"; its DXF has `99^Ja`.
+    #[test]
+    fn a_frame_line_break_is_caret_j() {
+        assert_eq!(frame_text("99\na"), "99^Ja");
+        assert_eq!(frame_text("1\r\n2\r3"), "1^J2^J3");
+        assert_eq!(frame_text("one line"), "one line");
+    }
+
+    /// A sequence that is not the round-trip data's shape is other data, kept as it is.
+    #[test]
+    fn other_acad_data_is_kept() {
+        let items = vec![XDataItem::Text("RTTcAl".into()), XDataItem::Int16(1), XDataItem::Text("not a colour".into())];
+        let (kept, color) = round_trip(&items);
+        assert_eq!(color, None);
+        assert_eq!(kept.len(), 3);
+    }
 }

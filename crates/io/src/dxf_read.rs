@@ -16,7 +16,7 @@ use crate::{IoError, Result};
 
 mod common;
 pub(crate) use common::{ocs_n, transparency_440};
-pub(crate) use entities::{SplineParts, mesh_faces_of, spline_from, table_from};
+pub(crate) use entities::{SplineParts, helix, mesh_faces_of, spline_from, table_from};
 pub(crate) use hatch::{
     close_loop, default_gradient, hatch_xdata, pattern_lines_from, push_arc, push_ellipse, push_line, push_spline, xdata_gradient,
 };
@@ -44,6 +44,7 @@ mod document;
 mod entities;
 mod hatch;
 mod objects;
+pub(crate) use objects::{apply_own_records, apply_scales, put_groups};
 mod tables;
 mod text;
 

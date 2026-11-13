@@ -1,6 +1,6 @@
 //! DraftCraft's DWG codec.
 //!
-//! - [`read`]: DWG files from R13 to AutoCAD 2018 and later (except 2007) into the [`records`] of
+//! - [`read`]: DWG files from R13 to AutoCAD 2018 and later into the [`records`] of
 //!   their objects, which `draftcraft-io` maps straight into the drawing.
 //! - [`write`]: AutoCAD 2018 (AC1032) DWG files from records.
 //! - [`file`]: a DWG file opened to its parts (version, sections, the object list), for a reader

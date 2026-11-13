@@ -200,7 +200,7 @@ fn services() -> Services {
 /// filter's extension, and macOS accepts only listed extensions, replacing any other with the
 /// first one. DWG must be listed for a `.dwg` name to survive, and a drawing opened from DWG
 /// then defaults to DWG; other names keep DXF first.
-fn filters_for_save(name: &str) -> [(&'static str, &'static str); 8] {
+fn filters_for_save(name: &str) -> [(&'static str, &'static str); 9] {
     let mut filters = [
         ("Drawing (DXF)", "dxf"),
         ("Drawing (DWG)", "dwg"),
@@ -210,6 +210,8 @@ fn filters_for_save(name: &str) -> [(&'static str, &'static str); 8] {
         ("PDF", "pdf"),
         ("Sheet Set (DCSS)", "dcss"),
         ("ZIP archive", "zip"),
+        // ATTOUT's attribute values.
+        ("Text, tab-delimited (TXT)", "txt"),
     ];
     let lower = name.to_ascii_lowercase();
     filters.sort_by_key(|(_, ext)| !lower.ends_with(&format!(".{ext}")));
@@ -524,6 +526,7 @@ mod tests {
         assert_eq!(first("plan.pdf"), "pdf");
         assert_eq!(first("office.dwt"), "dwt");
         assert_eq!(first("Project.dcss"), "dcss");
+        assert_eq!(first("Floorplan.txt"), "txt");
         for name in ["a.dwg", "b.dxf", "c"] {
             let exts: Vec<_> = filters_for_save(name).iter().map(|(_, e)| *e).collect();
             assert!(exts.contains(&"dwg") && exts.contains(&"dxf"), "{name}");
