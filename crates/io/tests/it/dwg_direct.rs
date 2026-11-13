@@ -686,6 +686,24 @@ fn polylines_and_splines_read_as_the_acadrust_reader_reads_them() {
             if matches!(g.kind, EntityKind::LwPolyline(_)) {
                 continue;
             }
+            // From AutoCAD 2013 on a fit spline's tangents are its end derivatives, length included
+            // (AutoCAD's own file and DXF show it: SPLINE 434 of ACadSharp's samples), where the
+            // acadrust reader takes them as directions. The fit spline here stores (1, 1) and
+            // (1, -1): AutoCAD's curve, the same fit points.
+            if let (EntityKind::Spline(gs), EntityKind::Spline(ws)) = (&g.kind, &w.kind)
+                && !ws.fit.is_empty()
+                && matches!(version, DxfVersion::AC1027 | DxfVersion::AC1032)
+            {
+                use draftcraft_geom::{FitOptions, Spline, Vec2};
+                let opts = FitOptions { knots: ws.fit_opts.knots, tolerance: ws.fit_opts.tolerance, ..FitOptions::default() };
+                let autocad = Spline::fit_with_derivatives(&ws.fit, opts, Some(Vec2::new(1.0, 1.0)), Some(Vec2::new(1.0, -1.0)));
+                assert_eq!(gs.fit, ws.fit, "{version:?}");
+                assert_eq!(gs.control.len(), autocad.control.len(), "{version:?}");
+                for (a, b) in gs.control.iter().zip(&autocad.control) {
+                    assert!(a.near(*b, 1e-9), "{version:?}: control point {a:?}, AutoCAD's {b:?}");
+                }
+                continue;
+            }
             let (g, w) = (serde_json::to_value(g.as_ref()).unwrap(), serde_json::to_value(w.as_ref()).unwrap());
             assert!(close(&g["kind"], &w["kind"], false), "{version:?}\nread      {}\nreference {}", g["kind"], w["kind"]);
             assert!(close(&g["common"], &w["common"], false), "{version:?}: properties\nread      {}\nreference {}", g["common"], w["common"]);
@@ -1635,8 +1653,8 @@ fn autocad_samples_colour_book_colours() {
 
 /// AutoCAD's own sample drawings (as [`autocad_samples_colour_book_colours`]): entities read as
 /// AutoCAD's DXF of the same drawing has them, in every version. The leader gets its hook line,
-/// the wipeout its closed boundary, the tolerance frame its `^J` line breaks, and the spline that
-/// AutoCAD 2013 and later store as fit points and end derivatives AutoCAD's control points.
+/// the tolerance frame its `^J` line breaks, and the spline that AutoCAD 2013 and later store as
+/// fit points and end derivatives AutoCAD's control points.
 #[test]
 fn autocad_samples_entities_read_as_autocads_dxf() {
     use draftcraft_doc::{EntityKind, Handle};
@@ -1653,9 +1671,10 @@ fn autocad_samples_entities_read_as_autocads_dxf() {
         let xs: Vec<f64> = l.vertices.iter().map(|v| v.x).collect();
         assert_eq!(xs.len(), 4, "{code}: AutoCAD's DXF lists four vertices: {xs:?}");
         assert!(near(xs[2], 737.898_750_025_284_9) && near(xs[3], 740.398_750_025_284_9), "{code}: {xs:?}");
+        // The DWG stores the clip polygon open and AutoCAD's DXF closed: the drawing holds either,
+        // the same four vertices (`Wipeout::vertices`).
         let EntityKind::Wipeout(w) = kind(0x44D) else { panic!("{code}: WIPEOUT 44D") };
-        assert_eq!(w.boundary.len(), 5, "{code}: AutoCAD's DXF lists five clip vertices");
-        assert_eq!(w.boundary.first(), w.boundary.last(), "{code}");
+        assert_eq!(w.vertices().len(), 4, "{code}: AutoCAD's four clip vertices");
         let EntityKind::Tolerance(t) = kind(0x823) else { panic!("{code}: TOLERANCE 823") };
         assert_eq!(t.text, "99^Ja", "{code}");
         let EntityKind::Spline(s) = kind(0x434) else { panic!("{code}: SPLINE 434") };

@@ -451,7 +451,6 @@ fn raster(r: &mut ObjectReader, wipeout: bool) -> DwgResult<Shape> {
             let [x, y] = r.rd2()?;
             clip.push(Vec2::new(x, y));
         }
-        clip = closed_polygon(clip);
     }
     let normal = UP;
     if wipeout {
@@ -1283,12 +1282,18 @@ fn spline(r: &mut ObjectReader) -> DwgResult<Shape> {
             for _ in 0..n {
                 fit.push(flat(r.bd3()?));
             }
-            // From AutoCAD 2013 on the tangents are the curve's end derivatives, length included,
-            // and the file says how the knots are spaced: the control points are AutoCAD's (its
-            // DXF lists them).
+            // From AutoCAD 2013 on the file says how the knots are spaced, and AutoCAD's tangents
+            // are the curve's end derivatives, length included: the control points are AutoCAD's
+            // (its DXF lists them). Tangents of unit length are directions, as DraftCraft's writer
+            // (acadrust) stores them and the drawing holds them: the drawing's own fit.
             if let Some(knots) = knot_param.filter(|_| !closed && fit.len() >= 2) {
-                let opts = draftcraft_geom::FitOptions { knots, tolerance: tolerance.max(0.0), ..Default::default() };
-                let sp = draftcraft_geom::Spline::fit_with_derivatives(&fit, opts, start_tangent, end_tangent);
+                let opts = draftcraft_geom::FitOptions { knots, start_tangent, end_tangent, tolerance: tolerance.max(0.0) };
+                let unit = |t: Option<Vec2>| t.is_none_or(|v| (v.len() - 1.0).abs() <= 1e-9);
+                let sp = if unit(start_tangent) && unit(end_tangent) {
+                    draftcraft_geom::Spline::fit_with(&fit, false, opts)
+                } else {
+                    draftcraft_geom::Spline::fit_with_derivatives(&fit, opts, start_tangent, end_tangent)
+                };
                 return Ok(ready(EntityKind::Spline(sp), 0.0, UP));
             }
         }
@@ -2250,17 +2255,6 @@ fn frame_text(raw: &str) -> String {
     raw.replace("\r\n", "\n").replace(['\r', '\n'], "^J").chars().take(MAX_FRAME_CHARS).collect()
 }
 
-/// A polygon clip boundary closed, its first vertex again at the end, as AutoCAD's DXF lists it
-/// and the drawing holds it (the DWG stores it open). Two corners (a rectangle) stay two.
-fn closed_polygon(mut clip: Vec<Vec2>) -> Vec<Vec2> {
-    if let (true, Some(&first), Some(&last)) = (clip.len() >= 3, clip.first(), clip.last())
-        && first != last
-    {
-        clip.push(first);
-    }
-    clip
-}
-
 /// The colour book names of the entities placed (`read`), kept as the DXF reader keeps them.
 fn keep_color_books(d: &mut Drawing, books: Vec<(Handle, (String, String))>, read: &HashSet<u64>) {
     for (h, book) in books {
@@ -2579,18 +2573,6 @@ mod tests {
         assert_eq!(frame_text("99\na"), "99^Ja");
         assert_eq!(frame_text("1\r\n2\r3"), "1^J2^J3");
         assert_eq!(frame_text("one line"), "one line");
-    }
-
-    /// AutoCAD's WIPEOUT 44D stores four clip vertices; its DXF lists five, the first again.
-    #[test]
-    fn a_polygon_clip_is_closed_and_a_rectangle_is_not() {
-        let open = vec![Vec2::new(-0.5, 0.5), Vec2::new(0.33, 0.49), Vec2::new(0.25, -0.21), Vec2::new(-0.48, -0.5)];
-        let closed = closed_polygon(open.clone());
-        assert_eq!(closed.len(), 5);
-        assert_eq!(closed.first(), closed.last());
-        assert_eq!(closed_polygon(closed.clone()), closed);
-        let corners = vec![Vec2::new(-0.5, -0.5), Vec2::new(9.5, 9.5)];
-        assert_eq!(closed_polygon(corners.clone()), corners);
     }
 
     /// A sequence that is not the round-trip data's shape is other data, kept as it is.

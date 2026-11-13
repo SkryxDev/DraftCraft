@@ -118,15 +118,30 @@ fn value(r: &mut ObjectReader, modern: bool) -> DwgResult<String> {
     Ok(text.unwrap_or_default())
 }
 
+/// The property flag of a text height a content format or cell style sets itself (the others it
+/// takes from what it is part of: the cell's style, its row's, its column's, the table's).
+const TEXT_HEIGHT: u32 = 0x80;
+
+/// A text height a content format or cell style sets: `Some(None)` when it sets one that can't
+/// be used, `None` when it sets none.
+type OwnHeight = Option<Option<f64>>;
+
+/// The text height of a format whose override flags are `flags`: its own when it sets one.
+fn own_height(flags: u32, h: f64) -> OwnHeight {
+    (flags & TEXT_HEIGHT != 0).then_some(Some(h).filter(|h| h.is_finite() && *h > 0.0 && *h < 1e9))
+}
+
 /// A content format: its overrides, value type and format, rotation, scale, alignment, colour,
-/// text style and text height. Returns the text height.
-fn content_format(r: &mut ObjectReader) -> DwgResult<f64> {
-    let _flags = (r.bl()?, r.bl()?, r.bl()?, r.bl()?);
+/// text style and text height. Returns its override flags and its text height, which AutoCAD
+/// fills in from the style when the format sets none.
+fn content_format(r: &mut ObjectReader) -> DwgResult<(u32, f64)> {
+    let overrides = r.bl()?;
+    let _flags = (r.bl()?, r.bl()?, r.bl()?);
     let _format = r.text()?;
     let _placement = (r.bd()?, r.bd()?, r.bl()?);
     true_color(r)?;
     let _text_style = r.reference()?;
-    r.bd()
+    Ok((overrides, r.bd()?))
 }
 
 /// A cell border: overrides, type, colour, lineweight, linetype, visibility, double spacing.
@@ -139,17 +154,21 @@ fn border(r: &mut ObjectReader) -> DwgResult<()> {
     Ok(())
 }
 
-/// A cell style (of a cell, row, column or the whole table): when it has data, its overrides,
-/// background, layout, content format, margins and borders. Returns its text height.
-fn cell_style(r: &mut ObjectReader) -> DwgResult<Option<f64>> {
+/// A cell style (of a cell, row, column or the whole table): when it has data, its two flag
+/// words, background, layout, content format, margins and borders. Returns the text height it
+/// sets. AutoCAD's own files set the property bits in the first word (the rows of its sample
+/// tables: 0x80, the heights their cells have in AutoCAD's DXF; a cell's margins: 0x63C00);
+/// acadrust, DraftCraft's writer until it has its own, sets them in the second.
+fn cell_style(r: &mut ObjectReader) -> DwgResult<OwnHeight> {
     let _kind = r.bl()?;
     if r.bs()? == 0 {
         return Ok(None);
     }
-    let _ = (r.bl()?, r.bl()?);
+    let (first, second) = (r.bl()?, r.bl()?);
     true_color(r)?;
     let _layout = r.bl()?;
-    let height = content_format(r)?;
+    let (format_overrides, h) = content_format(r)?;
+    let height = own_height(first | second | format_overrides, h);
     if r.bs()? & 1 != 0 {
         for _ in 0..6 {
             let _margin = r.bd()?;
@@ -161,7 +180,7 @@ fn cell_style(r: &mut ObjectReader) -> DwgResult<Option<f64>> {
             border(r)?;
         }
     }
-    Ok(Some(height))
+    Ok(height)
 }
 
 /// Custom data: a name and a value.
@@ -174,8 +193,9 @@ fn custom_data(r: &mut ObjectReader) -> DwgResult<()> {
     Ok(())
 }
 
-/// One cell of the table content (2010 and later).
-fn cell(r: &mut ObjectReader, partial: &mut Vec<&'static str>) -> DwgResult<TableCell> {
+/// One cell of the table content (2010 and later), with the text height it sets itself: its
+/// first content's, else its own style's. A later content's doesn't stand for the cell.
+fn cell(r: &mut ObjectReader, partial: &mut Vec<&'static str>) -> DwgResult<(TableCell, OwnHeight)> {
     let _state = r.bl()?;
     let _tooltip = r.text()?;
     let _custom = r.bl()?;
@@ -185,9 +205,9 @@ fn cell(r: &mut ObjectReader, partial: &mut Vec<&'static str>) -> DwgResult<Tabl
         let _ = (r.bl()?, r.bl()?, r.bl()?);
     }
     let mut text = String::new();
-    let mut text_height = None;
+    let mut first: OwnHeight = None;
     let n = r.bl()?;
-    for _ in 0..bounded(r, n, 4, "cell content")? {
+    for i in 0..bounded(r, n, 4, "cell content")? {
         match r.bl()? {
             1 => text.push_str(&value(r, true)?),
             2 => {
@@ -207,11 +227,13 @@ fn cell(r: &mut ObjectReader, partial: &mut Vec<&'static str>) -> DwgResult<Tabl
             let _index = r.bl()?;
         }
         if r.bs()? != 0 {
-            let h = content_format(r)?;
-            text_height = text_height.or(Some(h).filter(|h| h.is_finite() && *h > 0.0 && *h < 1e9));
+            let (overrides, h) = content_format(r)?;
+            if i == 0 {
+                first = own_height(overrides, h);
+            }
         }
     }
-    cell_style(r)?;
+    let own = first.or(cell_style(r)?);
     let _style_id = r.bl()?;
     if r.bl()? != 0 {
         let _ = (r.bl()?, r.bd()?, r.bd()?);
@@ -221,7 +243,7 @@ fn cell(r: &mut ObjectReader, partial: &mut Vec<&'static str>) -> DwgResult<Tabl
             let _ = (r.bd3()?, r.bd3()?, r.bd()?, r.bd()?, r.bd()?, r.bd()?, r.bl()?);
         }
     }
-    Ok(TableCell { text, text_height, ..TableCell::default() })
+    Ok((TableCell { text, text_height: own.flatten(), ..TableCell::default() }, own))
 }
 
 /// The table content (2010 and later): columns, rows of cells, fields, the table's own cell
@@ -230,11 +252,12 @@ fn content(r: &mut ObjectReader, t: &mut TableRead) -> DwgResult<()> {
     let _name = r.text()?;
     let _description = r.text()?;
     let n = r.bl()?;
+    let mut column_heights: Vec<OwnHeight> = Vec::new();
     for _ in 0..bounded(r, n, 8, "table column")? {
         let _name = r.text()?;
         let _custom = r.bl()?;
         custom_data(r)?;
-        cell_style(r)?;
+        column_heights.push(cell_style(r)?);
         let _style_id = r.bl()?;
         t.col_widths.push(r.bd()?);
     }
@@ -247,10 +270,18 @@ fn content(r: &mut ObjectReader, t: &mut TableRead) -> DwgResult<()> {
         }
         let _custom = r.bl()?;
         custom_data(r)?;
-        cell_style(r)?;
+        let row_height = cell_style(r)?;
         let _style_id = r.bl()?;
         t.row_heights.push(r.bd()?);
-        t.cells.push(row);
+        // A cell that sets no text height takes its row's, else its column's; one none of them
+        // sets takes the table's (the drawing's: no height of its own).
+        let cells = row.into_iter().enumerate().map(|(j, (mut c, own))| {
+            if own.is_none() {
+                c.text_height = row_height.or(column_heights.get(j).copied().flatten()).flatten();
+            }
+            c
+        });
+        t.cells.push(cells.collect());
     }
     let n = r.bl()?;
     for _ in 0..bounded(r, n, 0, "table field")? {

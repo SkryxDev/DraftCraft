@@ -2753,6 +2753,23 @@ fn foreign_table_reads_cell_text_height_and_keeps_style_scale() {
     assert_eq!(t2.cells[0][1].text_height, None);
 }
 
+/// AutoCAD's table cells of other values than text (ACAD_TABLE A35 of ACadSharp's samples, saved
+/// by AutoCAD): the value block holds the value and the text AutoCAD shows for it (302), which the
+/// cell reads. A text value keeps its own string (1).
+#[test]
+fn table_cells_of_numbers_and_dates_show_autocads_formatted_text() {
+    let dxf = "0\nSECTION\n2\nENTITIES\n0\nACAD_TABLE\n100\nAcDbTable\n91\n1\n92\n4\n141\n1\n142\n2\n142\n2\n142\n2\n142\n2\n\
+        171\n1\n301\nCELL_VALUE\n93\n6\n90\n2\n140\n0.5\n94\n0\n300\n\n302\n0.500000\n304\nACVALUE_END\n\
+        171\n1\n301\nCELL_VALUE\n93\n4\n90\n2\n140\n35.0\n94\n32\n300\n%lu2%pr2%ps[,%]\n302\n35.00%\n304\nACVALUE_END\n\
+        171\n1\n301\nCELL_VALUE\n93\n6\n90\n8\n92\n16\n310\nE8070B0005000F000000000000000000\n94\n0\n300\n\n302\n11/15/2024\n304\nACVALUE_END\n\
+        171\n1\n301\nCELL_VALUE\n93\n6\n90\n4\n1\nThis is my content\n94\n0\n300\n\n302\nThis is my content\n304\nACVALUE_END\n\
+        0\nENDSEC\n0\nEOF\n";
+    let d = read_dxf(dxf.as_bytes()).unwrap();
+    let t = first(&d, |k| if let EntityKind::Table(x) = k { Some(x.clone()) } else { None });
+    let texts: Vec<&str> = t.cells[0].iter().map(|c| c.text.as_str()).collect();
+    assert_eq!(texts, ["0.500000", "35.00%", "11/15/2024", "This is my content"]);
+}
+
 /// Issue #1209: a file that declares no units ($INSUNITS absent or 0) stays unitless when written
 /// again; only a new drawing takes its template's units.
 #[test]
