@@ -1322,6 +1322,7 @@ dependencies = [
  "draftcraft-geom",
  "draftcraft-io",
  "draftcraft-render",
+ "encoding_rs",
  "libc",
  "log",
  "rstar",

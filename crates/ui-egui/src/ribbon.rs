@@ -121,8 +121,14 @@ const LEADER_MORE: &[Tool] = &[
     (Icon::MLeader, "mleadercollect", "Collect"),
 ];
 const INSERT_MORE: &[Tool] = &[(Icon::Insert, "insert", "Insert"), (Icon::Blocks, "ui.dialog.blocks", "Blocks Palette")];
-const ATT_MORE: &[Tool] =
-    &[(Icon::AttDef, "attedit", "Single"), (Icon::List, "battman", "Block Attribute Manager"), (Icon::Redo, "attsync", "Synchronize")];
+const ATT_MORE: &[Tool] = &[
+    (Icon::AttDef, "attedit", "Single"),
+    (Icon::List, "battman", "Block Attribute Manager"),
+    (Icon::Redo, "attsync", "Synchronize"),
+    SEP,
+    (Icon::AttOut, "attout", "Export Attributes"),
+    (Icon::AttIn, "attin", "Import Attributes"),
+];
 const MEASURE_MORE: &[Tool] = &[
     (Icon::Distance, "dist", "Distance"),
     (Icon::DimRadius, "radius.measure", "Radius"),
@@ -646,11 +652,14 @@ pub(crate) const TABS: &[RibbonTab] = &[
         panels: &[
             RibbonPanel {
                 title: "Blocks",
-                cols: &[Small(&[
-                    b(Icon::Explode, "burst", "Explode Attributes"),
-                    b(Icon::Blocks, "blockreplace", "Replace Block"),
-                    b(Icon::Text, "attdisp", "Attribute Display"),
-                ])],
+                cols: &[
+                    Small(&[
+                        b(Icon::Explode, "burst", "Explode Attributes"),
+                        b(Icon::Blocks, "blockreplace", "Replace Block"),
+                        b(Icon::Text, "attdisp", "Attribute Display"),
+                    ]),
+                    Small(&[b(Icon::AttOut, "attout", "Export Attributes"), b(Icon::AttIn, "attin", "Import Attributes")]),
+                ],
             },
             RibbonPanel {
                 title: "Text",
