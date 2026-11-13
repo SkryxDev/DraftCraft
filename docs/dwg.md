@@ -12,7 +12,7 @@ through acadrust until DraftCraft's own writer is done (see [the plan](#the-plan
 crates/dwg  (draftcraft-dwg: layer 0, depends on no other workspace crate)
   file.rs     DwgFile and ObjectReader: the container, the object map and each object's fields,
               read in format order (bits, handles, text, colours, extended data)
-  read/       DWG R13 to 2018 and later (except 2007): container, sections, classes, objects
+  read/       DWG R13 to 2018 and later: container (r2000, r2004, r2007), sections, classes, objects
   write/      AutoCAD 2018 (AC1032) DWG from records (not used for saving yet)
   records/    BlackCAD's records, for the first mapping (dwg_read) and the writer
   bits.rs, crc.rs, lz77.rs   the format's primitives, shared by reading and writing
@@ -83,6 +83,8 @@ wrote in every version.
 | 9 | Hatches: polyline and edge loops (line, arc, elliptic arc, spline), patterns, gradients, associativity |
 | 10 | LEADER, TOLERANCE, MULTILEADER (with styles and block content) |
 | 11 | VIEWPORT, IMAGE, WIPEOUT, PDFUNDERLAY, MLINE and MLINESTYLE, ACAD_TABLE (both forms), DraftCraft's regions |
+| 12a | The named-object dictionary: dictionaries, XRECORDs, scales, dictionary variables, groups, wipeout and raster variables, plot-style names, table styles, multileader styles, colour-book colours (DBCOLOR); DraftCraft's own records (constraints, layer states, plot styles, annotation); objects under a dictionary DraftCraft has no type for, kept with their DXF groups as the DXF reader keeps them |
+| 13 | The AutoCAD 2007 (AC1021) container: the file header, page map and section map as Reed-Solomon codewords (the data bytes are taken, the parity is not checked), the 2007 compression, sections reassembled from their pages |
 
 ## The plan to full fidelity
 
@@ -92,7 +94,6 @@ DWG fidelity is complete when every object of a real file is in the drawing (not
 | Step | What | Shows today as |
 |---|---|---|
 | 12 | Objects: dictionaries, XRECORD, groups, scales, visual styles, materials, multileader and table styles, draw order, clipping, extension dictionaries, reactors, layer plot styles; a raw carry for what the drawing has no type for (custom entities and objects, ACIS solids and regions) | `DICTIONARY`, `XRECORD`, `SCALE`… in the read notes of every AutoCAD file; DraftCraft's constraints and layer states, which live in XRECORDs, don't survive a DWG round trip yet |
-| 13 | The 2007 (AC1021) container | 2007 files are refused with a message |
 | 14 | The switch-over: the direct reader as the default (done on `dwg-direct-reader-on`), the old paths removed | |
 | 15–16 | DraftCraft's own DWG writer (objects as 2018, sections and container, a read-back check on every save) | |
 | 17 | The other save versions | |
@@ -163,7 +164,7 @@ The web build (`trunk build --release` in `apps/draftcraft-web`) reads directly 
 locally and driven by headless Chromium, it opened AutoCAD's MI-201 files, every test drawing of
 every type and a drawing of 100,000 entities dropped on the page, with no page or console errors
 (a panic in wasm shows as one), each drawn as it is on the desktop, and the read notes at the
-command line. The 2007 file is refused with its reason.
+command line. (That run was before the 2007 container was read; it refused the 2007 file with its reason.)
 
 ### Against BlackCAD
 

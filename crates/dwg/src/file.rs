@@ -3,8 +3,7 @@
 //! a reader that builds its own drawing (DraftCraft's, in `draftcraft-io`) starts here and decodes
 //! each object straight into that drawing.
 //!
-//! Reads R13 to AutoCAD 2018 and later, except AutoCAD 2007–2009 (AC1021), whose container is not
-//! implemented yet.
+//! Reads R13 to AutoCAD 2018 and later.
 
 pub use crate::read::model::{Dictionary, Groups, Handle, Layout, MLineStyle, NonGraphic, Scale, XRecord, XrValue};
 pub use crate::records::text::{TextDecoding, code_page_name};
