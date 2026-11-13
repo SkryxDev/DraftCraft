@@ -352,7 +352,8 @@ enum Body {
     Insert(Box<Insert>, bool, u32),
     /// An attribute (of a block reference) or an attribute definition, with its alignment and
     /// insertion points in its own coordinate system.
-    Attrib(Box<Attrib>, Option<Vec3>, Vec3, bool),
+    /// With the handles a multiline attribute's embedded text has, when it has one.
+    Attrib(Box<Attrib>, Option<Vec3>, Vec3, bool, Option<EmbeddedRefs>),
     /// A polyline, waiting for its vertices, and how many it lists (2004 and later).
     Polyline(PolyKind, u32),
     /// A vertex or a polyface face, waiting for its polyline.
@@ -1074,7 +1075,7 @@ fn dimension(r: &mut ObjectReader, type_name: &str) -> DwgResult<Shape> {
         p14,
         p15,
         p16,
-        text: mtext_dxf::decode_line(&text),
+        text,
         style: "Standard".into(),
         measurement,
         text_rotation,
@@ -1551,7 +1552,7 @@ fn text_fields(r: &mut ObjectReader) -> DwgResult<TextFields> {
         insert: at(insertion),
         align_pt: (!plain).then(|| at(alignment)),
         height: height.max(1e-9),
-        value: mtext_dxf::decode_line(&value),
+        value,
         rotation,
         width_factor,
         oblique,
@@ -1569,7 +1570,7 @@ fn attribute(r: &mut ObjectReader, definition: bool, partial: &mut Vec<&'static 
     if ver >= V::R2010 {
         let _version = r.rc()?;
     }
-    let mut multiline = None;
+    let (mut multiline, mut embedded) = (None, None);
     if ver >= V::R2018 {
         // 1 a single line; 2 a multiline attribute, 4 a multiline definition, whose text is an
         // MTEXT embedded here: an entity's common properties (its own copy, as AutoCAD's files
@@ -1577,7 +1578,7 @@ fn attribute(r: &mut ObjectReader, definition: bool, partial: &mut Vec<&'static 
         // reader, the attribute's value is the text's plain reading.
         let kind = r.rc()?;
         if kind > 1 {
-            embedded_entity_head(r)?;
+            embedded = Some(embedded_entity_head(r)?);
             let Shape { body: Body::MText(m), .. } = mtext(r, partial)? else {
                 return Err(draftcraft_dwg::records::Error::format("multiline attribute without its text"));
             };
@@ -1597,7 +1598,7 @@ fn attribute(r: &mut ObjectReader, definition: bool, partial: &mut Vec<&'static 
         if ver >= V::R2010 {
             let _version = r.rc()?;
         }
-        prompt = mtext_dxf::decode_line(&r.text()?);
+        prompt = r.text()?;
     }
     let mut text = f.text;
     if let Some(m) = &multiline {
@@ -1613,17 +1614,17 @@ fn attribute(r: &mut ObjectReader, definition: bool, partial: &mut Vec<&'static 
         multiline,
         modes: AttribModes { verify: flags & 4 != 0, preset: flags & 8 != 0, lock_position },
     };
-    Ok(Shape { body: Body::Attrib(Box::new(a), Some(f.align), f.insert, definition), thickness: f.thickness, normal: f.normal })
+    Ok(Shape { body: Body::Attrib(Box::new(a), Some(f.align), f.insert, definition, embedded), thickness: f.thickness, normal: f.normal })
 }
 
 /// The common properties an entity embedded in another has (AutoCAD 2018's multiline attribute
 /// text): its mode, reactors, extension dictionary and binary data flags, colour, linetype scale,
 /// linetype, plot style and material flags, shadows, visual styles, visibility and lineweight.
 /// The attribute's own properties are the ones the drawing keeps.
-fn embedded_entity_head(r: &mut ObjectReader) -> DwgResult<()> {
-    let _mode = r.bb()?;
-    let _reactors = r.bl()?;
-    let _no_extension_dictionary = r.b()?;
+fn embedded_entity_head(r: &mut ObjectReader) -> DwgResult<EmbeddedRefs> {
+    let mode = r.bb()?;
+    let reactors = r.bl()?;
+    let no_extension_dictionary = r.b()?;
     let _binary_data = r.b()?;
     let color = r.bs()?;
     if color & 0x8000 != 0 && color & 0x4000 == 0 {
@@ -1633,12 +1634,34 @@ fn embedded_entity_head(r: &mut ObjectReader) -> DwgResult<()> {
         let _transparency = r.bl()?;
     }
     let _linetype_scale = r.bd()?;
-    let _flags = (r.bb()?, r.bb()?, r.bb()?);
+    // Linetype, material and plot style: 3 when the entity names one by a handle.
+    let (linetype, material, plot_style) = (r.bb()? == 3, r.bb()? == 3, r.bb()? == 3);
     let _shadows = r.rc()?;
-    let _visual_styles = (r.b()?, r.b()?, r.b()?);
+    let visual_styles = usize::from(r.b()?) + usize::from(r.b()?) + usize::from(r.b()?);
     let _invisible = r.bs()?;
     let _lineweight = r.rc()?;
-    Ok(())
+    // Its handles, in the order the handle stream holds them: an owner (when the mode names
+    // none), the reactors, an extension dictionary, the layer, then the ones flagged above.
+    let handles = usize::from(mode == 0)
+        + usize::try_from(reactors).unwrap_or(usize::MAX).min(MAX_EMBEDDED_REACTORS)
+        + usize::from(!no_extension_dictionary)
+        + 1
+        + usize::from(linetype)
+        + usize::from(material)
+        + usize::from(plot_style)
+        + visual_styles;
+    Ok(EmbeddedRefs { handles })
+}
+
+/// The most reactors an embedded entity's handles are skipped for.
+const MAX_EMBEDDED_REACTORS: usize = 4096;
+
+/// What the handle stream holds for an entity embedded in another: `handles` of its own (owner,
+/// reactors, extension dictionary, layer, linetype, material, plot style, visual styles), which
+/// the drawing takes from the entity that holds it, then the embedded text's style.
+#[derive(Clone, Copy, Debug)]
+struct EmbeddedRefs {
+    handles: usize,
 }
 
 /// MTEXT (§20.4.46).
@@ -1708,7 +1731,7 @@ fn mtext(r: &mut ObjectReader, partial: &mut Vec<&'static str>) -> DwgResult<Sha
         attach,
         rotation,
         style: "Standard".into(),
-        contents: mtext_dxf::decode_contents(&contents),
+        contents,
         line_spacing,
         line_spacing_exact,
         columns: columns.map(|(c, _)| c),
@@ -2223,8 +2246,16 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
             vertex = Some(v);
             None
         }
-        Body::Attrib(mut a, align, insert, definition) => {
+        Body::Attrib(mut a, align, insert, definition, embedded) => {
             a.text.style = style(r)?;
+            // A multiline attribute's text: its own handles (AutoCAD's files: a null owner, the
+            // layer, the linetype, the material), then its text style.
+            if let (Some(e), Some(m)) = (embedded, a.multiline.as_mut()) {
+                for _ in 0..e.handles {
+                    r.reference()?;
+                }
+                m.mtext.style = style(r)?;
+            }
             if normal.z < 0.0 {
                 mirror_text(&mut a.text, align.map(|p| ocs_n(normal, p)), ocs_n(normal, insert));
             }

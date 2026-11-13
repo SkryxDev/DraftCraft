@@ -742,7 +742,10 @@ fn vport(r: &mut ObjectReader) -> DwgResult<Vport> {
     let name = record_name(r)?.trim().to_string();
     let ver = r.version();
     let height = r.bd()?;
-    let aspect = r.bd()?;
+    // The file holds the view's width: the aspect ratio times the height (AutoCAD's *Active
+    // viewport: 2988.21 for a height of 1100.22, where its DXF has the ratio 2.716).
+    let width = r.bd()?;
+    let aspect = if height.is_finite() && height > 0.0 { width / height } else { 0.0 };
     let [cx, cy] = r.rd2()?;
     let target = r.bd3()?;
     let _direction = r.bd3()?;
