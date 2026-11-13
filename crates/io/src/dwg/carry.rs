@@ -178,6 +178,46 @@ fn wipeout_variables(r: &mut ObjectReader) -> DwgResult<(Groups, CommonRefs)> {
     Ok((Groups { kind: "WIPEOUTVARIABLES".into(), items }, refs))
 }
 
+/// Most vertices of one clip boundary that are read.
+const MAX_CLIP_VERTICES: u32 = 1 << 16;
+
+/// SPATIAL_FILTER (§20.4.99): a block reference's clip boundary, as the DXF groups AutoCAD
+/// writes of it: the vertices, the boundary's normal and origin, whether it is shown, the front
+/// and back clip planes with their distances, then the inverse of the block's transform and the
+/// boundary's own, twelve numbers each.
+fn spatial_filter(r: &mut ObjectReader) -> DwgResult<(Groups, CommonRefs)> {
+    let refs = r.common_refs()?;
+    let n = u32::from(r.bs()?);
+    if n > MAX_CLIP_VERTICES {
+        return Err(draftcraft_dwg::records::Error::format(format!("too many clip vertices: {n}")));
+    }
+    let mut items = vec![
+        (100, XrValue::Str("AcDbFilter".into())),
+        (100, XrValue::Str("AcDbSpatialFilter".into())),
+        (70, XrValue::Int16(i16::try_from(n).unwrap_or(0))),
+    ];
+    for _ in 0..n {
+        let [x, y] = r.rd2()?;
+        items.push((10, XrValue::Real(x)));
+        items.push((20, XrValue::Real(y)));
+    }
+    let point = |[x, y, z]: [f64; 3]| XrValue::Point(draftcraft_dwg::records::geom::Vec3 { x, y, z });
+    items.push((210, point(r.bd3()?)));
+    items.push((11, point(r.bd3()?)));
+    items.push((71, XrValue::Int16(i16::try_from(r.bs()?).unwrap_or(1))));
+    for (flag, distance) in [(72, 40), (73, 41)] {
+        let on = r.bs()?;
+        items.push((flag, XrValue::Int16(i16::try_from(on).unwrap_or(0))));
+        if on != 0 {
+            items.push((distance, XrValue::Real(r.bd()?)));
+        }
+    }
+    for _ in 0..24 {
+        items.push((40, XrValue::Real(r.bd()?)));
+    }
+    Ok((Groups { kind: "SPATIAL_FILTER".into(), items }, refs))
+}
+
 /// The 16-bit item `code` of groups.
 fn group_int(g: &Groups, code: u16) -> Option<i64> {
     g.items.iter().find(|(c, _)| *c == code).and_then(|(_, v)| match v {
@@ -368,6 +408,7 @@ fn decode(src: &Source, unread: &mut Unread) -> Decoded {
         let own = match o.type_name.as_str() {
             "GROUP" => Some(group(&mut r)),
             "WIPEOUTVARIABLES" => Some(wipeout_variables(&mut r)),
+            "SPATIAL_FILTER" => Some(spatial_filter(&mut r)),
             _ => None,
         };
         let decoded = match own {

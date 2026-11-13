@@ -295,6 +295,8 @@ fn reads(type_name: &str) -> bool {
     matches!(
         type_name,
         "LINE"
+            | "OLE2FRAME"
+            | "HELIX"
             | "POINT"
             | "CIRCLE"
             | "ARC"
@@ -344,6 +346,9 @@ fn reads(type_name: &str) -> bool {
 /// The fields of one entity's type, held until its references (a text style, a block) are read.
 enum Body {
     Ready(Box<EntityKind>),
+    /// An entity of a type the drawing keeps without modelling it: its DXF type and its own
+    /// groups (from its `100` subclass marker on), as AutoCAD's DXF has them.
+    Unknown(&'static str, Vec<RawTag>),
     /// A text, with its alignment and insertion points in its own coordinate system.
     Text(Box<Text>, Option<Vec3>, Vec3),
     MText(Box<MText>),
@@ -1246,6 +1251,35 @@ fn pface_face(r: &mut ObjectReader) -> DwgResult<Shape> {
 /// SPLINE (§20.4.44): a spline defined by its fit points or by its control points and knots. From
 /// AutoCAD 2013 on, flags and the knot parameterisation say which.
 fn spline(r: &mut ObjectReader) -> DwgResult<Shape> {
+    spline_with(r, &mut None)
+}
+
+/// HELIX (§20.4.?): a spline's data, then the helix: its version, the axis's base point, the
+/// start point, the axis's direction, the radius, the turns, the height of a turn, whether it
+/// turns counter-clockwise and what stays fixed when it is edited. The drawing's helix by the
+/// DXF reader's rule, from the same groups (the spline gives the top's radius by its last point).
+fn helix(r: &mut ObjectReader) -> DwgResult<Shape> {
+    let mut last = None;
+    spline_with(r, &mut last)?;
+    let (_major, _maintenance) = (r.bl()?, r.bl()?);
+    let (base, start, axis) = (r.bd3()?, r.bd3()?, r.bd3()?);
+    let (radius, turns, turn_height) = (r.bd()?, r.bd()?, r.bd()?);
+    let ccw = r.b()?;
+    let constraint = r.rc()?;
+    use draftcraft_dxf::Tag;
+    let point = |code: i32, p: [f64; 3]| [Tag::f(code, p[0]), Tag::f(code + 10, p[1]), Tag::f(code + 20, p[2])];
+    let mut tags = vec![Tag::s(100, "AcDbSpline")];
+    tags.extend(last.into_iter().flat_map(|p| point(10, p)));
+    tags.push(Tag::s(100, "AcDbHelix"));
+    tags.extend(point(10, base));
+    tags.extend(point(11, start));
+    tags.extend(point(12, axis));
+    tags.extend([Tag::f(40, radius), Tag::f(41, turns), Tag::f(42, turn_height), Tag::i(290, i64::from(ccw)), Tag::i(280, i64::from(constraint))]);
+    Ok(ready(EntityKind::Helix(crate::dxf_read::helix(&tags)), 0.0, UP))
+}
+
+/// A spline's data; `last` takes the last control point, or fit point, as the file has it.
+fn spline_with(r: &mut ObjectReader, last: &mut Option<[f64; 3]>) -> DwgResult<Shape> {
     let ver = r.version();
     let mut scenario = r.bl()?;
     let mut closed = false;
@@ -1280,7 +1314,9 @@ fn spline(r: &mut ObjectReader) -> DwgResult<Shape> {
             let n = r.bl()?;
             let n = r.count(n, 6, "SPLINE fit point")?;
             for _ in 0..n {
-                fit.push(flat(r.bd3()?));
+                let p = r.bd3()?;
+                *last = Some(p);
+                fit.push(flat(p));
             }
             // From AutoCAD 2013 on the file says how the knots are spaced, and AutoCAD's tangents
             // are the curve's end derivatives, length included: the control points are AutoCAD's
@@ -1312,7 +1348,9 @@ fn spline(r: &mut ObjectReader) -> DwgResult<Shape> {
                 knots.push(r.bd()?);
             }
             for _ in 0..n_control {
-                control.push(flat(r.bd3()?));
+                let p = r.bd3()?;
+                *last = Some(p);
+                control.push(flat(p));
                 if weighted {
                     weights.push(r.bd()?);
                 }
@@ -1976,9 +2014,11 @@ fn shape(r: &mut ObjectReader, type_name: &str, partial: &mut Vec<&'static str>)
         "VERTEX_3D" | "VERTEX_MESH" | "VERTEX_PFACE" => vertex_3d(r)?,
         "VERTEX_PFACE_FACE" => pface_face(r)?,
         "SPLINE" => spline(r)?,
+        "HELIX" => helix(r)?,
         "HATCH" => hatch(r)?,
         "LEADER" => leader(r)?,
         "TOLERANCE" => tolerance(r)?,
+        "OLE2FRAME" => ole2frame(r)?,
         "MULTILEADER" => mleader(r)?,
         "VIEWPORT" => return viewport(r),
         "IMAGE" => raster(r, false)?,
@@ -2066,6 +2106,7 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
             }
             k => Some(k),
         },
+        Body::Unknown(dxf_type, tags) => Some(EntityKind::Unknown(draftcraft_doc::Unknown { dxf_type: dxf_type.into(), tags })),
         Body::Text(mut t, align, insert) => {
             t.style = style(r)?;
             if normal.z < 0.0 {
@@ -2284,6 +2325,11 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
         c.thickness = thickness;
         c.extrusion = normal;
         let mut e = Entity::new(Handle(o.handle), kind);
+        if let EntityKind::Unknown(u) = &mut e.kind {
+            let own = std::mem::take(&mut u.tags);
+            u.tags = unknown_head(o.handle, &c);
+            u.tags.extend(own);
+        }
         e.common = c;
         e
     });
@@ -2291,6 +2337,97 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
         partial.retain(|p| *p != DRAFTCRAFT_DATA);
     }
     Ok((Decoded { entity, attrib, attribs, polyline, vertex, mleader_attribs, paper_view, held, leader_hook, partial, ..Decoded::default() }, refs))
+}
+
+/// An entity kept as its DXF groups names its owner, as every entity of a DXF file does.
+fn name_owner(dec: &mut Decoded, record: u64) {
+    if let Some(EntityKind::Unknown(u)) = dec.entity.as_mut().map(|e| &mut e.kind)
+        && record != 0
+    {
+        let at = usize::from(u.tags.first().is_some_and(|t| t.code == 5));
+        u.tags.insert(at, RawTag { code: 330, value: format!("{record:X}") });
+    }
+}
+
+/// The groups an entity kept without modelling it starts with, as a DXF file has them: its
+/// handle, then the properties every entity has (its owner is added once its place is known).
+fn unknown_head(handle: u64, c: &Common) -> Vec<RawTag> {
+    let tag = |code: i32, value: String| RawTag { code, value };
+    let mut t = vec![tag(5, format!("{handle:X}")), tag(100, "AcDbEntity".into())];
+    t.push(tag(8, c.layer.clone()));
+    if !c.linetype.eq_ignore_ascii_case("bylayer") {
+        t.push(tag(6, c.linetype.clone()));
+    }
+    match c.color {
+        draftcraft_color::Color::ByLayer => {}
+        draftcraft_color::Color::True(rgb) => {
+            t.push(tag(62, draftcraft_color::nearest_aci(rgb).to_string()));
+            t.push(tag(420, rgb.to_u32().to_string()));
+        }
+        color => t.push(tag(62, color.to_aci().to_string())),
+    }
+    if c.lineweight != Lineweight::ByLayer {
+        t.push(tag(370, c.lineweight.to_dxf().to_string()));
+    }
+    if (c.ltscale - 1.0).abs() > 1e-12 {
+        t.push(tag(48, draftcraft_dxf::Value::Real(c.ltscale).as_str()));
+    }
+    if !c.visible {
+        t.push(tag(60, "1".into()));
+    }
+    t
+}
+
+/// The compound file an OLE object's data holds starts with these bytes; what is before them is
+/// AutoCAD's own wrapper.
+const COMPOUND_FILE: [u8; 8] = [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
+
+/// The frame an OLE object's data starts with, when it has one: after a two-byte marker, the
+/// frame's corners (upper left, upper right, lower right, lower left), which are the corners of
+/// a rectangle along the axes. Returns the upper left and lower right ones.
+fn ole_frame(data: &[u8]) -> Option<([f64; 3], [f64; 3])> {
+    let end = data.windows(COMPOUND_FILE.len()).position(|w| w == COMPOUND_FILE).unwrap_or(data.len());
+    let wrapper = data.get(..end)?;
+    if wrapper.len() < 98 {
+        return None;
+    }
+    let mut v = [0.0f64; 12];
+    for (i, x) in v.iter_mut().enumerate() {
+        *x = f64::from_le_bytes(wrapper.get(2 + i * 8..10 + i * 8)?.try_into().ok()?);
+    }
+    let close = |a: f64, b: f64| (a - b).abs() <= 1e-6 * (1.0 + a.abs().max(b.abs()));
+    let [ulx, uly, ulz, urx, ury, _, lrx, lry, lrz, llx, lly, _] = v;
+    let rectangle = close(uly, ury) && close(lry, lly) && close(ulx, llx) && close(urx, lrx);
+    (v.iter().all(|x| x.is_finite() && x.abs() < 1e15) && rectangle).then_some(([ulx, uly, ulz], [lrx, lry, lrz]))
+}
+
+/// OLE2FRAME (§20.4.74): an embedded or linked object. Its type, its space and its data, with
+/// (from AutoCAD 2000) whether it keeps its proportions. The drawing keeps it as the groups a
+/// DXF file has: the frame's corners come from the data's wrapper, and the data is the DXF
+/// file's binary data as it is.
+fn ole2frame(r: &mut ObjectReader) -> DwgResult<Shape> {
+    let ver = r.version();
+    let kind = r.bs()?;
+    let mode = if ver >= V::R2000 { r.bs()? } else { 0 };
+    let n = r.bl()?;
+    let n = r.count(n, 8, "OLE data byte")?;
+    let data = r.bytes(n)?;
+    let lock_aspect = if ver >= V::R2000 { r.rc()? } else { 0 };
+    // Without a wrapper: the corners a DXF file of such an object has.
+    let (upper_left, lower_right) = ole_frame(&data).unwrap_or(([1.0, 1.0, 0.0], [0.0, 0.0, 0.0]));
+    let tag = |code: i32, value: String| RawTag { code, value };
+    let real = |v: f64| draftcraft_dxf::Value::Real(v).as_str();
+    let mut t = vec![tag(100, "AcDbOle2Frame".into()), tag(70, "2".into())];
+    for (base, p) in [(10, upper_left), (11, lower_right)] {
+        t.extend([tag(base, real(p[0])), tag(base + 10, real(p[1])), tag(base + 20, real(p[2]))]);
+    }
+    t.extend([tag(71, kind.to_string()), tag(72, mode.to_string()), tag(73, lock_aspect.to_string())]);
+    if !data.is_empty() {
+        t.push(tag(90, data.len().to_string()));
+        t.extend(data.chunks(127).map(|c| tag(310, c.iter().map(|b| format!("{b:02X}")).collect())));
+    }
+    t.push(tag(1, "OLE".into()));
+    Ok(Shape { body: Body::Unknown("OLE2FRAME", t), thickness: 0.0, normal: Vec3::new(0.0, 0.0, 1.0) })
 }
 
 /// Each layout's viewports numbered in their order, the first (the sheet) 1, as a DXF file
@@ -2511,6 +2648,7 @@ pub(super) fn read(
             _ => refs.owner,
         };
         places.insert(o.handle, Place { record, next: refs.next });
+        name_owner(&mut dec, record);
         dec.color_book = reopened.as_ref().and_then(|r| color_book(r, &refs, &names));
         for what in &dec.partial {
             unread.count(what);

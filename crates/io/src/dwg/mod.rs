@@ -28,6 +28,8 @@ use crate::{IoError, Result};
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Unread {
     pub by_type: BTreeMap<String, usize>,
+    /// How many objects the file has.
+    pub objects: usize,
 }
 
 impl Unread {
@@ -42,6 +44,32 @@ impl Unread {
     /// One line for messages: `LINE × 12, LAYER × 3`.
     pub fn summary(&self) -> String {
         self.by_type.iter().map(|(k, n)| format!("{k} × {n}")).collect::<Vec<_>>().join(", ")
+    }
+    /// The drawing's read note for what was left out, in the words the app uses for a file read
+    /// in part: how many of the file's object records, of which types (the most frequent first),
+    /// and what saving over the file would do. `None` when nothing was left out.
+    pub fn note(&self) -> Option<String> {
+        if self.is_empty() {
+            return None;
+        }
+        /// Most types named in the note.
+        const NOTE_TYPES: usize = 6;
+        let mut types: Vec<(&String, &usize)> = self.by_type.iter().collect();
+        types.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
+        let mut list: Vec<String> = types.iter().take(NOTE_TYPES).map(|(t, n)| format!("{t} × {n}")).collect();
+        if types.len() > NOTE_TYPES {
+            list.push(format!("{} more types", types.len() - NOTE_TYPES));
+        }
+        // A key with a space is a part of an object (a property the drawing has no place for
+        // yet), or objects of a type that could not be decoded: the others are whole objects.
+        let whole: usize = self.by_type.iter().filter(|(k, _)| !k.contains(' ') || k.ends_with(" (not decoded)")).map(|(_, n)| n).sum();
+        let what = match (whole, self.objects) {
+            (0, _) => "parts of some object records".to_string(),
+            (n, 0) => format!("{n} object records"),
+            (n, of) => format!("{n} of {of} object records"),
+        };
+        let (were, them) = if whole == 1 { ("was", "it") } else { ("were", "them") };
+        Some(format!("DWG: {what} couldn't be read and {were} left out ({}); saving over the original file would lose {them}", list.join(", ")))
     }
     fn count(&mut self, type_name: &str) {
         *self.by_type.entry(type_name.to_string()).or_default() += 1;
@@ -77,8 +105,8 @@ pub fn read(bytes: &[u8]) -> Result<(Drawing, Unread)> {
     d.header.set_str("ACADVER", file.version_code());
     // A file without the variable (before AutoCAD 2000) has no units.
     d.header.set_i64("INSUNITS", 0);
-    let mut unread = Unread::default();
     let objects: Vec<_> = file.objects().collect();
+    let mut unread = Unread { objects: objects.len(), ..Unread::default() };
     let refs = match header::read(&file, &mut d) {
         Ok(refs) => Some(refs),
         Err(_) => {
@@ -136,6 +164,8 @@ pub fn read(bytes: &[u8]) -> Result<(Drawing, Unread)> {
         &mut d,
         &mut unread,
     );
+    // A block reference's clip, from the kept filter objects, as the DXF reader takes it.
+    crate::dxf_clip::read(&mut d);
     for o in &objects {
         if !done.contains(&o.handle) && !carried.contains(&o.handle) {
             unread.count(&o.type_name);

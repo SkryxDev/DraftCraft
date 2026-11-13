@@ -124,9 +124,7 @@ fn read_dwg_source(bytes: &[u8], reader: DwgReader) -> Result<(Drawing, Option<V
     let limits = draftcraft_dwg::Limits::DEFAULT;
     if reader == DwgReader::Direct {
         let (mut d, unread) = dwg::read(bytes)?;
-        if !unread.is_empty() {
-            d.read_notes.push(format!("DWG: left out of the drawing: {}", unread.summary()));
-        }
+        d.read_notes.extend(unread.note());
         return Ok((d, None));
     }
     if reader != DwgReader::Acadrust {

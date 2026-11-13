@@ -689,7 +689,7 @@ pub(crate) fn mesh_faces_of(verts: &[Vec3], size: Option<(i64, i64)>, smooth: Op
 /// A HELIX (DXF Reference): the axis base point, start point, axis, radius, turns, turn height,
 /// handedness and constraint after the AcDbHelix marker; the top radius is how far the end of its
 /// spline (AcDbSpline: the last control point, else fit point) lies from the axis.
-fn helix(tags: &[Tag]) -> Helix {
+pub(crate) fn helix(tags: &[Tag]) -> Helix {
     let hs = tags.iter().position(|t| t.code == 100 && t.str() == "AcDbHelix").unwrap_or(tags.len());
     let ss = tags.iter().position(|t| t.code == 100 && t.str() == "AcDbSpline").unwrap_or(0).min(hs);
     let spline = tags.get(ss..hs).unwrap_or(&[]);
