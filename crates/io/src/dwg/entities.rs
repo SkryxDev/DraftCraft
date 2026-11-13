@@ -67,6 +67,8 @@ struct Decoded {
     /// The colour book colour's true colour and names, kept for saving (as the DXF reader keeps
     /// group 430).
     color_book: Option<(String, String)>,
+    /// A leader to text: its hook direction flag and x direction ([`add_hook_lines`]).
+    leader_hook: Option<(bool, Vec2)>,
     partial: Vec<&'static str>,
 }
 
@@ -239,6 +241,11 @@ fn xdata(blocks: &[XDataBlock], n: &Names, partial: &mut Vec<&'static str>) -> V
             partial.push("extended data read as properties");
             continue;
         }
+        // A spline's method and knot spacing that an older version's file keeps for AutoCAD 2013
+        // and later: AutoCAD's DXF of the file has none of it.
+        if name.eq_ignore_ascii_case("ACAD_SPLINE_DATA") {
+            continue;
+        }
         let mut groups = vec![RawTag { code: 1001, value: name.clone() }];
         let (mut depth, mut ok) = (0i32, true);
         // AutoCAD's round-trip data are properties (`common`), not kept as groups.
@@ -357,7 +364,9 @@ enum Body {
     /// extended data (origin, background, a gradient DraftCraft wrote there).
     Hatch(Box<Hatch>, Vec<u32>, Vec<RawPatternLine>),
     /// A leader, waiting for its dimension style.
-    Leader(Box<Leader>),
+    /// A leader, and what its hook line needs when its annotation is text: the hook direction
+    /// flag and the annotation's x direction.
+    Leader(Box<Leader>, Option<(bool, Vec2)>),
     /// A feature control frame, waiting for its dimension style.
     Tolerance(Box<Tolerance>),
     /// A multiline, waiting for its style.
@@ -442,6 +451,7 @@ fn raster(r: &mut ObjectReader, wipeout: bool) -> DwgResult<Shape> {
             let [x, y] = r.rd2()?;
             clip.push(Vec2::new(x, y));
         }
+        clip = closed_polygon(clip);
     }
     let normal = UP;
     if wipeout {
@@ -561,7 +571,7 @@ fn bounded(r: &mut ObjectReader, n: u32, max: u32, min_bits: usize, what: &str) 
 fn leader(r: &mut ObjectReader) -> DwgResult<Shape> {
     let ver = r.version();
     let _unknown = r.b()?;
-    let _annotation_type = r.bs()?;
+    let annotation_type = r.bs()?;
     let path_type = r.bs()?;
     let n = r.bl()?;
     let n = bounded(r, n, MAX_MLEADER_ITEMS, 6, "leader vertex")?;
@@ -571,7 +581,7 @@ fn leader(r: &mut ObjectReader) -> DwgResult<Shape> {
     }
     let _origin = r.bd3()?;
     let normal = v3(r.bd3()?);
-    let _x_direction = r.bd3()?;
+    let x_direction = r.bd3()?;
     let _block_offset = r.bd3()?;
     if ver >= V::R14 {
         let _annotation_offset = r.bd3()?;
@@ -585,7 +595,7 @@ fn leader(r: &mut ObjectReader) -> DwgResult<Shape> {
         let _text_height = r.bd()?;
         let _text_width = r.bd()?;
     }
-    let _hookline_on_x = r.b()?;
+    let hook_on_x = r.b()?;
     let arrow = r.b()?;
     if ver <= V::R14 {
         let _arrowhead_type = r.bs()?;
@@ -595,7 +605,10 @@ fn leader(r: &mut ObjectReader) -> DwgResult<Shape> {
         let _ = (r.bs()?, r.b()?, r.b()?);
     }
     let l = Leader { vertices, arrow, spline: path_type == 1, style: "Standard".into() };
-    Ok(Shape { body: Body::Leader(Box::new(l)), thickness: 0.0, normal })
+    // A straight leader to text (annotation type 0) may end in a hook line ([`add_hook_lines`]).
+    let x = Vec2::new(x_direction[0], x_direction[1]);
+    let hook = (annotation_type == 0 && path_type == 0 && x.is_finite() && x.len() > 1e-12).then(|| (hook_on_x, x.normalized()));
+    Ok(Shape { body: Body::Leader(Box::new(l), hook), thickness: 0.0, normal })
 }
 
 /// TOLERANCE (§20.4.49): the frame's insertion point, direction and contents. AutoCAD R13 and
@@ -607,7 +620,9 @@ fn tolerance(r: &mut ObjectReader) -> DwgResult<Shape> {
     let insert = v3(r.bd3()?);
     let dir = v3(r.bd3()?);
     let normal = v3(r.bd3()?);
-    let text: String = r.text()?.chars().take(MAX_FRAME_CHARS).collect();
+    // A line break of the frame is `^J` in the drawing, as in AutoCAD's DXF; the DWG stores the
+    // character itself.
+    let text = frame_text(&r.text()?);
     let dir = if dir.xy().is_finite() && dir.xy().len() > 1e-12 { dir } else { Vec3::new(1.0, 0.0, 0.0) };
     let t = Tolerance { insert, dir, style: "Standard".into(), text };
     Ok(Shape { body: Body::Tolerance(Box::new(t)), thickness: 0.0, normal })
@@ -1235,16 +1250,22 @@ fn spline(r: &mut ObjectReader) -> DwgResult<Shape> {
     let ver = r.version();
     let mut scenario = r.bl()?;
     let mut closed = false;
+    let mut knot_param = None;
     if ver >= V::R2013 {
         let flags = r.bl()?;
-        let knot_param = r.bl()?;
+        let param = r.bl()?;
         if flags & 1 != 0 {
             scenario = 2;
         }
-        if knot_param == 15 {
+        if param == 15 {
             scenario = 1;
         }
         closed = flags & 4 != 0;
+        knot_param = Some(match param {
+            1 => draftcraft_geom::KnotParam::SqrtChord,
+            2 => draftcraft_geom::KnotParam::Uniform,
+            _ => draftcraft_geom::KnotParam::Chord,
+        });
     }
     let degree = usize::try_from(r.bl()?).unwrap_or(3);
     let (mut knots, mut control, mut weights, mut fit) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
@@ -1261,6 +1282,14 @@ fn spline(r: &mut ObjectReader) -> DwgResult<Shape> {
             let n = r.count(n, 6, "SPLINE fit point")?;
             for _ in 0..n {
                 fit.push(flat(r.bd3()?));
+            }
+            // From AutoCAD 2013 on the tangents are the curve's end derivatives, length included,
+            // and the file says how the knots are spaced: the control points are AutoCAD's (its
+            // DXF lists them).
+            if let Some(knots) = knot_param.filter(|_| !closed && fit.len() >= 2) {
+                let opts = draftcraft_geom::FitOptions { knots, tolerance: tolerance.max(0.0), ..Default::default() };
+                let sp = draftcraft_geom::Spline::fit_with_derivatives(&fit, opts, start_tangent, end_tangent);
+                return Ok(ready(EntityKind::Spline(sp), 0.0, UP));
             }
         }
         1 => {
@@ -1867,6 +1896,7 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
         Ok(n.tables.styles.get(&h).cloned().unwrap_or_else(|| "Standard".into()))
     };
     let (mut attrib, mut attribs, mut polyline, mut vertex, mut mleader_attribs) = (None, None, None, None, None);
+    let mut leader_hook = None;
     let mut paper_view = false;
     let mut held = Vec::new();
     let kind = match body {
@@ -2016,10 +2046,11 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
             paper_view = crate::dxf_ext::is_paper_view(&tags);
             Some(EntityKind::Viewport(*v))
         }
-        Body::Leader(mut l) => {
-            let _annotation = r.reference()?;
+        Body::Leader(mut l, hook) => {
+            let annotation = r.reference()?;
             let style = r.reference()?;
             l.style = n.tables.dim_styles.get(&style).cloned().unwrap_or_else(|| "Standard".into());
+            leader_hook = hook.filter(|_| annotation != 0);
             Some(EntityKind::Leader(*l))
         }
         Body::Tolerance(mut t) => {
@@ -2105,7 +2136,7 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
     if entity.as_ref().is_some_and(|e| reads_own_data(&e.kind)) {
         partial.retain(|p| *p != DRAFTCRAFT_DATA);
     }
-    Ok((Decoded { entity, attrib, attribs, polyline, vertex, mleader_attribs, paper_view, held, partial, ..Decoded::default() }, refs))
+    Ok((Decoded { entity, attrib, attribs, polyline, vertex, mleader_attribs, paper_view, held, leader_hook, partial, ..Decoded::default() }, refs))
 }
 
 /// Each layout's viewports numbered in their order, the first (the sheet) 1, as a DXF file
@@ -2154,6 +2185,82 @@ fn finish_tables(d: &mut Drawing, tables: Vec<(Handle, Option<String>, Option<Op
     }
 }
 
+/// A leader to text ends in a hook line when its last segment is more than 15 degrees from the
+/// text's horizontal (AutoCAD's documented landing rule): a segment of the arrow size (DIMASZ ×
+/// DIMSCALE of its style) along the x direction, towards the end, opposite the x direction unless
+/// the hook flag says along it. The DWG stores the leader without it; AutoCAD's DXF lists its
+/// first point before the last vertex (group 75 set), which is how the drawing holds it. Seen in
+/// AutoCAD's own sample (LEADER 512 of ACadSharp's samples, every version).
+fn add_hook_lines(d: &mut Drawing, hooks: &[(Handle, bool, Vec2)]) {
+    if hooks.is_empty() {
+        return;
+    }
+    let by: HashMap<Handle, (bool, Vec2)> = hooks.iter().map(|&(h, on_x, x)| (h, (on_x, x))).collect();
+    let dimscale = d.header.f64("DIMSCALE", 1.0);
+    let start_of = |e: &Entity| -> Option<Vec3> {
+        let (&(on_x, x), EntityKind::Leader(l)) = (by.get(&e.handle)?, &e.kind) else { return None };
+        let style = d.dim_style(&l.style).cloned().unwrap_or_default();
+        hook_start(&l.vertices, x, on_x, style.arrow_size * style.effective_scale(dimscale))
+    };
+    let spaces: Vec<(Handle, Vec3)> =
+        d.model.iter().chain(d.layouts.iter().flat_map(|l| l.entities.iter())).filter_map(|e| start_of(e.as_ref()).map(|p| (e.handle, p))).collect();
+    let mut in_blocks: Vec<(String, Handle, Vec3)> = Vec::new();
+    for (name, b) in &d.blocks {
+        in_blocks.extend(b.entities.iter().filter_map(|e| start_of(e.as_ref()).map(|p| (name.clone(), e.handle, p))));
+    }
+    let insert = |e: &mut Entity, p: Vec3| {
+        if let EntityKind::Leader(l) = &mut e.kind {
+            let at = l.vertices.len().saturating_sub(1);
+            l.vertices.insert(at, p);
+        }
+    };
+    for (h, p) in spaces {
+        let _ = d.modify_entity(h, |e| insert(e, p));
+    }
+    for (name, h, p) in in_blocks {
+        if let Some(b) = d.blocks.get_mut(&name) {
+            std::sync::Arc::make_mut(b).entities.modify(h, |e| insert(e, p));
+        }
+    }
+}
+
+/// The first point of a leader's hook line, which goes before its last vertex: `len` from the
+/// end along the text's x direction `x`, the other way unless `on_x`. `None` when the last
+/// segment is within 15 degrees of that direction (it is the landing itself) or the leader is
+/// degenerate.
+fn hook_start(vertices: &[Vec3], x: Vec2, on_x: bool, len: f64) -> Option<Vec3> {
+    let a = vertices.get(vertices.len().checked_sub(2)?)?;
+    let b = vertices.last()?;
+    let seg = b.xy() - a.xy();
+    if !(len.is_finite() && len > 0.0 && x.is_finite() && seg.is_finite() && seg.len() > 1e-12 && x.len() > 1e-12) {
+        return None;
+    }
+    let x = x.normalized();
+    let off = seg.normalized().dot(x).clamp(-1.0, 1.0).abs().acos();
+    if off <= 15f64.to_radians() + 1e-9 {
+        return None;
+    }
+    let p = b.xy() + x * (if on_x { len } else { -len });
+    Some(Vec3::new(p.x, p.y, b.z))
+}
+
+/// A tolerance frame's text as the drawing holds it: each line break `^J`, as in AutoCAD's DXF
+/// (the DWG stores the character itself, which the DXF writer could only make a space).
+fn frame_text(raw: &str) -> String {
+    raw.replace("\r\n", "\n").replace(['\r', '\n'], "^J").chars().take(MAX_FRAME_CHARS).collect()
+}
+
+/// A polygon clip boundary closed, its first vertex again at the end, as AutoCAD's DXF lists it
+/// and the drawing holds it (the DWG stores it open). Two corners (a rectangle) stay two.
+fn closed_polygon(mut clip: Vec<Vec2>) -> Vec<Vec2> {
+    if let (true, Some(&first), Some(&last)) = (clip.len() >= 3, clip.first(), clip.last())
+        && first != last
+    {
+        clip.push(first);
+    }
+    clip
+}
+
 /// The colour book names of the entities placed (`read`), kept as the DXF reader keeps them.
 fn keep_color_books(d: &mut Drawing, books: Vec<(Handle, (String, String))>, read: &HashSet<u64>) {
     for (h, book) in books {
@@ -2175,6 +2282,7 @@ struct Waiting {
     paper_views: HashSet<Handle>,
     tables: Vec<(Handle, Option<String>, Option<Option<String>>)>,
     color_books: Vec<(Handle, (String, String))>,
+    hooks: Vec<(Handle, bool, Vec2)>,
 }
 
 impl Waiting {
@@ -2203,6 +2311,9 @@ impl Waiting {
         }
         if let Some(book) = dec.color_book {
             self.color_books.push((Handle(h), book));
+        }
+        if let Some((on_x, x)) = dec.leader_hook {
+            self.hooks.push((Handle(h), on_x, x));
         }
         dec.entity
     }
@@ -2282,7 +2393,7 @@ pub(super) fn read(
         }
         handles
     };
-    let Waiting { mut attribs, lists, mut vertices, polylines, mleader_attribs, paper_views, tables, color_books } = waiting;
+    let Waiting { mut attribs, lists, mut vertices, polylines, mleader_attribs, paper_views, tables, color_books, hooks } = waiting;
     for (h, kind, c, list) in polylines {
         let handles = walk(&list, &places);
         let Some(found) = handles.iter().map(|v| vertices.remove(v)).collect::<Option<Vec<_>>>() else {
@@ -2405,6 +2516,7 @@ pub(super) fn read(
     number_viewports(d, &paper_views);
     finish_tables(d, tables);
     keep_color_books(d, color_books, &read);
+    add_hook_lines(d, &hooks);
     // The multileaders' block attribute values, placed like the attribute definitions of their
     // blocks, by the DXF reader's rule.
     crate::dxf_mleader::apply(d, &mleader_attribs, &HashMap::new());
@@ -2437,6 +2549,48 @@ mod tests {
         // 0xC02A: colour 42 of a book; 0xC2E29000: the true colour E29000.
         assert_eq!(u32::from_ne_bytes((-1_025_339_392i32).to_ne_bytes()), 0xC2E2_9000);
         assert_eq!(-16342i16 & 0x01FF, 42);
+    }
+
+    /// AutoCAD's LEADER 512 (ACadSharp's samples): the DWG stores three vertices, AutoCAD's DXF
+    /// four, the hook line's first point 2.5 (DIMASZ of ISO-25) before the last, opposite the x
+    /// direction (hook flag clear).
+    #[test]
+    fn a_leader_to_text_gets_autocads_hook_line() {
+        let v = [
+            Vec3::new(717.868_715_432_339_7, 2.941_179_455_067_987, 0.0),
+            Vec3::new(729.268_117_078_097_2, 48.538_786_038_098_59, 0.0),
+            Vec3::new(740.398_750_025_284_9, 14.071_812_402_255_56, 0.0),
+        ];
+        let p = hook_start(&v, Vec2::new(1.0, 0.0), false, 2.5).expect("a hook line");
+        assert!((p.x - 737.898_750_025_284_9).abs() < 1e-9 && (p.y - 14.071_812_402_255_56).abs() < 1e-9, "{p:?}");
+        // The hook flag set: the other way.
+        assert!(hook_start(&v, Vec2::new(1.0, 0.0), true, 2.5).is_some_and(|p| (p.x - 742.898_750_025_284_9).abs() < 1e-9));
+        // A last segment within 15 degrees of the text's direction is the landing itself.
+        let flat = [Vec3::new(0.0, 0.0, 0.0), Vec3::new(10.0, 2.0, 0.0)];
+        assert_eq!(hook_start(&flat, Vec2::new(1.0, 0.0), false, 2.5), None);
+        assert_eq!(hook_start(&v[..1], Vec2::new(1.0, 0.0), false, 2.5), None);
+        assert_eq!(hook_start(&v, Vec2::new(f64::NAN, 0.0), false, 2.5), None);
+        assert_eq!(hook_start(&v, Vec2::new(1.0, 0.0), false, 0.0), None);
+    }
+
+    /// AutoCAD's TOLERANCE 823 stores "99", a line break and "a"; its DXF has `99^Ja`.
+    #[test]
+    fn a_frame_line_break_is_caret_j() {
+        assert_eq!(frame_text("99\na"), "99^Ja");
+        assert_eq!(frame_text("1\r\n2\r3"), "1^J2^J3");
+        assert_eq!(frame_text("one line"), "one line");
+    }
+
+    /// AutoCAD's WIPEOUT 44D stores four clip vertices; its DXF lists five, the first again.
+    #[test]
+    fn a_polygon_clip_is_closed_and_a_rectangle_is_not() {
+        let open = vec![Vec2::new(-0.5, 0.5), Vec2::new(0.33, 0.49), Vec2::new(0.25, -0.21), Vec2::new(-0.48, -0.5)];
+        let closed = closed_polygon(open.clone());
+        assert_eq!(closed.len(), 5);
+        assert_eq!(closed.first(), closed.last());
+        assert_eq!(closed_polygon(closed.clone()), closed);
+        let corners = vec![Vec2::new(-0.5, -0.5), Vec2::new(9.5, 9.5)];
+        assert_eq!(closed_polygon(corners.clone()), corners);
     }
 
     /// A sequence that is not the round-trip data's shape is other data, kept as it is.

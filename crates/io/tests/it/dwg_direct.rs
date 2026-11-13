@@ -1632,3 +1632,44 @@ fn autocad_samples_colour_book_colours() {
         }
     }
 }
+
+/// AutoCAD's own sample drawings (as [`autocad_samples_colour_book_colours`]): entities read as
+/// AutoCAD's DXF of the same drawing has them, in every version. The leader gets its hook line,
+/// the wipeout its closed boundary, the tolerance frame its `^J` line breaks, and the spline that
+/// AutoCAD 2013 and later store as fit points and end derivatives AutoCAD's control points.
+#[test]
+fn autocad_samples_entities_read_as_autocads_dxf() {
+    use draftcraft_doc::{EntityKind, Handle};
+    let Some(dir) = std::env::var_os("DRAFTCRAFT_DWG_SAMPLES").map(std::path::PathBuf::from) else {
+        eprintln!("DRAFTCRAFT_DWG_SAMPLES is not set: AutoCAD's sample drawings skipped");
+        return;
+    };
+    let near = |a: f64, b: f64| (a - b).abs() < 1e-9;
+    for code in ["AC1015", "AC1018", "AC1024", "AC1027", "AC1032"] {
+        let bytes = std::fs::read(dir.join(format!("sample_{code}.dwg"))).unwrap_or_else(|e| panic!("{code}: {e}"));
+        let (d, _) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{code}: {e}"));
+        let kind = |h: u64| d.entity(Handle(h)).map(|e| e.kind.clone()).unwrap_or_else(|| panic!("{code}: {h:X} is read"));
+        let EntityKind::Leader(l) = kind(0x512) else { panic!("{code}: LEADER 512") };
+        let xs: Vec<f64> = l.vertices.iter().map(|v| v.x).collect();
+        assert_eq!(xs.len(), 4, "{code}: AutoCAD's DXF lists four vertices: {xs:?}");
+        assert!(near(xs[2], 737.898_750_025_284_9) && near(xs[3], 740.398_750_025_284_9), "{code}: {xs:?}");
+        let EntityKind::Wipeout(w) = kind(0x44D) else { panic!("{code}: WIPEOUT 44D") };
+        assert_eq!(w.boundary.len(), 5, "{code}: AutoCAD's DXF lists five clip vertices");
+        assert_eq!(w.boundary.first(), w.boundary.last(), "{code}");
+        let EntityKind::Tolerance(t) = kind(0x823) else { panic!("{code}: TOLERANCE 823") };
+        assert_eq!(t.text, "99^Ja", "{code}");
+        let EntityKind::Spline(s) = kind(0x434) else { panic!("{code}: SPLINE 434") };
+        let want = [
+            (250.458_790_783_224_1, 17.426_024_184_844_77),
+            (254.713_771_109_526_1, 28.254_981_364_991_63),
+            (259.387_964_086_943_8, 17.503_121_515_419_48),
+            (259.224_551_110_004_1, 27.287_504_552_472_21),
+        ];
+        assert_eq!(s.control.len(), 4, "{code}");
+        for (c, (x, y)) in s.control.iter().zip(want) {
+            assert!(near(c.x, x) && near(c.y, y), "{code}: control point {c:?}, AutoCAD's ({x}, {y})");
+        }
+        // No entity keeps AutoCAD's round-trip spline data as extended data.
+        assert!(d.model.iter().all(|e| !e.common.xdata.iter().any(|t| t.code == 1001 && t.value == "ACAD_SPLINE_DATA")), "{code}");
+    }
+}
