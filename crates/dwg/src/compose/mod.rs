@@ -4,8 +4,10 @@
 //! version asked for stores it.
 
 mod object;
+mod sections;
 
 pub use object::{EntityStart, ObjectWriter, Ref, TextEncoding, frame, method_word};
+pub use sections::{Class, class_versions, classes_section, header_section, object_map};
 
 #[cfg(test)]
 mod tests;

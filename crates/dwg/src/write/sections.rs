@@ -78,7 +78,7 @@ fn julian(v: f64) -> (u32, u32) {
 
 /// Default values of the header variables for a drawing that has none
 /// (AutoCAD's own defaults, as an imperial drawing carries them).
-fn default_text(name: &str) -> &'static str {
+pub(crate) fn default_text(name: &str) -> &'static str {
     match name {
         "UNKNOWN_BD_412148564080" => "412148564080",
         "UNKNOWN_BD_1A" | "UNKNOWN_BD_1B" | "UNKNOWN_BD_1C" => "1",

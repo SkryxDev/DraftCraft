@@ -482,9 +482,7 @@ impl ObjectWriter {
             self.strs.text16(clip16(s));
             self.has_strings = true;
         } else {
-            let mut bytes = (self.text.ansi)(s, self.codepage);
-            bytes.truncate(usize::from(u16::MAX));
-            self.dat.text8(&bytes);
+            self.dat.text8(&terminated((self.text.ansi)(s, self.codepage)));
         }
     }
     /// 8-bit text in the file's code page, as its bytes (for a field that stores its own length).
@@ -570,6 +568,20 @@ impl ObjectWriter {
         let total = w.position();
         frame(ver, &w.into_bytes(), (total - end) as u64)
     }
+}
+
+/// 8-bit text as a field stores it: with the 0 that ends it, which the length counts; an empty
+/// text is no bytes at all. As AutoCAD writes it.
+pub(super) fn terminated(mut bytes: Vec<u8>) -> Vec<u8> {
+    if let Some(end) = bytes.iter().position(|b| *b == 0) {
+        bytes.truncate(end);
+    }
+    if bytes.is_empty() {
+        return bytes;
+    }
+    bytes.truncate(usize::from(u16::MAX) - 1);
+    bytes.push(0);
+    bytes
 }
 
 /// The start of `s` that fits a text field's 16-bit length.
