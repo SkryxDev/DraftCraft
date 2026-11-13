@@ -2017,14 +2017,9 @@ fn shape(r: &mut ObjectReader, type_name: &str, partial: &mut Vec<&'static str>)
         "VERTEX_3D" | "VERTEX_MESH" | "VERTEX_PFACE" => vertex_3d(r)?,
         "VERTEX_PFACE_FACE" => pface_face(r)?,
         "SPLINE" => spline(r)?,
-        "HELIX" => helix(r)?,
         "HATCH" => hatch(r)?,
         "LEADER" => leader(r)?,
         "TOLERANCE" => tolerance(r)?,
-        "OLE2FRAME" => ole2frame(r)?,
-        "3DSOLID" => return modeler(r, "3DSOLID"),
-        "REGION" => return modeler(r, "REGION"),
-        "BODY" => return modeler(r, "BODY"),
         "MULTILEADER" => mleader(r)?,
         "VIEWPORT" => return viewport(r),
         "IMAGE" => raster(r, false)?,
@@ -2040,8 +2035,21 @@ fn shape(r: &mut ObjectReader, type_name: &str, partial: &mut Vec<&'static str>)
         "3DFACE" => face3d(r)?,
         "XLINE" => ray_line(r, false)?,
         "RAY" => ray_line(r, true)?,
-        _ => return Ok(None),
+        _ => return more_shapes(r, type_name),
     }))
+}
+
+/// The entity types added after the first: a helix, and the types the drawing keeps as their
+/// DXF groups without modelling them.
+fn more_shapes(r: &mut ObjectReader, type_name: &str) -> DwgResult<Option<Shape>> {
+    match type_name {
+        "HELIX" => helix(r).map(Some),
+        "OLE2FRAME" => ole2frame(r).map(Some),
+        "3DSOLID" => modeler(r, "3DSOLID"),
+        "REGION" => modeler(r, "REGION"),
+        "BODY" => modeler(r, "BODY"),
+        _ => Ok(None),
+    }
 }
 
 /// A table (ACAD_TABLE): its block reference's fields, then its own, read with its references
