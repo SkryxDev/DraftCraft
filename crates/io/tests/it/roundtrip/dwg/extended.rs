@@ -74,7 +74,6 @@ fn layer_appearance() {
     check(properties::layer_appearance());
 }
 #[test]
-#[ignore = "Confirmed DWG loss: named layer plot style Review becomes Normal"]
 fn layer_plot_styles() {
     check(properties::layer_plot_styles());
 }
@@ -239,17 +238,14 @@ fn wipeout_implicit_closure() {
     }
 }
 #[test]
-#[ignore = "Confirmed shared DXF loss: LEADER vertex Z coordinates become zero"]
 fn leaders_3d() {
     check(geometry::leaders(true));
 }
 #[test]
-#[ignore = "Confirmed shared DXF loss: ATTRIB constant flag becomes false"]
 fn constant_attributes() {
     check(blocks::attributes("constant"));
 }
 #[test]
-#[ignore = "Confirmed DWG loss: a space following an MTEXT caret is consumed"]
 fn mtext_carets() {
     check(geometry::mtext_carets());
 }
@@ -334,7 +330,6 @@ fn header_variables() {
     collection(collections::headers(), collections::assert_headers);
 }
 #[test]
-#[ignore = "Confirmed DWG loss: current layer CLAYER becomes 0"]
 fn header_current_layer() {
     collection(collections::named_header_reference("CLAYER"), collections::assert_headers);
 }

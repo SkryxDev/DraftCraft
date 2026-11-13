@@ -84,6 +84,7 @@ wrote in every version.
 | 10 | LEADER, TOLERANCE, MULTILEADER (with styles and block content) |
 | 11 | VIEWPORT, IMAGE, WIPEOUT, PDFUNDERLAY, MLINE and MLINESTYLE, ACAD_TABLE (both forms), DraftCraft's regions |
 | 12a | The named-object dictionary: dictionaries, XRECORDs, scales, dictionary variables, groups, wipeout and raster variables, plot-style names, table styles, multileader styles, colour-book colours (DBCOLOR); DraftCraft's own records (constraints, layer states, plot styles, annotation); objects under a dictionary DraftCraft has no type for, kept with their DXF groups as the DXF reader keeps them |
+| 12b | Extension dictionaries and reactors of entities, table records, tables and block records, with the objects under them, by the DXF reader's rule; the roles of the handles kept data refers to; an entity's material; other applications' extended data on table and block records; block clips (SPATIAL_FILTER); OLE objects (OLE2FRAME), kept as their DXF groups; HELIX; 3DSOLID, REGION and BODY whose description is text (up to AutoCAD 2010) |
 | 13 | The AutoCAD 2007 (AC1021) container: the file header, page map and section map as Reed-Solomon codewords (the data bytes are taken, the parity is not checked), the 2007 compression, sections reassembled from their pages |
 
 ## The plan to full fidelity
@@ -93,7 +94,7 @@ DWG fidelity is complete when every object of a real file is in the drawing (not
 
 | Step | What | Shows today as |
 |---|---|---|
-| 12 | Objects: dictionaries, XRECORD, groups, scales, visual styles, materials, multileader and table styles, draw order, clipping, extension dictionaries, reactors, layer plot styles; a raw carry for what the drawing has no type for (custom entities and objects, ACIS solids and regions) | `DICTIONARY`, `XRECORD`, `SCALE`… in the read notes of every AutoCAD file; DraftCraft's constraints and layer states, which live in XRECORDs, don't survive a DWG round trip yet |
+| 12c | What a real file still leaves in the read note: the solid modeler's binary description (2004 and later) and the 2013-and-later data store (ACDSDATA) of 3DSOLID, REGION and BODY; dynamic-block objects (the evaluation graph, parameters, actions and grips); MESH and SHAPE; draw order (SORTENTSTABLE); MATERIAL, VISUALSTYLE and the section and detail view styles before 2013; CELLSTYLEMAP, TABLECONTENT and TABLEGEOMETRY; an entity's plot style | Named in the read note of the file, by type; four io tests fail on them (`acis_data_store` × 2, `dynblock_read` × 2) |
 | 14 | The switch-over: the direct reader as the default (done on `dwg-direct-reader-on`), the old paths removed | |
 | 15–16 | DraftCraft's own DWG writer (objects as 2018, sections and container, a read-back check on every save) | |
 | 17 | The other save versions | |
@@ -195,14 +196,28 @@ Each was found by these tests, fixed, and has a test of its own:
 | Step 11 tests | A file with two block records called `*Paper_Space` put a layout's entities on the wrong tab | The active paper space is the one the block control names |
 | Step 10 tests | Dictionaries from 2007 on, and some hatch and multileader lists, refused as too long for their record | Per-item minimum sizes that hold for the smallest real record |
 
-Found outside the reader:
+Found on AutoCAD's own files while finishing steps 12 and 13 (each fixed, with a test):
 
-- With acadrust disabled, a 2007-2009 file (AC1021) can't be opened until step 13 (acadrust reads
-  them).
+| Found by | What was wrong | Fix |
+|---|---|---|
+| AutoCAD's *Active viewport (ACadSharp samples) | A VPORT's aspect ratio read as 2988 where the DXF has 2.716 | The record holds the view's width; the ratio is the width over the height |
+| AutoCAD's MTEXT 3EC, and `mtext_caret_spaces` | `^ C` read back as `^C` | DWG text is stored as it is (a line feed is the character); the DXF escapes `^ `, `^I`, `^J` are not decoded in it |
+| AutoCAD's multiline ATTDEF 796 | The embedded text's style read as the attribute's | The embedded text has its own handles (owner, layer, linetype, material) before its text style |
+| MI-201 R14 | TABLESTYLE not decoded | Its colours are true-colour records in every version |
+| R2000 and R2004 files | XRECORD "value runs past its data" | A string's length is 16 bits, then a code page byte (reader and writer) |
+| `dim_block_resave` | Opening and saving a DWG again moved the handle seed, so each save differed | A file DraftCraft wrote names its next handle; the reader follows it, as the DXF reader does |
+| MI-201 2013 and later | `header $UNKNOWN_H_R2013` in every read note | The handle AutoCAD 2013 added to the header is null in AutoCAD's files and has no DXF variable: not a variable |
+
+Where the DWG reading and AutoCAD's DXF of the same drawing still differ by design:
+
+- A solid's text names the date it was saved; AutoCAD's DXF writes that field empty. The DWG
+  reading keeps what the file holds.
+- `$XCLIPFRAME` in 2004 and 2007: the DXF holds a yes/no and keeps the value in a dictionary
+  variable; the DWG header holds the value (2).
+
+Found outside the reader:
 - Opening a file that can't be read reports "invalid parameters for `open`: …" before the reason
   (the engine wraps every reading error as bad parameters).
-- Files from AutoCAD 2013 on have a header handle no variable name is known for
-  (`header $UNKNOWN_H_R2013` in the read notes).
 
 Found in DraftCraft's current save path (acadrust's writer), for the writer steps: text longer
 than 65,535 characters is cut to its length modulo 65,536 (a 16-bit length). The drawing model
