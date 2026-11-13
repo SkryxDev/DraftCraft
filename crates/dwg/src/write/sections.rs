@@ -504,6 +504,21 @@ fn xml_text(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
 }
 
+/// [`app_info_history`] from a ready property set.
+pub(crate) fn app_info_history_with(props: &str, name: &str, version: &str) -> Vec<u8> {
+    let mut o = APPINFO_HISTORY_START.to_vec();
+    o.extend_from_slice(&0u32.to_le_bytes());
+    tu(&mut o, "AppInfoDataList");
+    o.extend_from_slice(&3u32.to_le_bytes());
+    o.extend_from_slice(&APPINFO_COMMENT);
+    tu(&mut o, &appinfo_comment(name, version));
+    o.extend_from_slice(&APPINFO_PROPERTIES);
+    tu(&mut o, props);
+    o.extend_from_slice(&APPINFO_PRODUCT);
+    tu(&mut o, &appinfo_product(name, version));
+    o
+}
+
 /// AcDb:AppInfoHistory (not in the spec), as AutoCAD 2027 writes it: the
 /// fixed 32 bytes, a zero long, then an application information list of
 /// three entries: the comment, a property set (on a drawing's first save:

@@ -160,3 +160,106 @@ fn probe_header_tail() {
         println!("{name}: ours {} theirs {} diff at {at}\n ours   {:02x?}\n theirs {:02x?}", ours.len(), theirs.len(), &ours[at.saturating_sub(8)..], &theirs[at.saturating_sub(8)..]);
     }
 }
+
+#[test]
+#[ignore]
+fn probe_sections() {
+    for (name, _) in FILES {
+        let bytes = mi201(name);
+        let (_, c) = crate::read::open_container(&bytes).unwrap();
+        println!("== {name}: maint {} cp {} objects {} handles {}", c.maintenance, c.codepage, c.objects.len(), c.handles.len());
+        for s in &c.sections {
+            println!("   section {:?} size {} pages {} compressed {}", s.name, s.size, s.pages, s.compressed);
+        }
+        for (n, d) in &c.others {
+            let show = if d.len() <= 400 { format!("{:02x?}", d) } else { format!("{:02x?} …", &d[..160]) };
+            println!(" {n} ({}): {show}", d.len());
+        }
+        println!(" objects start {:02x?}", &c.objects[..8.min(c.objects.len())]);
+    }
+}
+
+/// The second header of AutoCAD's own 2000 file, from its values.
+#[test]
+fn autocads_second_header_writes_back_byte_for_byte() {
+    let bytes = mi201("mi201-r2000.dwg");
+    let theirs = &bytes[0x1de55..0x1deee];
+    let records = [(0u8, 0x4a8bu32, 0x241u32), (1, 0x4ccc, 0x386), (2, 0x1dafb, 0x35a), (3, 0, 0), (4, 0, 0), (5, 0x61, 0x7b)];
+    let handles = [0x3d24eu64, 0x16, 0x08, 0x0e, 0x04, 0x10, 0x11, 0x02, 0x12, 0x14, 0x3d091, 0x3f, 0x3d0cc, 0x3e];
+    let ours = super::file::second_header(0x1de55, 15, 30, &records, &handles);
+    // The eight bytes after the checksum have no fixed value.
+    let end = ours.len() - 24;
+    assert!(ours.len() == theirs.len() && ours[..end] == theirs[..end], "{}", first_difference(&ours, theirs));
+}
+
+/// Each of AutoCAD's files taken apart and composed again opens with the same objects, classes
+/// and header variables, in its own version.
+#[test]
+fn autocads_files_compose_again() {
+    for (name, ver) in FILES {
+        if ver == V::R2007 {
+            continue;
+        }
+        let bytes = mi201(name);
+        let file = crate::file::DwgFile::open(&bytes).unwrap();
+        let vars = file.header().unwrap().vars;
+        let (_, c) = crate::read::open_container(&bytes).unwrap();
+        let (list, _) = crate::read::classes::parse(&c.classes.clone().unwrap(), ver, c.maintenance, c.codepage).unwrap();
+        let classes: Vec<Class> = list
+            .iter()
+            .map(|c| Class {
+                number: c.number,
+                dxf_name: c.dxf_name.clone(),
+                cpp_name: c.cpp_name.clone(),
+                app_name: c.app_name.clone(),
+                proxy_flags: c.proxy_flags,
+                instance_count: c.instance_count,
+                was_zombie: c.was_zombie,
+                is_entity: c.item_class_id == 0x1F2,
+                versions: (c.dwg_version, c.maintenance_version),
+            })
+            .collect();
+        let objects: Vec<(u64, Vec<u8>)> = file.objects().map(|o| (o.handle, file.object_bytes(&o).unwrap().to_vec())).collect();
+        let seed = objects.iter().map(|o| o.0).max().unwrap() + 1;
+        let props = Properties { last_saved_by: "tester".into(), ..Properties::default() };
+        let parts = Parts {
+            version: ver,
+            codepage: c.codepage,
+            text: TextEncoding::default(),
+            header: &|n| vars.iter().find(|(k, _)| *k == n).map(|(_, v)| v.clone()),
+            classes: &classes,
+            objects: &objects,
+            handseed: seed,
+            measurement: 1,
+            created: 2_460_000.5,
+            updated: 2_460_001.25,
+            editing: 0.01,
+            created_iso: "2023-02-25T00:00:00",
+            updated_iso: "2023-02-25T18:00:00",
+            properties: &props,
+            preview_png: None,
+            preview_bmp: None,
+            app_name: "DraftCraft",
+            app_version: "3.0.0",
+            fonts: &[("txt".into(), 0xF)],
+        };
+        let out = compose(&parts).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let again = crate::file::DwgFile::open(&out).unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert!(again.notes.iter().all(|n| !n.contains("checksum") && !n.contains("CRC")), "{name}: {:?}", again.notes);
+        let before: Vec<(u64, String)> = file.objects().map(|o| (o.handle, o.type_name)).collect();
+        let after: Vec<(u64, String)> = again.objects().map(|o| (o.handle, o.type_name)).collect();
+        assert_eq!(before, after, "{name}");
+        let h = again.header().unwrap();
+        assert!(h.verified, "{name}: the header's handles point at the right objects");
+        assert_eq!(h.measurement, (ver >= V::R2004).then_some(1), "{name}");
+        for ((n, a), (_, b)) in vars.iter().zip(&h.vars) {
+            if *n != "HANDSEED" {
+                assert_eq!(a, b, "{name}: {n}");
+            }
+        }
+        // The first reader, over records, reads every object of the composed file too.
+        let d = crate::read_bytes(&out).unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert_eq!(d.objects.len(), objects.len(), "{name}");
+        assert_eq!(d.header.properties.last_saved_by, if ver >= V::R2004 { "tester" } else { "" }, "{name}");
+    }
+}

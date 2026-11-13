@@ -553,6 +553,18 @@ impl DwgFile {
         Ok(ObjectReader { o: object::open(&ctx, &self.objects, object.offset)? })
     }
 
+    /// One object as the file stores it: its size fields, its data and its checksum.
+    pub fn object_bytes(&self, object: &ObjectRef) -> Option<&[u8]> {
+        let mut r = crate::bits::BitReader::new(&self.objects);
+        r.set_position(object.offset.checked_mul(8)?).ok()?;
+        let size = usize::try_from(r.ms().ok()?).ok()?;
+        if self.version >= read::DwgVersion::R2010 {
+            r.mc_unsigned().ok()?;
+        }
+        let end = (r.position() / 8).checked_add(size)?.checked_add(2)?;
+        self.objects.get(object.offset..end)
+    }
+
     /// Every object of the file, in handle order as the object map lists them.
     pub fn objects(&self) -> impl Iterator<Item = ObjectRef> + '_ {
         self.entries.iter().map(|&(handle, offset)| match object::peek(self.version, &self.objects, offset) {

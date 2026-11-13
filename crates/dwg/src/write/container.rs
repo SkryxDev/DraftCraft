@@ -244,6 +244,11 @@ pub(crate) fn pack_with(info: &FileInfo, sections: &[Section], map_order: &[&str
     h[0x11] = info.app_version;
     h[0x12] = info.app_maintenance;
     h[0x13..0x15].copy_from_slice(&info.codepage.to_le_bytes());
+    // Before AutoCAD 2018 the application version and its 0xFF follow again.
+    if info.app_maintenance == 0xFF {
+        h[0x16] = info.app_version;
+        h[0x17] = 0xFF;
+    }
     put_u32(h, 0x20, at("AcDb:SummaryInfo"));
     put_u32(h, 0x28, 0x80);
     put_u32(h, 0x2C, at("AcDb:AppInfo"));
