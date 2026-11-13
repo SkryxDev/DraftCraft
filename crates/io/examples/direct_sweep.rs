@@ -303,12 +303,35 @@ fn stress(case: &str, n: usize, version: Version) {
     let back = read_dwg_with(&dwg, DwgReader::Direct);
     let read = t.elapsed();
     match back {
-        Err(e) => println!("STRESS {case} n={n} {version:?}: {} MB, save {save:?}; DIRECT READ FAILED after {read:?}: {e}", dwg.len() >> 20),
+        Err(e) => {
+            let other = match read_dwg_with(&dwg, DwgReader::Acadrust) {
+                Ok(a) => format!("acadrust reads the same file ({} entities in model space)", a.model.len()),
+                Err(e) => format!("acadrust can't read it either: {e}"),
+            };
+            println!("STRESS {case} n={n} {version:?}: {} MB, save {save:?}; DIRECT READ FAILED after {read:?}: {e}\n  {other}", dwg.len() >> 20);
+            if let Ok(dir) = std::env::var("SWEEP_KEEP") {
+                std::fs::write(Path::new(&dir).join(format!("{case}-{n}-{version:?}.dwg")), &dwg).ok();
+            }
+        }
         Ok(back) => {
             let saved = write_with(&d, "x.dxf", &SaveOptions::default()).ok().and_then(|b| draftcraft_io::read(&b, "x.dxf").ok()).unwrap_or(d);
             let mut report = Vec::new();
             let same = compare("read back vs saved", &back, &saved, &mut report);
             let content = same && content_same(&back, &saved, &mut report);
+            if !content {
+                // Whose loss: does acadrust's reader get it from the same file?
+                match read_dwg_with(&dwg, DwgReader::Acadrust) {
+                    Ok(a) => {
+                        let mut r = Vec::new();
+                        let a_same = compare("acadrust vs saved", &a, &saved, &mut r) && content_same(&a, &saved, &mut r);
+                        report.push(format!(
+                            "  acadrust reading the same file: {}",
+                            if a_same { "everything came back (the direct reader's loss)" } else { "differs too (the file's)" }
+                        ));
+                    }
+                    Err(e) => report.push(format!("  acadrust can't read it either: {e}")),
+                }
+            }
             println!(
                 "STRESS {case} n={n} {version:?}: {:.1} MB, build {build:?}, save {save:?}, direct read {read:?}, peak memory {}: {}{}",
                 dwg.len() as f64 / 1048576.0,
@@ -342,10 +365,13 @@ fn content_same(a: &Drawing, b: &Drawing, report: &mut Vec<String>) -> bool {
     let differing = ka.iter().zip(&kb).filter(|(x, y)| x != y).count();
     if differing > 0 || ka.len() != kb.len() {
         if let Some((x, y)) = ka.iter().zip(&kb).find(|(x, y)| x != y) {
+            let at = x.chars().zip(y.chars()).position(|(a, b)| a != b).unwrap_or_else(|| x.chars().count().min(y.chars().count()));
             report.push(format!(
-                "  {differing} entities differ; first:\n    read  {}\n    saved {}",
-                x.chars().take(300).collect::<String>(),
-                y.chars().take(300).collect::<String>()
+                "  {differing} entities differ; first (read {} characters, saved {}; they part at {at}):\n    read  …{}\n    saved …{}",
+                x.chars().count(),
+                y.chars().count(),
+                x.chars().skip(at.saturating_sub(60)).take(200).collect::<String>(),
+                y.chars().skip(at.saturating_sub(60)).take(200).collect::<String>()
             ));
         }
         return false;
