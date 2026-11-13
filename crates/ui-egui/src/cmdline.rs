@@ -21,7 +21,7 @@ pub struct CmdLine {
     /// What was typed at command prompts (not command names), oldest first: the in-command
     /// shortcut menu's Recent Input.
     pub recent_input: Vec<String>,
-    /// The expanded history window is open (F2, the chevron, or a click on the history lines).
+    /// The expanded history window is open (F2, the chevron or TEXTSCR).
     pub expanded: bool,
     /// Dragging the history's top edge: (pointer y, line count) when the drag started.
     resize_from: Option<(f32, usize)>,
@@ -43,11 +43,21 @@ pub struct CmdLine {
     ime_generation: u64,
     /// Whether the command line published an IME context last frame.
     ime_on: bool,
+    /// The log's length when the command line last looked, to notice new output.
+    seen_log: usize,
+    /// When the command line was last in use (new output, typing, a command, the pointer on it).
+    active_at: f64,
+    /// How much of the inline history shows (1 = all, 0 = faded away): it fades when idle.
+    lines_alpha: f32,
 }
 
 /// The most history lines the command line shows above its bar.
 pub const MAX_LINES: usize = 12;
 const LINE_H: f32 = 16.0;
+/// Seconds the inline history stays after the command line was last in use, as AutoCAD's floating
+/// command line keeps its prompt history only for a while; then it fades over `FADE` seconds.
+const LINGER: f64 = 6.0;
+const FADE: f64 = 0.6;
 
 /// The Dynamic Input frame for the prompt on screen, or `None` when the value boxes are not live
 /// (Dynamic Input off, no point prompt or a pending selection window).
@@ -453,6 +463,43 @@ fn visible_lines(app: &CadApp, canvas: Rect, bar: Rect) -> usize {
     app.ui.history_lines.min(MAX_LINES).min(available)
 }
 
+/// The inline history lines on screen now: none while the history window is open or once they
+/// have faded.
+fn shown_lines(app: &CadApp, canvas: Rect, bar: Rect) -> usize {
+    if app.cmd.expanded || app.cmd.lines_alpha <= 0.0 { 0 } else { visible_lines(app, canvas, bar).min(app.session.log.len()) }
+}
+
+/// Keep the inline history while the command line is in use (new output, a command running,
+/// typing, resizing, the pointer on the bar) and fade it away `LINGER` seconds after, so it doesn't
+/// sit over the drawing. The pointer over the lines hides them at once, so that strip of the
+/// drawing can be picked and edited; they come back when it leaves (if still in use). Their top
+/// edge stays the resize grip.
+fn wake_lines(app: &mut CadApp, ui: &egui::Ui, canvas: Rect, bar: Rect) {
+    let now = ui.input(|i| i.time);
+    let pointer = ui.input(|i| i.pointer.hover_pos());
+    let n = if app.cmd.expanded { 0 } else { visible_lines(app, canvas, bar).min(app.session.log.len()) };
+    let lines = Rect::from_min_max(pos2(bar.left(), bar.top() - LINE_H * n as f32 + 1.0), pos2(bar.right(), bar.top() - 2.0));
+    let over_lines = n > 0 && app.cmd.resize_from.is_none() && pointer.is_some_and(|p| lines.contains(p));
+    let on_bar = pointer.is_some_and(|p| bar.contains(p));
+    let len = app.session.log.len();
+    if len != app.cmd.seen_log || on_bar || app.session.prompting() || !app.cmd.buffer.is_empty() || app.cmd.resize_from.is_some() {
+        app.cmd.seen_log = len;
+        app.cmd.active_at = now;
+    }
+    let idle = (now - app.cmd.active_at).max(0.0);
+    app.cmd.lines_alpha = if over_lines {
+        0.0
+    } else if idle < LINGER {
+        ui.ctx().request_repaint_after(std::time::Duration::from_secs_f64(LINGER - idle));
+        1.0
+    } else if idle < LINGER + FADE {
+        ui.ctx().request_repaint();
+        (1.0 - (idle - LINGER) / FADE) as f32
+    } else {
+        0.0
+    };
+}
+
 /// Draw the floating command bar and its history over the bottom-centre of `canvas`; the bar is 48 % of the canvas width, clamped to 360–760 points and never wider than the canvas minus 8 points.
 pub fn show(app: &mut CadApp, ui: &mut egui::Ui, canvas: Rect) {
     let t = Tokens::get();
@@ -460,18 +507,27 @@ pub fn show(app: &mut CadApp, ui: &mut egui::Ui, canvas: Rect) {
     let h = 24.0;
     let bar = Rect::from_min_size(pos2(canvas.center().x - w / 2.0, canvas.bottom() - h - 10.0), vec2(w, h));
     let p = ui.painter_at(canvas);
+    wake_lines(app, ui, canvas, bar);
     history(app, ui, canvas, bar);
-    // History lines above the bar (the expanded window replaces them).
-    let n = if app.cmd.expanded { 0 } else { visible_lines(app, canvas, bar) };
+    // History lines above the bar (the expanded window replaces them; they fade when idle).
+    let n = shown_lines(app, canvas, bar);
     let lines: Vec<String> = app.session.log.iter().rev().take(n).rev().cloned().collect();
     if !lines.is_empty() {
-        let lh = 16.0;
-        let hr = Rect::from_min_size(pos2(bar.left(), bar.top() - lh * lines.len() as f32 - 4.0), vec2(w, lh * lines.len() as f32 + 2.0));
-        p.rect_filled(hr, 3.0, t.cmd_history);
+        let a = app.cmd.lines_alpha;
+        let hr = Rect::from_min_size(pos2(bar.left(), bar.top() - LINE_H * lines.len() as f32 - 4.0), vec2(w, LINE_H * lines.len() as f32 + 2.0));
+        p.rect_filled(hr, 3.0, t.cmd_history.gamma_multiply(a));
         for (i, l) in lines.iter().enumerate() {
-            p.text(pos2(hr.left() + 8.0, hr.top() + 1.0 + lh * i as f32), egui::Align2::LEFT_TOP, l, crate::theme::small(), t.text_dim);
+            p.text(
+                pos2(hr.left() + 8.0, hr.top() + 1.0 + LINE_H * i as f32),
+                egui::Align2::LEFT_TOP,
+                l,
+                crate::theme::small(),
+                t.text_dim.gamma_multiply(a),
+            );
         }
     }
+    // What sits above the bar (history lines or window): the AutoComplete list goes above it.
+    let above = zones(app, canvas, bar).above;
     p.rect_filled(bar, 3.0, t.cmd_bg);
     p.rect_stroke(bar, 3.0, Stroke::new(1.0, t.cmd_border), egui::StrokeKind::Inside);
     // Prompt glyph.
@@ -589,10 +645,7 @@ pub fn show(app: &mut CadApp, ui: &mut egui::Ui, canvas: Rect) {
         if !sug.is_empty() {
             let rh = 20.0;
             let lr = Rect::from_min_size(
-                pos2(
-                    bar.left() + 24.0,
-                    bar.top() - 6.0 - rh * sug.len() as f32 - (if lines.is_empty() { 0.0 } else { 16.0 * lines.len() as f32 + 6.0 }),
-                ),
+                pos2(bar.left() + 24.0, bar.top() - 6.0 - rh * sug.len() as f32 - above),
                 vec2((bar.width() - 24.0).max(0.0), rh * sug.len() as f32),
             );
             p.rect_filled(lr, 3.0, t.list_bg);
@@ -631,10 +684,12 @@ struct Zones {
     grip: Rect,
     /// Everything, AutoComplete list included: kept away from the drawing underneath.
     all: Rect,
+    /// How far the history (lines or window) reaches above the bar, gap included.
+    above: f32,
 }
 
 fn zones(app: &CadApp, canvas: Rect, bar: Rect) -> Zones {
-    let n = if app.cmd.expanded { 0 } else { visible_lines(app, canvas, bar).min(app.session.log.len()) };
+    let n = shown_lines(app, canvas, bar);
     let lines =
         (n > 0).then(|| Rect::from_min_size(pos2(bar.left(), bar.top() - LINE_H * n as f32 - 4.0), vec2(bar.width(), LINE_H * n as f32 + 2.0)));
     let window = app.cmd.expanded.then(|| {
@@ -644,22 +699,22 @@ fn zones(app: &CadApp, canvas: Rect, bar: Rect) -> Zones {
         Rect::from_min_size(pos2(bar.left(), bar.top() - h - 4.0), vec2(bar.width(), h + 2.0))
     });
     let top = window.or(lines).map_or(bar.top(), |r| r.top());
+    let above = if top < bar.top() { bar.top() - top + 2.0 } else { 0.0 };
     let grip = Rect::from_min_max(pos2(bar.left(), top - 3.0), pos2(bar.right(), top + 3.0));
     let mut all = bar.union(grip);
     if !app.session.prompting() {
         let k = suggestions(&app.cmd.buffer).len();
         if k > 0 {
-            let above = if n == 0 { 0.0 } else { LINE_H * n as f32 + 6.0 };
             all = all.union(Rect::from_min_size(pos2(bar.left(), bar.top() - 6.0 - 20.0 * k as f32 - above), vec2(bar.width(), 1.0)));
         }
     }
-    Zones { lines, window, chevron: Rect::from_center_size(pos2(bar.right() - 14.0, bar.center().y), vec2(24.0, 22.0)), grip, all }
+    Zones { lines, window, chevron: Rect::from_center_size(pos2(bar.right() - 14.0, bar.center().y), vec2(24.0, 22.0)), grip, all, above }
 }
 
 /// The pointer on the command line: one widget under all of it keeps clicks, drags and the wheel
-/// off the drawing (the keywords and AutoComplete rows sit on top of it). Clicking the history
-/// lines or the chevron opens/closes the history window (`ui.toggle.history`, also F2); dragging
-/// the top edge sets how many lines show (`ui.cmdline.lines`).
+/// off the drawing (the keywords and AutoComplete rows sit on top of it). The chevron opens/closes
+/// the history window (`ui.toggle.history`, also F2), and a click on the drawing closes it;
+/// dragging the top edge of the history lines sets how many show (`ui.cmdline.lines`).
 fn history(app: &mut CadApp, ui: &mut egui::Ui, canvas: Rect, bar: Rect) {
     let z = zones(app, canvas, bar);
     let resp = ui.interact(z.all, ui.scope_id().with("cmdline"), Sense::click_and_drag());
@@ -689,6 +744,16 @@ fn history(app: &mut CadApp, ui: &mut egui::Ui, canvas: Rect, bar: Rect) {
     }
     if resp.clicked() && resp.interact_pointer_pos().is_some_and(on_toggle) {
         let _ = app.run("ui.toggle.history", serde_json::json!({}));
+    }
+    // A click on the drawing closes the history window, as it does in AutoCAD.
+    if app.cmd.expanded
+        && ui.input(|i| i.pointer.any_pressed())
+        && let Some(o) = ui.input(|i| i.pointer.press_origin())
+        && canvas.contains(o)
+        && !z.all.contains(o)
+        && z.window.is_none_or(|w| !w.contains(o))
+    {
+        let _ = app.run("ui.toggle.history", serde_json::json!({ "on": false }));
     }
     crate::shortcut_menus::attach(app, &resp, crate::shortcut_menus::command_line_entries);
     if let Some(r) = zones(app, canvas, bar).window {
@@ -732,6 +797,7 @@ mod tests {
         for i in 0..20 {
             app.session.echo(format!("line {i}"));
         }
+        app.cmd.lines_alpha = 1.0;
         let canvas = Rect::from_min_size(Pos2::ZERO, vec2(300.0, 180.0));
         let w = (canvas.width() * 0.48).clamp(360.0, 760.0).min((canvas.width() - 8.0).max(0.0));
         let bar = Rect::from_min_size(pos2(canvas.center().x - w / 2.0, canvas.bottom() - 34.0), vec2(w, 24.0));
@@ -804,16 +870,20 @@ mod tests {
         let bar = Rect::from_min_size(pos2(canvas.center().x - w / 2.0, canvas.bottom() - 34.0), vec2(w, 24.0));
         let z = zones(&app, canvas, bar);
         let Some(lines) = z.lines else { panic!("three history lines show by default") };
-        // A click on the history lines opens the history window, and doesn't start a selection.
-        for (at, pressed) in [(lines.center(), true), (lines.center(), false)] {
-            frame(&mut app, &ctx, vec![Event::PointerMoved(at)]);
-            press(&mut app, &ctx, at, pressed);
-        }
+        // The pointer over the history lines hides them, leaving that strip to the drawing.
+        frame(&mut app, &ctx, vec![Event::PointerMoved(lines.center())]);
+        assert!(zones(&app, canvas, bar).lines.is_none());
+        frame(&mut app, &ctx, vec![Event::PointerMoved(canvas.center())]);
+        assert!(zones(&app, canvas, bar).lines.is_some(), "and they come back when it leaves");
+        // The chevron opens the history window, and the click doesn't start a selection.
+        let chevron = z.chevron.center();
+        frame(&mut app, &ctx, vec![Event::PointerMoved(chevron)]);
+        press(&mut app, &ctx, chevron, true);
+        press(&mut app, &ctx, chevron, false);
         frame(&mut app, &ctx, Vec::new());
         assert!(app.cmd.expanded);
         assert!(app.session.pending_window.is_none(), "the click stayed on the command line");
         // The chevron closes it; F2 and TEXTSCR open it.
-        let chevron = z.chevron.center();
         press(&mut app, &ctx, chevron, true);
         press(&mut app, &ctx, chevron, false);
         frame(&mut app, &ctx, Vec::new());
@@ -839,6 +909,76 @@ mod tests {
         assert!(!app.cmd.expanded, "a drag isn't a click");
         assert!(app.session.pending_window.is_none());
         assert_eq!(app.run("ui.cmdline.lines", serde_json::json!({"lines": 99})), Ok(serde_json::json!({"lines": MAX_LINES})));
+    }
+
+    fn frame_at(app: &mut CadApp, ctx: &egui::Context, time: f64, events: Vec<Event>) {
+        let raw = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1400.0, 900.0))),
+            time: Some(time),
+            events,
+            ..Default::default()
+        };
+        let mut out = ctx.run_ui(raw, |ui| {
+            app.logic(ui.ctx());
+            app.ui(ui);
+        });
+        out.textures_delta.clear();
+    }
+
+    /// The inline history fades when the command line is idle and comes back with new output or
+    /// the pointer on the bar; AutoComplete sits above the history window, and a click on the
+    /// drawing closes that window.
+    #[test]
+    fn idle_history_fades_and_the_history_window_stays_out_of_the_way() {
+        let mut app = CadApp::new(Session::empty(), crate::Services::default());
+        app.start("ui.sample");
+        for i in 0..20 {
+            app.session.echo(format!("line {i}"));
+        }
+        let ctx = egui::Context::default();
+        frame_at(&mut app, &ctx, 0.0, Vec::new());
+        frame_at(&mut app, &ctx, 0.1, Vec::new());
+        let canvas = app.canvas.rect.unwrap_or(Rect::NOTHING);
+        let w = (canvas.width() * 0.48).clamp(360.0, 760.0).min((canvas.width() - 8.0).max(0.0));
+        let bar = Rect::from_min_size(pos2(canvas.center().x - w / 2.0, canvas.bottom() - 34.0), vec2(w, 24.0));
+        assert!(zones(&app, canvas, bar).lines.is_some(), "fresh output shows");
+        frame_at(&mut app, &ctx, LINGER + FADE / 2.0, Vec::new());
+        assert!(app.cmd.lines_alpha > 0.0 && app.cmd.lines_alpha < 1.0, "fading");
+        frame_at(&mut app, &ctx, LINGER + FADE + 1.0, Vec::new());
+        assert!(zones(&app, canvas, bar).lines.is_none(), "idle history is gone");
+        // The pointer on the bar brings it back; so does new output.
+        frame_at(&mut app, &ctx, 20.0, vec![Event::PointerMoved(bar.center())]);
+        assert!(zones(&app, canvas, bar).lines.is_some());
+        frame_at(&mut app, &ctx, 21.0, vec![Event::PointerMoved(canvas.center())]);
+        frame_at(&mut app, &ctx, 40.0, Vec::new());
+        assert!(zones(&app, canvas, bar).lines.is_none());
+        app.session.echo("news");
+        frame_at(&mut app, &ctx, 41.0, Vec::new());
+        assert!(zones(&app, canvas, bar).lines.is_some());
+        // With the window open, typing lists commands above the window, not over it.
+        let _ = app.run("ui.toggle.history", serde_json::json!({"on": true}));
+        app.cmd.buffer = "point".into();
+        frame_at(&mut app, &ctx, 42.0, Vec::new());
+        let z = zones(&app, canvas, bar);
+        let Some(window) = z.window else { panic!("the window is open") };
+        assert!(z.all.top() < window.top() - 20.0, "the list is above the window");
+        app.cmd.buffer.clear();
+        // A click on the drawing closes the window.
+        let away = pos2(canvas.center().x, canvas.top() + 40.0);
+        frame_at(&mut app, &ctx, 43.0, vec![Event::PointerMoved(away)]);
+        frame_at(
+            &mut app,
+            &ctx,
+            43.1,
+            vec![Event::PointerButton { pos: away, button: PointerButton::Primary, pressed: true, modifiers: egui::Modifiers::default() }],
+        );
+        frame_at(
+            &mut app,
+            &ctx,
+            43.2,
+            vec![Event::PointerButton { pos: away, button: PointerButton::Primary, pressed: false, modifiers: egui::Modifiers::default() }],
+        );
+        assert!(!app.cmd.expanded);
     }
 }
 
