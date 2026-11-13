@@ -1664,6 +1664,18 @@ struct EmbeddedRefs {
     handles: usize,
 }
 
+/// A multiline attribute's text: its own handles (AutoCAD's files: a null owner, the layer, the
+/// linetype, the material), then its text style.
+fn attrib_text(a: &mut Attrib, embedded: Option<EmbeddedRefs>, r: &mut ObjectReader, styles: &HashMap<u64, String>) -> DwgResult<()> {
+    let (Some(e), Some(m)) = (embedded, a.multiline.as_mut()) else { return Ok(()) };
+    for _ in 0..e.handles {
+        r.reference()?;
+    }
+    let h = r.reference()?;
+    m.mtext.style = styles.get(&h).cloned().unwrap_or_else(|| "Standard".into());
+    Ok(())
+}
+
 /// MTEXT (§20.4.46).
 fn mtext(r: &mut ObjectReader, partial: &mut Vec<&'static str>) -> DwgResult<Shape> {
     let ver = r.version();
@@ -2248,14 +2260,7 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
         }
         Body::Attrib(mut a, align, insert, definition, embedded) => {
             a.text.style = style(r)?;
-            // A multiline attribute's text: its own handles (AutoCAD's files: a null owner, the
-            // layer, the linetype, the material), then its text style.
-            if let (Some(e), Some(m)) = (embedded, a.multiline.as_mut()) {
-                for _ in 0..e.handles {
-                    r.reference()?;
-                }
-                m.mtext.style = style(r)?;
-            }
+            attrib_text(&mut a, embedded, r, &n.tables.styles)?;
             if normal.z < 0.0 {
                 mirror_text(&mut a.text, align.map(|p| ocs_n(normal, p)), ocs_n(normal, insert));
             }
