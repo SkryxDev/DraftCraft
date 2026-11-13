@@ -1555,3 +1555,46 @@ fn saved_dimension_associations_are_read() {
         assert!(!unread.by_type.keys().any(|k| k.starts_with("DIMASSOC")), "{version:?}: {}", unread.summary());
     }
 }
+
+/// Writes every step's test drawing as DWG in every version to `DWG_FIXTURES_OUT`, for checking
+/// them with other programs (BlackCAD, AutoCAD, the web build): `DWG_FIXTURES_OUT=dir cargo test
+/// -p draftcraft-io --test it write_dwg_fixtures -- --ignored`.
+#[test]
+#[ignore = "writes files for other programs to read"]
+fn write_dwg_fixtures() {
+    use draftcraft_io::{SaveOptions, Version, write_with};
+    let Ok(dir) = std::env::var("DWG_FIXTURES_OUT") else { return };
+    let drawings = [
+        ("attributes", attributes_drawing()),
+        ("dimensions", dimensions_drawing()),
+        ("hatches", hatches_drawing()),
+        ("annotation", annotation_drawing()),
+        ("viewports", viewports_drawing()),
+        ("images", images_drawing()),
+        ("mlines", mlines_drawing()),
+        ("tables", tables_drawing()),
+        ("regions", regions_drawing()),
+    ];
+    for (name, d) in &drawings {
+        for version in [Version::R2000, Version::R2004, Version::R2010, Version::R2013, Version::R2018] {
+            let bytes = write_with(d, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
+            std::fs::write(std::path::Path::new(&dir).join(format!("{name}-{version:?}.dwg")), bytes).unwrap();
+        }
+    }
+    let acad = [
+        ("curves", curves_dwg as fn(acadrust::types::DxfVersion) -> Vec<u8>),
+        ("hatch-edges", hatch_edges_dwg),
+        ("mirrored-text", mirrored_text_dwg),
+    ];
+    for (name, make) in acad {
+        for v in [
+            acadrust::types::DxfVersion::AC1015,
+            acadrust::types::DxfVersion::AC1018,
+            acadrust::types::DxfVersion::AC1024,
+            acadrust::types::DxfVersion::AC1027,
+            acadrust::types::DxfVersion::AC1032,
+        ] {
+            std::fs::write(std::path::Path::new(&dir).join(format!("{name}-{v:?}.dwg")), make(v)).unwrap();
+        }
+    }
+}

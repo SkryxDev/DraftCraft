@@ -299,6 +299,9 @@ fn stress(case: &str, n: usize, version: Version) {
         }
     };
     let save = t.elapsed();
+    if let Ok(dir) = std::env::var("SWEEP_SAVE") {
+        std::fs::write(Path::new(&dir).join(format!("stress-{case}-{n}-{version:?}.dwg")), &dwg).ok();
+    }
     let t = std::time::Instant::now();
     let back = read_dwg_with(&dwg, DwgReader::Direct);
     let read = t.elapsed();
@@ -379,8 +382,45 @@ fn content_same(a: &Drawing, b: &Drawing, report: &mut Vec<String>) -> bool {
     true
 }
 
+/// `--vs-dxf <dwg> <dxf>`: the direct reading of a DWG against another program's DXF of the
+/// same file, read by DraftCraft's DXF reader: entities per type and space, layers, blocks,
+/// layouts, then every entity's content in order.
+fn vs_dxf(dwg: &str, dxf: &str) {
+    let name = Path::new(dwg).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let (Ok(a), Ok(b)) = (std::fs::read(dwg), std::fs::read(dxf)) else {
+        println!("VS {name}: can't read the files");
+        return;
+    };
+    let direct = match read_dwg_with(&a, DwgReader::Direct) {
+        Ok(d) => d,
+        Err(e) => {
+            println!("VS {name}: DIRECT READ FAILED: {e}");
+            return;
+        }
+    };
+    let other = match draftcraft_io::read(&b, "other.dxf") {
+        Ok(d) => d,
+        Err(e) => {
+            println!("VS {name}: the other program's DXF doesn't read: {e}");
+            return;
+        }
+    };
+    let mut report = Vec::new();
+    let same = compare("direct vs other", &direct, &other, &mut report);
+    let content = same && content_same(&direct, &other, &mut report);
+    println!(
+        "VS {name}: {}{}",
+        if content { "same" } else { "DIFFERS" },
+        if report.is_empty() { String::new() } else { format!("\n{}", report.join("\n")) }
+    );
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("--vs-dxf") {
+        vs_dxf(args.get(1).map_or("", String::as_str), args.get(2).map_or("", String::as_str));
+        return;
+    }
     if args.first().map(String::as_str) == Some("--stress") {
         let case = args.get(1).cloned().unwrap_or_default();
         let n = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(1000);
