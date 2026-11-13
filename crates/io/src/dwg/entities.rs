@@ -2250,6 +2250,7 @@ pub(super) fn read(
     // chain from its first entity; then any entity that names the block as its owner and was in
     // neither, in file order.
     let mut placed: HashSet<u64> = HashSet::new();
+    let mut layers: HashSet<String> = d.layers.iter().map(|l| l.name.to_ascii_lowercase()).collect();
     // Each record's entities in file order, gathered once (not searched for per record: a file
     // has a block for every dimension).
     let mut by_record: HashMap<u64, Vec<u64>> = HashMap::new();
@@ -2279,7 +2280,12 @@ pub(super) fn read(
             let more = extras.remove(&h).unwrap_or_default();
             match &rec.space {
                 Space::Model => {
-                    d.ensure_layer(&e.common.layer);
+                    // A layer the table doesn't have is added once (the layers are many in some
+                    // drawings: not a search of the list per entity).
+                    if !layers.contains(&e.common.layer.to_ascii_lowercase()) {
+                        d.ensure_layer(&e.common.layer);
+                        layers.insert(e.common.layer.to_ascii_lowercase());
+                    }
                     d.model.push(e);
                     for x in more {
                         d.model.push(x);

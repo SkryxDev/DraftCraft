@@ -434,6 +434,32 @@ fn vs_dxf(dwg: &str, dxf: &str) {
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("--read") {
+        // Only the direct reading of saved files: its time and the process's peak memory.
+        for f in args.iter().skip(1) {
+            let Ok(bytes) = std::fs::read(f) else {
+                println!("READ {f}: can't read the file");
+                continue;
+            };
+            let t = std::time::Instant::now();
+            let reader = if std::env::var("SWEEP_READER").is_ok_and(|r| r == "acadrust") { DwgReader::Acadrust } else { DwgReader::Direct };
+            match read_dwg_with(&bytes, reader) {
+                Ok(d) => {
+                    let n: usize = kinds(&d).values().sum();
+                    println!(
+                        "READ {f}: {:.1} MB, {n} entities, {} layers, {} blocks in {:?}, peak memory {}",
+                        bytes.len() as f64 / 1048576.0,
+                        d.layers.len(),
+                        d.blocks.len(),
+                        t.elapsed(),
+                        peak_mb()
+                    );
+                }
+                Err(e) => println!("READ {f}: FAILED after {:?}: {e}", t.elapsed()),
+            }
+        }
+        return;
+    }
     if args.first().map(String::as_str) == Some("--vs-dxf") {
         vs_dxf(args.get(1).map_or("", String::as_str), args.get(2).map_or("", String::as_str));
         return;
