@@ -62,6 +62,9 @@ pub(super) fn read(file: &DwgFile, d: &mut Drawing) -> Result<HeaderRefs, String
                     d.header.set_str(name, &format!("{x:X}"));
                 }
             }
+            // The handle AutoCAD 2013 added after the visual-style dictionary: no DXF variable,
+            // and null in AutoCAD's own files.
+            (n, HeaderValue::Handle(_)) if n.starts_with("UNKNOWN_") => {}
             (_, HeaderValue::Handle(x)) => {
                 if root(name) {
                     refs.roots.insert(name, x);

@@ -6,6 +6,7 @@
 //! Reads R13 to AutoCAD 2018 and later, except AutoCAD 2007–2009 (AC1021), whose container is not
 //! implemented yet.
 
+pub use crate::read::model::{Dictionary, Groups, Handle, Layout, MLineStyle, NonGraphic, Scale, XRecord, XrValue};
 pub use crate::records::text::{TextDecoding, code_page_name};
 use std::collections::HashMap;
 
@@ -53,6 +54,19 @@ pub struct NamedColor {
     pub name: Option<String>,
     /// The colour book's name (`RAL CLASSIC`).
     pub book: Option<String>,
+}
+
+/// A class of the file's objects or entities, as a DXF CLASS record has it (groups 1, 2, 3, 90,
+/// 91, 280, 281).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ClassInfo {
+    pub dxf_name: String,
+    pub cpp_name: String,
+    pub app_name: String,
+    pub proxy_flags: u16,
+    pub instance_count: u32,
+    pub was_zombie: bool,
+    pub is_entity: bool,
 }
 
 /// The value of one header variable, as the file stores it.
@@ -294,6 +308,18 @@ impl ObjectReader<'_> {
             next: self.o.next_entity,
         })
     }
+    /// The object as the codec keeps a non-graphical object, when its type is one it decodes:
+    /// dictionaries, extension records, placeholders, dictionary variables, scales, layouts and
+    /// multiline styles, and the style objects it holds as their DXF groups (a table style names
+    /// its text style by `text_styles`: name, handle). With the references every object starts
+    /// with. `None` for another type, or a style object of a version its codec does not read.
+    /// Reads the whole object: nothing else is read of it after this.
+    pub fn non_graphic(&mut self, text_styles: &[(String, u64)]) -> Option<Result<(NonGraphic, CommonRefs)>> {
+        let lookup = crate::read::styles::Lookup::from_text_styles(text_styles.iter().map(|(n, h)| (n.clone(), Handle(*h))).collect());
+        crate::read::nongraphic::decode_opened(&mut self.o, &lookup, true).map(|r| {
+            r.map(|(n, (owner, reactors, xdictionary))| (n, CommonRefs { owner, reactors: reactors.into_iter().map(|h| h.0).collect(), xdictionary }))
+        })
+    }
     /// The owner, reactors and extension dictionary. They come first among the object's
     /// references, so this is called before any [`ObjectReader::reference`].
     pub fn common_refs(&mut self) -> Result<CommonRefs> {
@@ -467,6 +493,20 @@ impl DwgFile {
     /// string read after this goes through `text` (see [`TextDecoding`]).
     pub fn set_text_decoding(&mut self, text: TextDecoding) {
         self.text = text;
+    }
+
+    /// The class a type of the file belongs to, by its DXF name: what a DXF CLASS record says of
+    /// it. `None` for a built-in type, or one the file defines no class for.
+    pub fn class_of(&self, dxf_name: &str) -> Option<ClassInfo> {
+        self.classes.iter().find(|c| c.dxf_name.eq_ignore_ascii_case(dxf_name)).map(|c| ClassInfo {
+            dxf_name: c.dxf_name.clone(),
+            cpp_name: c.cpp_name.clone(),
+            app_name: c.app_name.clone(),
+            proxy_flags: c.proxy_flags,
+            instance_count: c.instance_count,
+            was_zombie: c.was_zombie,
+            is_entity: c.item_class_id == 0x1F2,
+        })
     }
 
     /// True for the versions before AutoCAD 2000 (R13 and R14).

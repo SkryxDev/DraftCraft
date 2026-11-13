@@ -35,6 +35,8 @@ pub(super) struct Tables {
     pub linetype_order: Vec<u64>,
     /// The handles of the objects this category read.
     pub read: HashSet<u64>,
+    /// Each layer's plot style placeholder, named by the plot style dictionary the objects read.
+    pub layer_plot_styles: Vec<(String, u64)>,
 }
 
 /// A colour of the file as the drawing's colour.
@@ -138,6 +140,7 @@ pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], d: &mut Drawing, unrea
         match file.read_object(o).and_then(|mut r| layer(&mut r, &t)) {
             Ok((l, plot_style, book)) => {
                 t.layers.insert(o.handle, l.name.clone());
+                let name_of_layer = l.name.clone();
                 if !l.name.is_empty() {
                     if let Some(book) = book {
                         std::sync::Arc::make_mut(&mut d.foreign)
@@ -150,7 +153,7 @@ pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], d: &mut Drawing, unrea
                 }
                 // The plot style is named by the plot style dictionary, read with the objects.
                 if plot_style != 0 {
-                    unread.count("LAYER plot style");
+                    t.layer_plot_styles.push((name_of_layer, plot_style));
                 }
                 t.read.insert(o.handle);
             }

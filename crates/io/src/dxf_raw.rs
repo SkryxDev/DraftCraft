@@ -174,7 +174,7 @@ fn is_dictionary(kind: &str) -> bool {
     kind == "DICTIONARY" || kind == "ACDBDICTIONARYWDFLT"
 }
 
-fn modelled_key(key: &str) -> bool {
+pub(crate) fn modelled_key(key: &str) -> bool {
     let k = up(key);
     k.starts_with("DRAFTCRAFT") || MODELLED_KEYS.contains(&k.as_str())
 }

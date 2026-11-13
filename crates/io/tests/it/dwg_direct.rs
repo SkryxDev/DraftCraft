@@ -42,24 +42,49 @@ fn every_object_of_every_version_is_accounted_for() {
         assert!(file.object_count() > 100, "{name}: {} objects", file.object_count());
         let (d, unread) = dwg::read(bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
         assert_eq!(d.header.str("ACADVER", ""), *code, "{name}");
-        // Every object is in the drawing or counted as unread: the categories read so far leave
-        // none of their own behind, and nothing else is dropped.
-        // A key with a space is a part of an object that waits for a later category (a header
-        // variable's name, a layer's plot style), not an object.
-        let objects: usize = unread.by_type.iter().filter(|(k, _)| !k.contains(' ')).map(|(_, n)| n).sum();
-        let tables = file.objects().filter(|o| READ_SO_FAR.contains(&o.type_name.as_str())).count();
-        assert_eq!(objects + tables, file.object_count(), "{name}: {}", unread.summary());
-        assert!(!unread.by_type.contains_key("?"), "{name}: {}", unread.summary());
-        for t in READ_SO_FAR {
-            assert!(!unread.by_type.keys().any(|k| k == t || *k == format!("{t} (not decoded)")), "{name}: {t} left unread: {}", unread.summary());
+        // Every object is in the drawing or counted as unread, a type at a time: the reader reads
+        // all the objects of a type or counts them all, and the types read so far leave none
+        // behind. A key with a space is a part of an object that waits for a later step (a
+        // header variable's name, an entity's reactors), or the objects of a type the codec
+        // can't decode yet ("… (not decoded)").
+        let mut types: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+        for o in file.objects() {
+            *types.entry(o.type_name.clone()).or_default() += 1;
         }
-        // A type of a later step is still counted, not dropped.
-        assert!(unread.by_type.contains_key("DICTIONARY"), "{name}: no DICTIONARY among {}", unread.summary());
+        let unread_of =
+            |t: &str| unread.by_type.get(t).copied().unwrap_or(0) + unread.by_type.get(&format!("{t} (not decoded)")).copied().unwrap_or(0);
+        for (t, n) in &types {
+            let u = unread_of(t);
+            assert!(u == 0 || u == *n, "{name}: {u} of the {n} {t} unread: {}", unread.summary());
+            assert!(u == 0 || !READ_SO_FAR.contains(&t.as_str()), "{name}: {t} left unread: {}", unread.summary());
+        }
+        // Nothing is counted that the file doesn't have.
+        for k in unread.by_type.keys() {
+            let t = k.strip_suffix(" (not decoded)").unwrap_or(k);
+            assert!(types.contains_key(t) || (t.contains(' ') && t == k), "{name}: {k} counted, not in the file: {}", unread.summary());
+        }
+        assert!(!unread.by_type.contains_key("?"), "{name}: {}", unread.summary());
+        // A type of a later step is still counted, not dropped: the codec decodes visual styles
+        // from AutoCAD 2013 on.
+        if *code < "AC1027" {
+            assert_eq!(unread_of("VISUALSTYLE"), types.get("VISUALSTYLE").copied().unwrap_or(0), "{name}: {}", unread.summary());
+            assert!(unread_of("VISUALSTYLE") > 0, "{name}: no VISUALSTYLE among {}", unread.summary());
+        }
     }
 }
 
 /// The object types the reader puts in the drawing so far.
 const READ_SO_FAR: &[&str] = &[
+    "DICTIONARY",
+    "ACDBDICTIONARYWDFLT",
+    "ACDBPLACEHOLDER",
+    "XRECORD",
+    "SCALE",
+    "DICTIONARYVAR",
+    "GROUP",
+    "WIPEOUTVARIABLES",
+    "RASTERVARIABLES",
+    "TABLESTYLE",
     "MLEADERSTYLE",
     "DIMENSION_LINEAR",
     "DIMASSOC",

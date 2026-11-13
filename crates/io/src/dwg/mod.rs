@@ -10,6 +10,7 @@
 //! [`Unread::is_empty`].
 
 mod blocks;
+mod carry;
 mod entities;
 mod header;
 mod objects;
@@ -129,8 +130,10 @@ pub fn read(bytes: &[u8]) -> Result<(Drawing, Unread)> {
     }
     let entities = entities::read(&file, &objects, &tables, &block_table, &named, &mut d, &mut unread);
     let others = objects::read(&file, &objects, &tables, &named, &mut d, &mut unread);
+    let done: std::collections::HashSet<u64> = tables.read.iter().chain(&block_table.read).chain(&entities).chain(&others).copied().collect();
+    let carried = carry::read(&file, &objects, &tables, &named, root, &done, &mut d, &mut unread);
     for o in &objects {
-        if !tables.read.contains(&o.handle) && !block_table.read.contains(&o.handle) && !entities.contains(&o.handle) && !others.contains(&o.handle) {
+        if !done.contains(&o.handle) && !carried.contains(&o.handle) {
             unread.count(&o.type_name);
         }
     }
