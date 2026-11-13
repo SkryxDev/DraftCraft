@@ -10,7 +10,7 @@ mod sections;
 
 pub use file::{Parts, Properties, compose};
 pub use object::{EntityStart, ObjectWriter, Ref, TextEncoding, frame, method_word};
-pub use sections::{Class, class_versions, classes_section, header_section, object_map};
+pub use sections::{HeaderKind, header_variables, Class, class_versions, classes_section, header_section, object_map};
 
 #[cfg(test)]
 mod tests;

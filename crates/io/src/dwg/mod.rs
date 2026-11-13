@@ -16,6 +16,7 @@ mod header;
 mod objects;
 mod table;
 mod tables;
+pub mod write;
 
 use std::collections::BTreeMap;
 

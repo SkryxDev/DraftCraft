@@ -356,3 +356,38 @@ fn close_block(out: &mut Vec<u8>, mut block: Vec<u8>) {
     out.extend_from_slice(&block);
     out.extend_from_slice(&crc.to_be_bytes());
 }
+
+/// How a header variable holds its value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HeaderKind {
+    Bool,
+    Int,
+    Real,
+    Point2,
+    Point3,
+    Text,
+    Color,
+    /// A reference to another object.
+    Handle,
+    /// A date or a duration: a Julian day number and its fraction.
+    Time,
+}
+
+/// Every header variable DWG stores, by its DWG name, with how it holds its value: what
+/// [`header_section`] asks for. A file of an older version stores fewer.
+pub fn header_variables() -> impl Iterator<Item = (&'static str, HeaderKind)> {
+    header::vars().map(|(name, kind, _)| {
+        let kind = match kind {
+            VarKind::B => HeaderKind::Bool,
+            VarKind::Bs | VarKind::Bl | VarKind::Bll | VarKind::Rc => HeaderKind::Int,
+            VarKind::Bd => HeaderKind::Real,
+            VarKind::Rd2 => HeaderKind::Point2,
+            VarKind::Bd3 => HeaderKind::Point3,
+            VarKind::Tv => HeaderKind::Text,
+            VarKind::Cmc => HeaderKind::Color,
+            VarKind::H | VarKind::Seed => HeaderKind::Handle,
+            VarKind::Time => HeaderKind::Time,
+        };
+        (name, kind)
+    })
+}
