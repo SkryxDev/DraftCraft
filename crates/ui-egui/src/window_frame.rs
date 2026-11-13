@@ -7,11 +7,17 @@
 //! On by default on Windows. `DRAFTCRAFT_TITLEBAR=system` keeps the desktop's title bar there;
 //! `DRAFTCRAFT_TITLEBAR=app` draws this frame on any desktop (to try it). macOS keeps its own
 //! integrated title bar and Linux the desktop's.
+//!
+//! In the browser the same row sits at the top of the page, with the logo, the name and the menu
+//! bar but no window buttons, and nothing in it moves a window: the page has none.
 
 use egui::{Color32, CursorIcon, Rect, ResizeDirection, Sense, Stroke, StrokeKind, ViewportCommand, pos2, vec2};
 
 use crate::CadApp;
 use crate::theme::Tokens;
+
+/// Whether this build runs in a browser page, which has no window to move, resize or close.
+const IN_BROWSER: bool = cfg!(target_arch = "wasm32");
 
 /// Height of the title bar row.
 pub const TITLE_H: f32 = 30.0;
@@ -54,10 +60,13 @@ pub fn title_bar(app: &mut CadApp, ui: &mut egui::Ui) {
     let mut clicked = None;
     egui::Panel::top("cc_window_title").exact_size(TITLE_H).frame(egui::Frame::NONE.fill(t.chrome_dark)).show(ui, |ui| {
         let r = ui.max_rect();
-        let buttons = Rect::from_min_max(pos2(r.right() - BUTTON_W * 3.0, r.top()), r.max);
+        let buttons_w = if IN_BROWSER { 0.0 } else { BUTTON_W * 3.0 };
+        let buttons = Rect::from_min_max(pos2(r.right() - buttons_w, r.top()), r.max);
         let free = Rect::from_min_max(r.min, pos2(buttons.left(), r.bottom()));
         // First, so the controls drawn over it keep their own clicks.
-        craft_window::title_bar::empty_area(ui, free).on_hover_text("DraftCraft");
+        if !IN_BROWSER {
+            craft_window::title_bar::empty_area(ui, free).on_hover_text("DraftCraft");
+        }
         let p = ui.painter().clone();
         let logo_left = r.left() + 8.0;
         let logo_w = crate::brand::paint_full(&p, logo_left, r.center().y, LOGO_H, t.chrome_dark);
@@ -68,7 +77,9 @@ pub fn title_bar(app: &mut CadApp, ui: &mut egui::Ui) {
                 clicked = crate::menus::menu_titles(app, ui);
             });
         }
-        caption_buttons(ui, buttons);
+        if !IN_BROWSER {
+            caption_buttons(ui, buttons);
+        }
     });
     if let Some(id) = clicked {
         crate::menus::activate(app, &id);
@@ -162,7 +173,9 @@ fn cursor(dir: ResizeDirection) -> CursorIcon {
 }
 
 /// The window's edges and corners resize it, and a thin border marks them. Call once per pass,
-/// after the rest of the UI. Nothing happens while the window is maximized or full screen.
+/// after the rest of the UI. Nothing happens while the window is maximized or full screen. Not
+/// called in the browser, where the page has no window edges.
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 pub fn edges(ctx: &egui::Context) {
     let (maximized, fullscreen) = ctx.input(|i| (i.viewport().maximized.unwrap_or(false), i.viewport().fullscreen.unwrap_or(false)));
     if maximized || fullscreen {

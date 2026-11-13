@@ -1116,8 +1116,9 @@ pub fn title_and_ribbon(app: &mut CadApp, ui: &mut egui::Ui) {
 
 fn app_bar(app: &mut CadApp, ui: &mut egui::Ui, bar: Rect, out: &mut Out) {
     let t = Tokens::get();
-    if app.integrated_titlebar || app.own_window_frame {
+    if (app.integrated_titlebar || app.own_window_frame) && !cfg!(target_arch = "wasm32") {
         // The empty bar moves the window; it goes first so later widgets take their own clicks.
+        // A page in the browser has no window to move.
         craft_window::title_bar::empty_area(ui, bar);
     }
     let p = ui.painter().clone();
