@@ -119,7 +119,7 @@ pub fn read_bytes(bytes: &[u8]) -> Result<Drawing> {
     let entries = choose_object_map(&container.handles, ver, &container.objects, &mut diagnostics)?;
 
     // Objects.
-    let ctx = object::DecodeCtx { ver, codepage, classes: &classes };
+    let ctx = object::DecodeCtx { ver, codepage, classes: &classes, text: Default::default() };
     let mut objects: BTreeMap<Handle, Object> = BTreeMap::new();
     let mut out_of_range = 0usize;
     let mut mismatched = 0usize;

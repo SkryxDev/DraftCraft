@@ -11,7 +11,7 @@ use draftcraft_doc::{
     RayLine, Solid, Text, Tolerance, VAlign, Viewport, Wipeout,
 };
 use draftcraft_dwg::DwgVersion as V;
-use draftcraft_dwg::file::{DwgFile, EntityLinetype, EntityRefs, EntitySpace, ObjectReader, ObjectRef, XDataBlock, XDataItem};
+use draftcraft_dwg::file::{ColorValue, DwgFile, EntityLinetype, EntityRefs, EntitySpace, ObjectReader, ObjectRef, XDataBlock, XDataItem};
 use draftcraft_dwg::records::Result as DwgResult;
 use draftcraft_geom::{PolyVertex, Vec2, Vec3};
 
@@ -64,6 +64,9 @@ struct Decoded {
     /// A table's block (the geometry it is drawn as, which the drawing rebuilds) and, for a
     /// table from another writer, its style's name, whose text height it takes.
     table: Option<(Option<String>, Option<Option<String>>)>,
+    /// The colour book colour's true colour and names, kept for saving (as the DXF reader keeps
+    /// group 430).
+    color_book: Option<(String, String)>,
     partial: Vec<&'static str>,
 }
 
@@ -84,6 +87,13 @@ fn common(r: &ObjectReader, refs: &EntityRefs, n: &Names, partial: &mut Vec<&'st
     let Some(head) = r.entity() else { return c };
     c.layer = n.tables.layers.get(&refs.layer).cloned().unwrap_or_else(|| "0".into());
     if let Some(color) = super::tables::color(head.color) {
+        c.color = color;
+    }
+    // A colour book colour is its DBCOLOR object's; in an older version's file, the true colour
+    // AutoCAD kept in its round-trip data.
+    if let Some(book) = n.objects.colors.get(&refs.color_book) {
+        c.color = book.color;
+    } else if let Some((color, _)) = round_trip_color(r, n) {
         c.color = color;
     }
     c.linetype = match refs.linetype {
@@ -125,6 +135,63 @@ fn attrib_props(c: &Common, insert_layer: &str) -> AttribProps {
         linetype: (!c.linetype.eq_ignore_ascii_case("ByLayer")).then(|| c.linetype.clone()),
         lineweight: (c.lineweight != Lineweight::ByLayer).then_some(c.lineweight),
     }
+}
+
+/// What AutoCAD keeps of a later version's properties in a file saved as an older version: ACAD
+/// extended data sequences that its own DXF of the file holds as the properties instead. `RTTcAl`
+/// is the colour (its flags and index, its colour word, its colour book name or `$$NoName$$`),
+/// `RTMaterial` the material. Returns the items without them, and the colour sequence's values.
+fn round_trip(items: &[XDataItem]) -> (Vec<&XDataItem>, Option<(i16, i32, &str)>) {
+    let mut kept = Vec::with_capacity(items.len());
+    let mut color = None;
+    let mut i = 0;
+    while let Some(item) = items.get(i) {
+        match (item, items.get(i + 1), items.get(i + 2), items.get(i + 3)) {
+            (XDataItem::Text(t), Some(XDataItem::Int16(flags)), Some(XDataItem::Int32(word)), Some(XDataItem::Text(book))) if t == "RTTcAl" => {
+                color = Some((*flags, *word, book.as_str()));
+                i += 4;
+            }
+            (XDataItem::Text(t), Some(XDataItem::Handle(_)), _, _) if t == "RTMaterial" => i += 2,
+            _ => {
+                kept.push(item);
+                i += 1;
+            }
+        }
+    }
+    (kept, color)
+}
+
+/// The true colour and colour book name an older version's file keeps in AutoCAD's round-trip
+/// data ([`round_trip`]), while the entity's colour is still the index AutoCAD saved with them: a
+/// program that changed the colour since left them stale.
+fn round_trip_color(r: &ObjectReader, n: &Names) -> Option<(draftcraft_color::Color, Option<String>)> {
+    let head = r.entity()?;
+    let index = match head.color {
+        ColorValue::ByBlock => 0,
+        ColorValue::ByLayer => 256,
+        ColorValue::Index(i) => i16::from(i),
+        _ => return None,
+    };
+    let blocks = r.xdata();
+    let acad = blocks.iter().find(|b| n.tables.apps.get(&b.app).is_some_and(|a| a.eq_ignore_ascii_case("ACAD")))?;
+    let (_, Some((flags, word, book))) = round_trip(&acad.items) else { return None };
+    let word = u32::from_ne_bytes(word.to_ne_bytes());
+    if (flags & 0x01FF) != index || word >> 24 != 0xC2 {
+        return None;
+    }
+    let color = draftcraft_color::Color::True(draftcraft_color::Rgb::from_u32(word & 0x00FF_FFFF));
+    let book = (book != "$$NoName$$" && !book.trim().is_empty()).then(|| book.to_string());
+    Some((color, book))
+}
+
+/// The colour book colour's true colour and names, kept for saving: its DBCOLOR object's, or the
+/// ones of AutoCAD's round-trip data.
+fn color_book(r: &ObjectReader, refs: &EntityRefs, n: &Names) -> Option<(String, String)> {
+    if let Some(book) = n.objects.colors.get(&refs.color_book) {
+        return book.book.clone();
+    }
+    let (color, book) = round_trip_color(r, n)?;
+    super::tables::color_book(color, book, None)
 }
 
 /// Extended data groups without the application `app`'s.
@@ -174,7 +241,12 @@ fn xdata(blocks: &[XDataBlock], n: &Names, partial: &mut Vec<&'static str>) -> V
         }
         let mut groups = vec![RawTag { code: 1001, value: name.clone() }];
         let (mut depth, mut ok) = (0i32, true);
-        for v in &b.items {
+        // AutoCAD's round-trip data are properties (`common`), not kept as groups.
+        let items: Vec<&XDataItem> = if name.eq_ignore_ascii_case("ACAD") { round_trip(&b.items).0 } else { b.items.iter().collect() };
+        if items.is_empty() {
+            continue;
+        }
+        for v in items {
             let pt = |base: i32, p: &[f64; 3]| [real(base, p[0]), real(base + 10, p[1]), real(base + 20, p[2])];
             match v {
                 XDataItem::Text(t) => groups.push(RawTag { code: 1000, value: t.clone() }),
@@ -1005,7 +1077,7 @@ fn dimension(r: &mut ObjectReader, type_name: &str) -> DwgResult<Shape> {
 /// An object's extended data as the DXF groups it would be in a DXF file, for the DXF reader's
 /// rules that read properties from them (a dimension's overrides, DraftCraft's own data).
 /// References are written as their handles in hexadecimal, as a DXF holds them.
-fn xdata_tags(blocks: &[XDataBlock], apps: &HashMap<u64, String>) -> Vec<draftcraft_dxf::Tag> {
+pub(super) fn xdata_tags(blocks: &[XDataBlock], apps: &HashMap<u64, String>) -> Vec<draftcraft_dxf::Tag> {
     use draftcraft_dxf::Tag;
     let mut out = Vec::new();
     for b in blocks {
@@ -1398,7 +1470,10 @@ fn text_fields(r: &mut ObjectReader) -> DwgResult<TextFields> {
             elevation = r.rd()?;
         }
         insertion = r.rd2()?;
-        alignment = if flags & 0x02 == 0 { [r.dd(insertion[0])?, r.dd(insertion[1])?] } else { insertion };
+        // Not stored (flag 0x02): the alignment point is (0, 0). AutoCAD's own files show it: the
+        // R14 file stores (0, 0) for a left-aligned text, and the 2018 file of the same drawing
+        // leaves the same text's point out (its insertion point is not (0, 0)).
+        alignment = if flags & 0x02 == 0 { [r.dd(insertion[0])?, r.dd(insertion[1])?] } else { [0.0, 0.0] };
         normal = v3(r.extrusion()?);
         thickness = r.thickness()?;
         if flags & 0x04 == 0 {
@@ -2030,7 +2105,7 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
     if entity.as_ref().is_some_and(|e| reads_own_data(&e.kind)) {
         partial.retain(|p| *p != DRAFTCRAFT_DATA);
     }
-    Ok((Decoded { entity, attrib, attribs, polyline, vertex, mleader_attribs, paper_view, held, table: None, partial }, refs))
+    Ok((Decoded { entity, attrib, attribs, polyline, vertex, mleader_attribs, paper_view, held, partial, ..Decoded::default() }, refs))
 }
 
 /// Each layout's viewports numbered in their order, the first (the sheet) 1, as a DXF file
@@ -2079,6 +2154,15 @@ fn finish_tables(d: &mut Drawing, tables: Vec<(Handle, Option<String>, Option<Op
     }
 }
 
+/// The colour book names of the entities placed (`read`), kept as the DXF reader keeps them.
+fn keep_color_books(d: &mut Drawing, books: Vec<(Handle, (String, String))>, read: &HashSet<u64>) {
+    for (h, book) in books {
+        if read.contains(&h.0) {
+            std::sync::Arc::make_mut(&mut d.foreign).entities.entry(h).or_default().color_book = Some(book);
+        }
+    }
+}
+
 /// What decoded entities wait for, by the handle of the entity: attributes for their block
 /// references, vertices for their polylines, multileaders for their blocks' attribute definitions.
 #[derive(Default)]
@@ -2090,6 +2174,7 @@ struct Waiting {
     mleader_attribs: Vec<(Handle, crate::dxf_mleader::Pending)>,
     paper_views: HashSet<Handle>,
     tables: Vec<(Handle, Option<String>, Option<Option<String>>)>,
+    color_books: Vec<(Handle, (String, String))>,
 }
 
 impl Waiting {
@@ -2115,6 +2200,9 @@ impl Waiting {
         }
         if let Some((block, fix)) = dec.table {
             self.tables.push((Handle(h), block, fix));
+        }
+        if let Some(book) = dec.color_book {
+            self.color_books.push((Handle(h), book));
         }
         dec.entity
     }
@@ -2152,18 +2240,20 @@ pub(super) fn read(
         }
     }
     for o in &entities {
-        let Ok((dec, refs)) = file.read_object(o).and_then(|mut r| entity(&mut r, o, &names)) else {
+        let Ok((mut dec, refs)) = file.read_object(o).and_then(|mut r| entity(&mut r, o, &names)) else {
             if reads(&o.type_name) {
                 unread.count(&format!("{} (not decoded)", o.type_name));
             }
             continue;
         };
-        let record = match file.read_object(o).ok().and_then(|r| r.entity()).map(|h| h.space) {
+        let reopened = file.read_object(o).ok();
+        let record = match reopened.as_ref().and_then(|r| r.entity()).map(|h| h.space) {
             Some(EntitySpace::Model) => blocks.model,
             Some(EntitySpace::Paper) => blocks.paper,
             _ => refs.owner,
         };
         places.insert(o.handle, Place { record, next: refs.next });
+        dec.color_book = reopened.as_ref().and_then(|r| color_book(r, &refs, &names));
         for what in &dec.partial {
             unread.count(what);
         }
@@ -2192,7 +2282,7 @@ pub(super) fn read(
         }
         handles
     };
-    let Waiting { mut attribs, lists, mut vertices, polylines, mleader_attribs, paper_views, tables } = waiting;
+    let Waiting { mut attribs, lists, mut vertices, polylines, mleader_attribs, paper_views, tables, color_books } = waiting;
     for (h, kind, c, list) in polylines {
         let handles = walk(&list, &places);
         let Some(found) = handles.iter().map(|v| vertices.remove(v)).collect::<Option<Vec<_>>>() else {
@@ -2314,9 +2404,47 @@ pub(super) fn read(
     }
     number_viewports(d, &paper_views);
     finish_tables(d, tables);
+    keep_color_books(d, color_books, &read);
     // The multileaders' block attribute values, placed like the attribute definitions of their
     // blocks, by the DXF reader's rule.
     crate::dxf_mleader::apply(d, &mleader_attribs, &HashMap::new());
     // An entity no block owns (a sub-entity of a type not read yet) stays unread.
     read
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// AutoCAD's round-trip data of a file saved as 2000 (CIRCLE 99F of ACadSharp's sample, saved
+    /// by AutoCAD): the colour sequence is read and left out, with the material's, and the ACAD
+    /// data around them is kept.
+    #[test]
+    fn round_trip_sequences_are_read_and_left_out() {
+        let items = vec![
+            XDataItem::Text("RTTcAl".into()),
+            XDataItem::Int16(-16342),
+            XDataItem::Int32(-1_025_339_392),
+            XDataItem::Text("RAL CLASSIC$RAL 1006".into()),
+            XDataItem::Text("RTMaterial".into()),
+            XDataItem::Handle(0x97),
+            XDataItem::Text("MTEXTBEGIN".into()),
+            XDataItem::Int16(73),
+        ];
+        let (kept, color) = round_trip(&items);
+        assert_eq!(color, Some((-16342, -1_025_339_392, "RAL CLASSIC$RAL 1006")));
+        assert_eq!(kept, vec![&XDataItem::Text("MTEXTBEGIN".into()), &XDataItem::Int16(73)]);
+        // 0xC02A: colour 42 of a book; 0xC2E29000: the true colour E29000.
+        assert_eq!(u32::from_ne_bytes((-1_025_339_392i32).to_ne_bytes()), 0xC2E2_9000);
+        assert_eq!(-16342i16 & 0x01FF, 42);
+    }
+
+    /// A sequence that is not the round-trip data's shape is other data, kept as it is.
+    #[test]
+    fn other_acad_data_is_kept() {
+        let items = vec![XDataItem::Text("RTTcAl".into()), XDataItem::Int16(1), XDataItem::Text("not a colour".into())];
+        let (kept, color) = round_trip(&items);
+        assert_eq!(color, None);
+        assert_eq!(kept.len(), 3);
+    }
 }

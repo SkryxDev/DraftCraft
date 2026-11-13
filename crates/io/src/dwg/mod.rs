@@ -48,12 +48,30 @@ impl Unread {
 }
 
 /// Read a DWG file into a drawing, with what the reader does not read yet.
+/// 8-bit text (up to AutoCAD 2004) by the DXF reader's rules: up to its end, in the code page
+/// the file names (Windows-1252 when DraftCraft doesn't know it), with `\U+XXXX` (surrogate
+/// pairs too) and `\M+nXXXX` escapes expanded.
+fn ansi_text(bytes: &[u8], code_page: u16) -> String {
+    let end = bytes.iter().position(|b| *b == 0).unwrap_or(bytes.len());
+    let bytes = bytes.get(..end).unwrap_or(&[]);
+    let name = draftcraft_dwg::file::code_page_name(code_page).unwrap_or("ANSI_1252");
+    let text = draftcraft_dxf::decode_code_page(bytes, name).or_else(|| draftcraft_dxf::decode_code_page(bytes, "ANSI_1252")).unwrap_or_default();
+    draftcraft_dxf::unescape_unicode(&text)
+}
+
+/// UTF-16 text (from AutoCAD 2007) by the DXF reader's rules: its escapes expanded.
+fn unicode_text(text: String) -> String {
+    draftcraft_dxf::unescape_unicode(&text)
+}
+
 pub fn read(bytes: &[u8]) -> Result<(Drawing, Unread)> {
     let limit = draftcraft_dwg::Limits::DEFAULT.max_dwg_bytes;
     if bytes.len() > limit {
         return Err(IoError::Format(format!("DWG: the file is larger than the {} MB DraftCraft opens", limit >> 20)));
     }
-    let file = DwgFile::open(bytes).map_err(|e| IoError::Format(format!("DWG: {e}")))?;
+    let mut file = DwgFile::open(bytes).map_err(|e| IoError::Format(format!("DWG: {e}")))?;
+    // Text reads as the DXF reader reads it: in the file's code page, escapes expanded.
+    file.set_text_decoding(draftcraft_dwg::file::TextDecoding { ansi: ansi_text, unicode: unicode_text });
     let mut d = Drawing::new_imperial();
     d.header.set_str("ACADVER", file.version_code());
     // A file without the variable (before AutoCAD 2000) has no units.

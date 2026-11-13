@@ -1598,3 +1598,37 @@ fn write_dwg_fixtures() {
         }
     }
 }
+
+/// AutoCAD's own sample drawings, when `DRAFTCRAFT_DWG_SAMPLES` names their folder (ACadSharp's
+/// `samples`, MIT: `sample_AC1015.dwg` to `sample_AC1032.dwg`, saved by AutoCAD). Colour book
+/// colours read as AutoCAD has them in every version: from the DBCOLOR object the entity names
+/// (2004 on: its colour stores no true colour, which used to lose the entity) and from AutoCAD's
+/// round-trip data (2000), which no entity keeps as extended data.
+#[test]
+fn autocad_samples_colour_book_colours() {
+    use draftcraft_color::{Color, Rgb};
+    use draftcraft_doc::Handle;
+    let Some(dir) = std::env::var_os("DRAFTCRAFT_DWG_SAMPLES").map(std::path::PathBuf::from) else {
+        eprintln!("DRAFTCRAFT_DWG_SAMPLES is not set: AutoCAD's sample drawings skipped");
+        return;
+    };
+    let ral = Some(("14848000".to_string(), "RAL CLASSIC$RAL 1006".to_string()));
+    for code in ["AC1015", "AC1018", "AC1024", "AC1027", "AC1032"] {
+        let bytes = std::fs::read(dir.join(format!("sample_{code}.dwg"))).unwrap_or_else(|e| panic!("{code}: {e}"));
+        let (d, _) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{code}: {e}"));
+        let circle = d.entity(Handle(0x99F)).unwrap_or_else(|| panic!("{code}: CIRCLE 99F is read"));
+        assert_eq!(circle.common.color, Color::True(Rgb::from_u32(0xE2_9000)), "{code}: AutoCAD's 420 of CIRCLE 99F");
+        assert_eq!(d.foreign.entities.get(&Handle(0x99F)).and_then(|x| x.color_book.clone()), ral, "{code}: its 430");
+        // A true colour of no book, from 2000's round-trip data as from 2004's colour.
+        let line = d.entity(Handle(0x99E)).unwrap_or_else(|| panic!("{code}: LINE 99E"));
+        assert_eq!(line.common.color, Color::True(Rgb::from_u32(0x34_C918)), "{code}: AutoCAD's 420 of LINE 99E");
+        for e in d.model.iter() {
+            let rt = e.common.xdata.iter().any(|t| t.code == 1000 && (t.value == "RTTcAl" || t.value == "RTMaterial"));
+            assert!(!rt, "{code}: {} {:X} keeps AutoCAD's round-trip data", e.kind.dxf_name(), e.handle.0);
+        }
+        if code != "AC1015" {
+            let layer = d.foreign.records.get(&("LAYER".to_string(), "LAYER_COLOR_BOOK".to_string())).and_then(|x| x.color_book.clone());
+            assert_eq!(layer, Some(("16564615".to_string(), "DIC COLOR GUIDE(R)$DIC 7".to_string())), "{code}: layer's 420 and 430");
+        }
+    }
+}

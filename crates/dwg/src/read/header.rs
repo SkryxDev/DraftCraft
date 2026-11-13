@@ -635,7 +635,7 @@ fn to_header(vals: Vec<(&'static str, Val)>, verified: bool, note: String) -> He
 /// Parse the header section. Never fails outright: an unreadable header
 /// yields `HeaderVars { verified: false, note }`.
 pub(crate) fn parse(data: &[u8], ver: DwgVersion, maintenance: u8, codepage: u16, type_of: &dyn Fn(u64) -> Option<u16>) -> HeaderVars {
-    match parse_values(data, ver, maintenance, codepage, type_of) {
+    match parse_values(data, ver, maintenance, codepage, Default::default(), type_of) {
         Ok((vals, verified, note)) => to_header(vals, verified, note),
         Err(e) => HeaderVars { verified: false, note: e.to_string(), ..Default::default() },
     }
@@ -649,12 +649,13 @@ pub(crate) fn parse_values(
     ver: DwgVersion,
     maintenance: u8,
     codepage: u16,
+    text: crate::records::text::TextDecoding,
     type_of: &dyn Fn(u64) -> Option<u16>,
 ) -> Result<(Vec<(&'static str, Val)>, bool, String)> {
     let wrapped = section::unwrap(data, &HEADER_START, &HEADER_END, ver, maintenance)?;
     let body = wrapped.body;
     if ver < V::R2007 {
-        let s = Streams { ver, codepage, dat: BitReader::new(body), strs: None, hdl: None };
+        let s = Streams { ver, codepage, dat: BitReader::new(body), strs: None, hdl: None, text };
         let (vals, _end) = read_all(s)?;
         return Ok(match validate(&vals, type_of) {
             Ok(()) => (vals, true, String::new()),
@@ -686,7 +687,7 @@ pub(crate) fn parse_values(
         };
         let hdl = BitReader::with_bounds(body, endbit, body.len() * 8);
         let dat = BitReader::with_bounds(body, main_start, endbit);
-        let s = Streams { ver, codepage, dat, strs, hdl: Some(hdl) };
+        let s = Streams { ver, codepage, dat, strs, hdl: Some(hdl), text };
         match read_all(s) {
             Ok((vals, _)) => match validate(&vals, type_of) {
                 Ok(()) => return Ok((vals, true, format!("layout: {label}"))),

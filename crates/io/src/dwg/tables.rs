@@ -136,9 +136,16 @@ pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], d: &mut Drawing, unrea
     let mut index = HashMap::new();
     for o in of("LAYER") {
         match file.read_object(o).and_then(|mut r| layer(&mut r, &t)) {
-            Ok((l, plot_style)) => {
+            Ok((l, plot_style, book)) => {
                 t.layers.insert(o.handle, l.name.clone());
                 if !l.name.is_empty() {
+                    if let Some(book) = book {
+                        std::sync::Arc::make_mut(&mut d.foreign)
+                            .records
+                            .entry(("LAYER".into(), l.name.trim().to_ascii_uppercase()))
+                            .or_default()
+                            .color_book = Some(book);
+                    }
                     put(&mut d.layers, &mut index, l, |x| &x.name);
                 }
                 // The plot style is named by the plot style dictionary, read with the objects.
@@ -157,8 +164,11 @@ pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], d: &mut Drawing, unrea
 /// shape style.
 fn style(r: &mut ObjectReader, apps: &HashMap<u64, String>) -> DwgResult<(TextStyle, String)> {
     let name = record_name(r)?;
-    let vertical = r.b()?;
+    // The shape file flag, then vertical: AutoCAD's files show it (ACadSharp's samples, saved by
+    // AutoCAD: the unnamed styles of ltypeshp.shx and a .shx of shapes, flag 1 in AutoCAD's DXF,
+    // have the first bit set). BlackCAD reads them the other way round.
     let _shape_file = r.b()?;
+    let vertical = r.b()?;
     let height = r.bd()?;
     let width_factor = r.bd()?;
     let oblique = r.bd()?;
@@ -280,7 +290,7 @@ fn linetype(r: &mut ObjectReader, styles: &HashMap<u64, String>) -> DwgResult<Li
 }
 
 /// LAYER (specification §20.4.54). Returns the layer and the handle of its plot style.
-fn layer(r: &mut ObjectReader, t: &Tables) -> DwgResult<(Layer, u64)> {
+fn layer(r: &mut ObjectReader, t: &Tables) -> DwgResult<(Layer, u64, Option<(String, String)>)> {
     let name = record_name(r)?;
     let mut l = Layer { name, ..Layer::default() };
     let before_2000 = r.version() <= V::R14;
@@ -298,7 +308,8 @@ fn layer(r: &mut ObjectReader, t: &Tables) -> DwgResult<(Layer, u64)> {
         l.plot = flags & 0x10 != 0;
         l.lineweight = Lineweight::from_dxf(i16::try_from(super::header::lineweight(i64::from((flags & 0x03E0) >> 5))).unwrap_or(-3));
     }
-    let (c, index) = r.color()?;
+    let named = r.named_color()?;
+    let (c, index) = (named.color, named.index);
     // Up to R14 a negative colour number marks a layer that is off. From AutoCAD 2000 on it is
     // the 0x02 bit of the flags: set on a layer that is off, in AutoCAD's own files.
     l.on = if before_2000 { index >= 0 } else { flags & 0x02 == 0 };
@@ -333,7 +344,22 @@ fn layer(r: &mut ObjectReader, t: &Tables) -> DwgResult<(Layer, u64)> {
     if let Some(n) = t.linetypes.get(&lt) {
         l.linetype.clone_from(n);
     }
-    Ok((l, plot_style))
+    let book = color_book(l.color, named.name, named.book);
+    Ok((l, plot_style, book))
+}
+
+/// What a colour book colour keeps for saving, as the DXF reader keeps it
+/// ([`draftcraft_doc::ForeignExtra::color_book`]): the true colour (group 420) and the book and
+/// colour names, `$` between (group 430: `RAL CLASSIC$RAL 1006`). `None` for a colour that is not
+/// a true colour of a book.
+pub(super) fn color_book(color: Color, name: Option<String>, book: Option<String>) -> Option<(String, String)> {
+    let Color::True(rgb) = color else { return None };
+    let name = name.filter(|n| !n.trim().is_empty())?;
+    let full = match book.filter(|b| !b.trim().is_empty()) {
+        Some(b) => format!("{b}${name}"),
+        None => name,
+    };
+    Some((rgb.to_u32().to_string(), full))
 }
 
 /// A colour as an AutoCAD Color Index number (0 ByBlock, 256 ByLayer), as a dimension style holds
@@ -630,6 +656,9 @@ fn dim_style(
             fields.insert(field.to_string(), v);
         }
     }
+    // The variables newer than the file's version, which DraftCraft keeps in its extended data
+    // for older files: as the DXF reader takes them, after the style's own fields.
+    fields.extend(crate::dxf_ext::read_newer_dimvars(&super::entities::xdata_tags(&x, apps), styles, arrows, ltypes));
     let mut st = DimStyle { name, annotative, ..DimStyle::default() };
     st.apply_fields(&fields);
     Ok(st)

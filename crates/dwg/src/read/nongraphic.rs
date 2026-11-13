@@ -40,7 +40,7 @@ pub fn decode(o: &Object, classes: &[ClassDef], codepage: u16) -> Option<Result<
         _ => return None,
     };
     let buf = object::raw_buffer(raw);
-    let ctx = DecodeCtx { ver: raw.version, codepage, classes };
+    let ctx = DecodeCtx { ver: raw.version, codepage, classes, text: Default::default() };
     Some((|| {
         let mut op = object::open(&ctx, &buf, 0)?;
         let wdflt = op.type_name == "ACDBDICTIONARYWDFLT";
@@ -499,7 +499,7 @@ pub fn dimstyle(o: &Object, classes: &[ClassDef], codepage: u16) -> Option<Resul
         return None;
     }
     let buf = object::raw_buffer(raw);
-    let ctx = DecodeCtx { ver: raw.version, codepage, classes };
+    let ctx = DecodeCtx { ver: raw.version, codepage, classes, text: Default::default() };
     Some((|| {
         let mut op = object::open(&ctx, &buf, 0)?;
         let s = &mut op.s;
@@ -674,7 +674,7 @@ pub fn vport(o: &Object, classes: &[ClassDef], codepage: u16) -> Option<Result<V
         return None;
     }
     let buf = object::raw_buffer(raw);
-    let ctx = DecodeCtx { ver: raw.version, codepage, classes };
+    let ctx = DecodeCtx { ver: raw.version, codepage, classes, text: Default::default() };
     Some((|| {
         let mut op = object::open(&ctx, &buf, 0)?;
         let s = &mut op.s;
@@ -813,7 +813,7 @@ pub(crate) fn decode_groups(o: &Object, classes: &[ClassDef], codepage: u16, loo
     }
     let raw = o.raw.as_ref()?;
     let buf = object::raw_buffer(raw);
-    let ctx = DecodeCtx { ver: raw.version, codepage, classes };
+    let ctx = DecodeCtx { ver: raw.version, codepage, classes, text: Default::default() };
     let mut op = match object::open(&ctx, &buf, 0) {
         Ok(op) => op,
         Err(e) => return Some(Err(e)),
@@ -847,7 +847,7 @@ pub fn promote(d: &mut Drawing) {
             // older .cad files): decoded now, when the record fits.
             (_, ObjectKind::Unsupported) if matches!(o.type_code, 0x2E | 0x2F) || matches!(o.type_name.as_str(), "IMAGE" | "WIPEOUT") => {
                 o.raw.as_ref().and_then(|raw| {
-                    let ctx = DecodeCtx { ver: raw.version, codepage, classes: &classes };
+                    let ctx = DecodeCtx { ver: raw.version, codepage, classes: &classes, text: Default::default() };
                     let k = object::decode(&ctx, &object::raw_buffer(raw), 0).ok()?.kind;
                     matches!(k, ObjectKind::Tolerance(_) | ObjectKind::MLine(_) | ObjectKind::Image(_) | ObjectKind::Wipeout(_)).then_some(k)
                 })

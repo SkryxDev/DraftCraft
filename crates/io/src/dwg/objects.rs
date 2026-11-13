@@ -162,6 +162,23 @@ pub(super) struct Named {
     pub mline_styles: HashMap<u64, String>,
     pub images: HashMap<u64, ImageDef>,
     pub pdfs: HashMap<u64, PdfDef>,
+    /// Colour book colours (DBCOLOR), which entities with such a colour point to.
+    pub colors: HashMap<u64, BookColor>,
+}
+
+/// A DBCOLOR object: the colour of a colour book, with what saving keeps of it
+/// ([`super::tables::color_book`]).
+pub(super) struct BookColor {
+    pub color: draftcraft_color::Color,
+    pub book: Option<(String, String)>,
+}
+
+/// DBCOLOR: one CMC colour, with its name and its book's (AutoCAD's own files store nothing else).
+fn book_color(r: &mut ObjectReader) -> DwgResult<Option<BookColor>> {
+    r.common_refs()?;
+    let c = r.named_color()?;
+    let Some(color) = super::tables::color(c.color) else { return Ok(None) };
+    Ok(Some(BookColor { color, book: super::tables::color_book(color, c.name, c.book) }))
 }
 
 /// An IMAGEDEF: the image file, its name (the ACAD_IMAGE_DICT dictionary), the size of one
@@ -214,6 +231,11 @@ pub(super) fn named(file: &DwgFile, objects: &[ObjectRef], root: u64) -> Named {
                 if let Ok(mut def) = file.read_object(o).and_then(|mut r| image_def(&mut r)) {
                     def.name = image_names.get(&o.handle).cloned().unwrap_or_default();
                     n.images.insert(o.handle, def);
+                }
+            }
+            "DBCOLOR" => {
+                if let Ok(Some(c)) = file.read_object(o).and_then(|mut r| book_color(&mut r)) {
+                    n.colors.insert(o.handle, c);
                 }
             }
             "MLINESTYLE" => {

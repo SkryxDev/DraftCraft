@@ -379,17 +379,13 @@ fn layouts_and_paperspace() {
 }
 
 fn with_dimension_styles(cases: Vec<Case>) {
-    // Fixed-length extension lines (DIMFXL) were added in 2007. Older DWG records have no
-    // slot for the inactive default length, and the bridge supplies zero on read.
+    // Fixed-length extension lines (DIMFXL) were added in 2007. Older DWG records have no slot
+    // for the length; the direct reader gives a style the default length then (AutoCAD's 1.0),
+    // and a length that isn't the default comes back from DraftCraft's extended data. (The
+    // acadrust bridge supplied zero.)
     for case in cases {
         for version in Version::ALL {
-            let mut expected = case.drawing.clone();
-            if version < Version::R2007 {
-                for style in &mut expected.dim_styles {
-                    style.fixed_ext_length = 0.0;
-                }
-            }
-            super::check_version(&case.name, &case.drawing, &expected, version);
+            super::check_version(&case.name, &case.drawing, &case.drawing, version);
         }
     }
 }

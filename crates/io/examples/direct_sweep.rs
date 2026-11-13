@@ -432,8 +432,42 @@ fn vs_dxf(dwg: &str, dxf: &str) {
     );
 }
 
+/// Every difference the round-trip comparison finds between AutoCAD's DXF of a drawing, read by
+/// the DXF reader, and the direct reading of AutoCAD's DWG of the same drawing: what the DWG
+/// reading lost, added or changed.
+fn deep(dwg: &str, dxf: &str) {
+    let name = Path::new(dwg).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let (Ok(a), Ok(b)) = (std::fs::read(dwg), std::fs::read(dxf)) else {
+        println!("DEEP {name}: can't read the files");
+        return;
+    };
+    let (direct, other) = match (read_dwg_with(&a, DwgReader::Direct), draftcraft_io::read(&b, "other.dxf")) {
+        (Ok(d), Ok(o)) => (d, o),
+        (Err(e), _) => return println!("DEEP {name}: DIRECT READ FAILED: {e}"),
+        (_, Err(e)) => return println!("DEEP {name}: the DXF doesn't read: {e}"),
+    };
+    let cmp = draftcraft_io::roundtrip::compare(&other, &direct, &draftcraft_io::roundtrip::Options::default());
+    let t = cmp.total();
+    println!("DEEP {name}: {} lost, {} added, {} changed (DWG reading vs the DXF)", t.lost, t.added, t.changed);
+    for d in &cmp.differences {
+        println!("  [{}] {} {}: {}", d.category.label(), d.change.label(), d.place, d.detail);
+    }
+    if cmp.omitted > 0 {
+        println!("  … {} more", cmp.omitted);
+    }
+    println!("  DWG notes: {}", direct.read_notes.join(" | "));
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("--deep") {
+        for pair in args.get(1..).unwrap_or(&[]).chunks(2) {
+            if let [dwg, dxf] = pair {
+                deep(dwg, dxf);
+            }
+        }
+        return;
+    }
     if args.first().map(String::as_str) == Some("--read") {
         // Only the direct reading of saved files: its time and the process's peak memory.
         for f in args.iter().skip(1) {

@@ -6,6 +6,7 @@
 //! Reads R13 to AutoCAD 2018 and later, except AutoCAD 2007–2009 (AC1021), whose container is not
 //! implemented yet.
 
+pub use crate::records::text::{TextDecoding, code_page_name};
 use std::collections::HashMap;
 
 use crate::read::header::Val;
@@ -40,6 +41,18 @@ pub enum ColorValue {
     Rgb(u8, u8, u8),
     /// No colour.
     None,
+}
+
+/// A colour as a layer or a DBCOLOR object stores it, with the names of a colour book colour.
+#[derive(Clone, Debug, PartialEq)]
+pub struct NamedColor {
+    pub color: ColorValue,
+    /// The index field as stored (its sign marks a layer that is off, before AutoCAD 2000).
+    pub index: i16,
+    /// The colour's name in its book (`RAL 1006`).
+    pub name: Option<String>,
+    /// The colour book's name (`RAL CLASSIC`).
+    pub book: Option<String>,
 }
 
 /// The value of one header variable, as the file stores it.
@@ -179,6 +192,9 @@ pub struct EntityRefs {
     pub linetype: EntityLinetype,
     pub material: u64,
     pub plotstyle: u64,
+    /// The DBCOLOR object of a colour book colour (AutoCAD 2004 on), whose true colour and names
+    /// the entity takes ([`ObjectReader::named_color`] reads it); 0 for none.
+    pub color_book: u64,
     /// The next entity of the block's chain when the entity stores it (up to AutoCAD 2000);
     /// `None` when the next object of the file follows, or from AutoCAD 2004 on, where the block
     /// lists its entities.
@@ -274,6 +290,7 @@ impl ObjectReader<'_> {
             },
             material: c.material.0,
             plotstyle: c.plotstyle.0,
+            color_book: c.color_book.0,
             next: self.o.next_entity,
         })
     }
@@ -365,9 +382,15 @@ impl ObjectReader<'_> {
         let (c, index) = self.o.s.cmc()?;
         Ok((color_value(c), index))
     }
+    /// A colour with the colour book names it carries (AutoCAD 2004 on), as a layer or a DBCOLOR
+    /// object stores it.
+    pub fn named_color(&mut self) -> Result<NamedColor> {
+        let (c, index, name, book) = self.o.s.cmc_named()?;
+        Ok(NamedColor { color: color_value(c), index, name, book })
+    }
     /// 8-bit text in the file's code page, as a string.
     pub fn ansi(&self, bytes: &[u8]) -> String {
-        crate::read::text::decode_ansi(bytes, self.o.s.codepage)
+        (self.o.s.text.ansi)(bytes, self.o.s.codepage)
     }
     /// How many bits of the object's fields are left to read.
     pub fn remaining_bits(&self) -> usize {
@@ -382,6 +405,8 @@ pub struct DwgFile {
     pub maintenance: u8,
     /// The code page of the file's 8-bit text.
     pub codepage: u16,
+    /// How the file's text becomes strings ([`DwgFile::set_text_decoding`]).
+    text: crate::records::text::TextDecoding,
     classes: Vec<ClassDef>,
     header: Option<Vec<u8>>,
     others: Vec<(String, Vec<u8>)>,
@@ -417,6 +442,7 @@ impl DwgFile {
             version,
             maintenance: c.maintenance,
             codepage: c.codepage,
+            text: crate::records::text::TextDecoding::default(),
             classes,
             header: c.header,
             others: c.others,
@@ -431,9 +457,16 @@ impl DwgFile {
         self.version.magic()
     }
 
-    /// The DXF name of the file's code page (`ANSI_1252`), when it is one the reader knows.
+    /// The DXF name of the file's code page (`ANSI_1252`, `ANSI_932`…), when the number it
+    /// stores names one.
     pub fn codepage_name(&self) -> Option<&'static str> {
-        (self.codepage == 30).then_some("ANSI_1252")
+        crate::records::text::code_page_name(self.codepage)
+    }
+
+    /// How the file's text becomes strings from now on: every object, header and extended data
+    /// string read after this goes through `text` (see [`TextDecoding`]).
+    pub fn set_text_decoding(&mut self, text: TextDecoding) {
+        self.text = text;
     }
 
     /// True for the versions before AutoCAD 2000 (R13 and R14).
@@ -451,7 +484,7 @@ impl DwgFile {
         let data = self.header.as_ref().ok_or_else(|| crate::records::Error::format("no header section"))?;
         let by_handle: HashMap<u64, usize> = self.entries.iter().copied().collect();
         let type_of = |h: u64| by_handle.get(&h).and_then(|&o| object::peek(self.version, &self.objects, o).ok()).map(|(_, code)| code);
-        let (vals, verified, _note) = read::header::parse_values(data, self.version, self.maintenance, self.codepage, &type_of)?;
+        let (vals, verified, _note) = read::header::parse_values(data, self.version, self.maintenance, self.codepage, self.text, &type_of)?;
         let vars = vals
             .into_iter()
             .map(|(name, v)| {
@@ -477,7 +510,7 @@ impl DwgFile {
 
     /// Open one object to read its fields.
     pub fn read_object(&self, object: &ObjectRef) -> Result<ObjectReader<'_>> {
-        let ctx = object::DecodeCtx { ver: self.version, codepage: self.codepage, classes: &self.classes };
+        let ctx = object::DecodeCtx { ver: self.version, codepage: self.codepage, classes: &self.classes, text: self.text };
         Ok(ObjectReader { o: object::open(&ctx, &self.objects, object.offset)? })
     }
 
