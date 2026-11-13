@@ -578,18 +578,48 @@ fn multiline_fixture() -> String {
     dxf
 }
 
-/// Multiline attributes (AutoCAD 2018 DWG) embed MTEXT fields whose layout no AutoCAD-saved file
-/// here confirms, so the reader does not decode them yet. It must count them, and leave out the
-/// block reference that owns one whole, rather than lose any part silently.
+/// Multiline attributes (AutoCAD 2018 DWG) embed an MTEXT in the record: an entity's common
+/// properties, then the MTEXT's fields (AutoCAD's own files show the layout: ACadSharp's samples,
+/// [`autocad_samples_entities_read_as_autocads_dxf`]). DraftCraft's saved ones read back as the
+/// drawing has them: the definition with its multiline text, the reference with its own. (The
+/// acadrust reader loses the reference's vertical alignment; the writer places an aligned text's
+/// insertion point itself, from its alignment point, so that is not compared.)
 #[test]
-fn multiline_attributes_are_counted_not_dropped() {
+fn multiline_attributes_read_back_as_saved() {
     use draftcraft_io::{SaveOptions, Version, write_with};
     let d = draftcraft_io::read(multiline_fixture().as_bytes(), "m.dxf").unwrap();
+    // An aligned text's insertion point is the writer's: left out of both sides.
+    let unplaced = |list: Vec<(String, serde_json::Value)>| -> Vec<(String, serde_json::Value)> {
+        let strip = |a: &mut serde_json::Value| {
+            if let Some(t) = a.get_mut("text").and_then(|t| t.as_object_mut())
+                && t.get("alignPt").is_some_and(|p| !p.is_null())
+            {
+                t.remove("insert");
+            }
+        };
+        list.into_iter()
+            .map(|(p, mut v)| {
+                if let Some(list) = v.get_mut("attribs").and_then(|a| a.as_array_mut()) {
+                    list.iter_mut().for_each(strip);
+                } else {
+                    strip(&mut v);
+                }
+                (p, v)
+            })
+            .collect()
+    };
+    let want = unplaced(attributes_of(&d));
+    assert!(!want.is_empty(), "the fixture has its multiline attributes");
     let bytes = write_with(&d, "t.dwg", &SaveOptions { version: Some(Version::R2018), binary: false }).unwrap();
     let (read, unread) = dwg::read(&bytes).unwrap();
-    assert!(attributes_of(&read).is_empty(), "nothing of a multiline attribute's block or reference is read in part");
     for what in ["ATTDEF (not decoded)", "ATTRIB (not decoded)", "INSERT whose attributes were not all read"] {
-        assert_eq!(unread.by_type.get(what), Some(&1), "{what}: {}", unread.summary());
+        assert_eq!(unread.by_type.get(what), None, "{what}: {}", unread.summary());
+    }
+    let got = unplaced(attributes_of(&read));
+    assert_eq!(got.len(), want.len(), "{got:#?}");
+    for ((gp, g), (wp, w)) in got.iter().zip(&want) {
+        assert_eq!(gp, wp);
+        assert!(close(g, w, false), "{gp}\nread  {g}\nsaved {w}");
     }
 }
 
@@ -1690,5 +1720,30 @@ fn autocad_samples_entities_read_as_autocads_dxf() {
         }
         // No entity keeps AutoCAD's round-trip spline data as extended data.
         assert!(d.model.iter().all(|e| !e.common.xdata.iter().any(|t| t.code == 1001 && t.value == "ACAD_SPLINE_DATA")), "{code}");
+        if code != "AC1032" {
+            continue;
+        }
+        // 2018: MTEXT columns (an embedded object in AutoCAD's DXF), whose height AutoCAD stores
+        // negative and its DXF has as 0.
+        let EntityKind::MText(m) = kind(0x3EC) else { panic!("{code}: MTEXT 3EC") };
+        let c = m.columns.unwrap_or_else(|| panic!("{code}: MTEXT 3EC has its columns"));
+        assert_eq!((c.kind, c.count, c.auto_height, c.flow_reversed), (draftcraft_doc::MTextColumnType::Dynamic, 1, false, false), "{code}");
+        assert!(near(c.gutter, 110.223_167_038_119_5) && c.heights == vec![0.0], "{code}: {c:?}");
+        assert!(near(m.width, 15.741_414_244_987_48), "{code}");
+        // 2018: multiline attributes, their text an MTEXT embedded in the record.
+        let block = d.blocks.get("my_block_v2").unwrap_or_else(|| panic!("{code}: block my_block_v2"));
+        let def = block.entities.iter().find_map(|e| match &e.kind {
+            EntityKind::AttDef(a) if a.tag == "MULTI_LINE_ATT" => Some(a.clone()),
+            _ => None,
+        });
+        let def = def.unwrap_or_else(|| panic!("{code}: the multiline ATTDEF 796 is read"));
+        assert!(def.multiline.is_some(), "{code}");
+        assert_eq!(def.prompt, "this is an example of prompt", "{code}");
+        assert!(def.modes.lock_position, "{code}");
+        let EntityKind::Insert(i) = kind(0x79C) else { panic!("{code}: INSERT 79C is read") };
+        let att = i.attribs.iter().find(|a| a.tag == "MULTI_LINE_ATT").unwrap_or_else(|| panic!("{code}: its multiline ATTRIB"));
+        assert_eq!(att.text.value, "my multi line text for the attrrib", "{code}");
+        assert_eq!(att.multiline.as_ref().map(|m| m.mtext.contents.as_str()), Some("my multi line text for the attrrib"), "{code}");
+        assert!(near(att.text.height, 1.720_654_456_209_621), "{code}");
     }
 }

@@ -7,8 +7,8 @@ use std::collections::{HashMap, HashSet};
 
 use draftcraft_doc::{
     Arc, Attrib, AttribModes, AttribProps, Circle, Common, DimKind, Dimension, Drawing, Ellipse, Entity, EntityKind, Face3d, Gradient, HAlign,
-    Handle, Hatch, HatchLoop, Image, Insert, Leader, Line, Lineweight, LwPolyline, MAX_FRAME_CHARS, MText, Point, PolyfaceMesh, Polyline3d, RawTag,
-    RayLine, Solid, Text, Tolerance, VAlign, Viewport, Wipeout,
+    Handle, Hatch, HatchLoop, Image, Insert, Leader, Line, Lineweight, LwPolyline, MAX_FRAME_CHARS, MText, MTextColumnType, MTextColumns,
+    MultilineAttrib, Point, PolyfaceMesh, Polyline3d, RawTag, RayLine, Solid, Text, Tolerance, VAlign, Viewport, Wipeout,
 };
 use draftcraft_dwg::DwgVersion as V;
 use draftcraft_dwg::file::{ColorValue, DwgFile, EntityLinetype, EntityRefs, EntitySpace, ObjectReader, ObjectRef, XDataBlock, XDataItem};
@@ -1563,18 +1563,29 @@ fn text_fields(r: &mut ObjectReader) -> DwgResult<TextFields> {
 }
 
 /// ATTRIB and ATTDEF (§20.4.4, §20.4.5): a text's fields, then the attribute's own.
-fn attribute(r: &mut ObjectReader, definition: bool) -> DwgResult<Shape> {
+fn attribute(r: &mut ObjectReader, definition: bool, partial: &mut Vec<&'static str>) -> DwgResult<Shape> {
     let ver = r.version();
     let f = text_fields(r)?;
     if ver >= V::R2010 {
         let _version = r.rc()?;
     }
+    let mut multiline = None;
     if ver >= V::R2018 {
         // 1 a single line; 2 a multiline attribute, 4 a multiline definition, whose text is an
-        // embedded MTEXT this reader does not decode yet.
+        // MTEXT embedded here: an entity's common properties (its own copy, as AutoCAD's files
+        // show), the MTEXT's fields, then the number of secondary attributes. As in the DXF
+        // reader, the attribute's value is the text's plain reading.
         let kind = r.rc()?;
         if kind > 1 {
-            return Err(draftcraft_dwg::records::Error::format("multiline attribute"));
+            embedded_entity_head(r)?;
+            let Shape { body: Body::MText(m), .. } = mtext(r, partial)? else {
+                return Err(draftcraft_dwg::records::Error::format("multiline attribute without its text"));
+            };
+            if r.bs()? != 0 {
+                partial.push("multiline attribute's secondary attributes");
+            }
+            let read_as = draftcraft_fonts::plain_mtext(&m.contents);
+            multiline = Some(MultilineAttrib { mtext: *m, read_as });
         }
     }
     let tag = r.text()?;
@@ -1588,17 +1599,46 @@ fn attribute(r: &mut ObjectReader, definition: bool) -> DwgResult<Shape> {
         }
         prompt = mtext_dxf::decode_line(&r.text()?);
     }
+    let mut text = f.text;
+    if let Some(m) = &multiline {
+        text.value.clone_from(&m.read_as);
+    }
     let a = Attrib {
         tag,
-        text: f.text,
+        text,
         invisible: flags & 1 != 0,
         constant: flags & 2 != 0,
         prompt,
         props: AttribProps::default(),
-        multiline: None,
+        multiline,
         modes: AttribModes { verify: flags & 4 != 0, preset: flags & 8 != 0, lock_position },
     };
     Ok(Shape { body: Body::Attrib(Box::new(a), Some(f.align), f.insert, definition), thickness: f.thickness, normal: f.normal })
+}
+
+/// The common properties an entity embedded in another has (AutoCAD 2018's multiline attribute
+/// text): its mode, reactors, extension dictionary and binary data flags, colour, linetype scale,
+/// linetype, plot style and material flags, shadows, visual styles, visibility and lineweight.
+/// The attribute's own properties are the ones the drawing keeps.
+fn embedded_entity_head(r: &mut ObjectReader) -> DwgResult<()> {
+    let _mode = r.bb()?;
+    let _reactors = r.bl()?;
+    let _no_extension_dictionary = r.b()?;
+    let _binary_data = r.b()?;
+    let color = r.bs()?;
+    if color & 0x8000 != 0 && color & 0x4000 == 0 {
+        let _true_color = r.bl()?;
+    }
+    if color & 0x2000 != 0 {
+        let _transparency = r.bl()?;
+    }
+    let _linetype_scale = r.bd()?;
+    let _flags = (r.bb()?, r.bb()?, r.bb()?);
+    let _shadows = r.rc()?;
+    let _visual_styles = (r.b()?, r.b()?, r.b()?);
+    let _invisible = r.bs()?;
+    let _lineweight = r.rc()?;
+    Ok(())
 }
 
 /// MTEXT (§20.4.46).
@@ -1608,14 +1648,12 @@ fn mtext(r: &mut ObjectReader, partial: &mut Vec<&'static str>) -> DwgResult<Sha
     let normal = v3(r.bd3()?);
     let x_axis = v3(r.bd3()?);
     let width = r.bd()?;
-    if ver >= V::R2007 {
-        let _rect_height = r.bd()?;
-    }
+    let defined_height = if ver >= V::R2007 { r.bd()? } else { 0.0 };
     let height = r.bd()?;
     let attach = r.bs()?;
     let _direction = r.bs()?;
     let _extents_height = r.bd()?;
-    let _extents_width = r.bd()?;
+    let extents_width = r.bd()?;
     let contents = r.text()?;
     let (mut line_spacing, mut line_spacing_exact) = (1.0, false);
     if ver >= V::R2000 {
@@ -1623,9 +1661,29 @@ fn mtext(r: &mut ObjectReader, partial: &mut Vec<&'static str>) -> DwgResult<Sha
         line_spacing = r.bd()?;
         let _unknown = r.b()?;
     }
-    // A background fill follows from AutoCAD 2004 on, and column data in AutoCAD 2018.
-    if ver >= V::R2004 && r.bl().is_ok_and(|background| background != 0) {
-        partial.push("MTEXT background fill");
+    // From AutoCAD 2004 on a background fill: its flags and, when it is filled, its scale,
+    // colour and transparency. The drawing has no background fill.
+    let mut columns = None;
+    if ver >= V::R2004 {
+        let background = r.bl()?;
+        if background != 0 {
+            partial.push("MTEXT background fill");
+        }
+        if background & 0x03 != 0 {
+            let _scale = r.bd()?;
+            let _color = r.color()?;
+            let _transparency = r.bl()?;
+        }
+        // AutoCAD 2018: a text that is not annotative carries its columns (an annotative one has
+        // them in its context data). Read only after the background flags AutoCAD's files show,
+        // and kept only when they end where the record does.
+        if ver >= V::R2018 && background & !0x13 == 0 && r.b()? {
+            columns = mtext_columns(r, defined_height, extents_width)?;
+            if columns.is_some() && r.remaining_bits() != 0 {
+                columns = None;
+                partial.push("MTEXT columns");
+            }
+        }
     }
     let mut rotation = Vec2::new(x_axis.x, x_axis.y).angle();
     let mut attach = u8::try_from(attach.clamp(1, 9)).unwrap_or(1);
@@ -1642,16 +1700,72 @@ fn mtext(r: &mut ObjectReader, partial: &mut Vec<&'static str>) -> DwgResult<Sha
     let t = MText {
         insert,
         height: height.max(1e-9),
-        width: width.max(0.0),
+        // An MTEXT's width is one column's, as the DXF reader has it.
+        width: match &columns {
+            Some((_, w)) if *w > 0.0 => *w,
+            _ => width.max(0.0),
+        },
         attach,
         rotation,
         style: "Standard".into(),
         contents: mtext_dxf::decode_contents(&contents),
         line_spacing,
         line_spacing_exact,
-        columns: None,
+        columns: columns.map(|(c, _)| c),
     };
     Ok(Shape { body: Body::MText(Box::new(t)), thickness: 0.0, normal })
+}
+
+/// The columns of an AutoCAD 2018 MTEXT that is not annotative, and their width: its own copy of
+/// the text's attachment, direction, insertion, size and extents (the MTEXT's own fields have
+/// them), then the column type and, with columns, their count, width, gutter, auto height and
+/// flow flags and (dynamic columns of manual heights) each column's height. By the DXF reader's
+/// rules for the same groups of AutoCAD's DXF (group 101): a height AutoCAD stores negative (the
+/// text's extents, negated) is 0 there, and dynamic auto-height columns store no count, which
+/// follows from the extents.
+fn mtext_columns(r: &mut ObjectReader, defined_height: f64, extents_width: f64) -> DwgResult<Option<(MTextColumns, f64)>> {
+    let _version = r.bs()?;
+    let _default = r.b()?;
+    let _attach = r.bl()?;
+    let _x_axis = r.bd3()?;
+    let _insert = r.bd3()?;
+    let (_rect_width, rect_height) = (r.bd()?, r.bd()?);
+    let _extents = (r.bd()?, r.bd()?);
+    let kind = match r.bl()? {
+        1 => MTextColumnType::Static,
+        2 => MTextColumnType::Dynamic,
+        _ => return Ok(None),
+    };
+    let finite = |v: f64| if v.is_finite() { v } else { 0.0 };
+    let count = r.bl()?;
+    let width = finite(r.bd()?).max(0.0);
+    let gutter = finite(r.bd()?).max(0.0);
+    let auto_height = r.b()?;
+    let flow_reversed = r.b()?;
+    let manual = kind == MTextColumnType::Dynamic && !auto_height;
+    let mut heights = Vec::new();
+    if manual {
+        let max = u32::try_from(mtext_dxf::MAX_COLUMNS).unwrap_or(u32::MAX);
+        for _ in 0..bounded(r, count, max, 2, "MTEXT column height")? {
+            heights.push(finite(r.bd()?).max(0.0));
+        }
+    }
+    let count = match i64::from(count) {
+        n if n > 0 => n,
+        _ if width + gutter > 0.0 && extents_width > 0.0 => ((extents_width + gutter) / (width + gutter)).round() as i64,
+        _ => 1,
+    };
+    let defined = [defined_height, rect_height, heights.first().copied().unwrap_or(0.0)].into_iter().map(finite).find(|h| *h > 0.0).unwrap_or(0.0);
+    let c = MTextColumns {
+        kind,
+        count: u16::try_from(count.clamp(1, mtext_dxf::MAX_COLUMNS as i64)).unwrap_or(1),
+        gutter,
+        height: if manual { heights.iter().copied().fold(0.0, f64::max) } else { defined },
+        auto_height,
+        heights: if manual { heights } else { Vec::new() },
+        flow_reversed,
+    };
+    Ok(Some((c, width)))
 }
 
 /// INSERT and MINSERT (§20.4.7, §20.4.8). From AutoCAD 2000 on the scale is stored against what it
@@ -1819,7 +1933,7 @@ fn shape(r: &mut ObjectReader, type_name: &str, partial: &mut Vec<&'static str>)
         "TEXT" => text(r)?,
         "MTEXT" => mtext(r, partial)?,
         "INSERT" => insert(r, false)?,
-        "ATTRIB" => attribute(r, false)?,
+        "ATTRIB" => attribute(r, false, partial)?,
         "POLYLINE_2D" => polyline_2d(r)?,
         "POLYLINE_3D" => polyline_3d(r)?,
         "POLYLINE_PFACE" => polyline_pface(r)?,
@@ -1839,7 +1953,7 @@ fn shape(r: &mut ObjectReader, type_name: &str, partial: &mut Vec<&'static str>)
         "PDFUNDERLAY" => underlay(r)?,
         "DIMENSION_ORDINATE" | "DIMENSION_LINEAR" | "DIMENSION_ALIGNED" | "DIMENSION_ANG_3PT" | "DIMENSION_ANG_2LN" | "DIMENSION_RADIUS"
         | "DIMENSION_DIAMETER" => dimension(r, type_name)?,
-        "ATTDEF" => attribute(r, true)?,
+        "ATTDEF" => attribute(r, true, partial)?,
         "MINSERT" => insert(r, true)?,
         "SOLID" => solid(r, false)?,
         "TRACE" => solid(r, true)?,
