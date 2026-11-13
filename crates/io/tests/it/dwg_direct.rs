@@ -867,7 +867,9 @@ fn hatches_drawing() -> draftcraft_doc::Drawing {
     if let Some(l) = associative.loops.first_mut() {
         l.vertices = vec![PolyVertex::with_bulge(Vec2::new(56.0, 5.0), 1.0), PolyVertex::with_bulge(Vec2::new(64.0, 5.0), 1.0)];
     }
-    for h in [solid, ansi, own, gradient, associative] {
+    let mut by_layer = hatch("SOLID", vec![outer(square(70.0, 0.0, 10.0))]);
+    by_layer.gradient = Some(Gradient { name: "CURVED".into(), color1: color::Color::Index(5), color2: color::Color::ByLayer, angle: 0.0, centered: true });
+    for h in [solid, ansi, own, gradient, associative, by_layer] {
         d.add(&Space::Model, Common::default(), EntityKind::Hatch(h)).expect("add");
     }
     d
@@ -884,7 +886,7 @@ fn hatches_read_as_the_acadrust_reader_reads_them() {
         let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
         let hatches = |d: &draftcraft_doc::Drawing| d.model.iter().filter(|e| matches!(e.kind, EntityKind::Hatch(_))).cloned().collect::<Vec<_>>();
         let (got, want) = (hatches(&d), hatches(&reference));
-        assert_eq!(want.len(), 5, "{version:?}");
+        assert_eq!(want.len(), 6, "{version:?}");
         assert_eq!(got.len(), want.len(), "{version:?}: unread {}", unread.summary());
         for (ge, we) in got.iter().zip(&want) {
             let (g, w) = (serde_json::to_value(ge.as_ref()).unwrap(), serde_json::to_value(we.as_ref()).unwrap());

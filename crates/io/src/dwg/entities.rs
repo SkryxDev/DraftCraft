@@ -730,10 +730,14 @@ fn hatch(r: &mut ObjectReader) -> DwgResult<Shape> {
         }
         let name = r.text()?;
         if is_gradient {
-            // A colour word: 0xC3 in its top byte names a colour index, otherwise it is RGB.
+            // A colour word: its top byte says how (0xC0 ByLayer, 0xC1 ByBlock, 0xC3 a colour
+            // index in the low byte, 0xC8 none), otherwise the low bytes are RGB.
             let color = |w: Option<&u32>, d: draftcraft_color::Color| {
                 w.map_or(d, |&w| match w >> 24 {
+                    0xC0 => draftcraft_color::Color::ByLayer,
+                    0xC1 => draftcraft_color::Color::ByBlock,
                     0xC3 => draftcraft_color::Color::from_aci(i16::from(u8::try_from(w & 0xff).unwrap_or(7))),
+                    0xC8 => d,
                     _ => draftcraft_color::Color::True(draftcraft_color::Rgb::from_u32(w & 0xff_ffff)),
                 })
             };
