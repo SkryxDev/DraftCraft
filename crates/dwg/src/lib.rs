@@ -18,6 +18,7 @@
 
 pub mod acadrust;
 pub mod bits;
+pub mod compose;
 pub mod crc;
 pub mod file;
 pub mod lz77;
