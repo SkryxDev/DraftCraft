@@ -100,6 +100,7 @@ pub(super) fn deliver_file(cmd: &str, path: &str, bytes: &[u8], hook: Option<sup
         "svg" => "image/svg+xml",
         "png" => "image/png",
         "pdf" => "application/pdf",
+        "txt" => "text/plain; charset=utf-8",
         _ => "application/octet-stream",
     };
     let deliver = hook.ok_or_else(|| bad(cmd, "files can't be written in this build; omit `path` to get the file as base64 `data`"))?;

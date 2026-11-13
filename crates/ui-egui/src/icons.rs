@@ -92,6 +92,8 @@ pub enum Icon {
     Insert,
     BlockEdit,
     AttDef,
+    AttOut,
+    AttIn,
     LayerProps,
     LayerOff,
     LayerIso,
@@ -832,6 +834,24 @@ fn paint_dimensions(pen: &Pen<'_>, icon: Icon, b: Color32, a: Color32, _dim: boo
 fn paint_block_tools(pen: &Pen<'_>, icon: Icon, b: Color32, a: Color32, _dim: bool) {
     use Icon::*;
     match icon {
+        // ATTOUT / ATTIN: a block and a sheet of rows and columns, an arrow from the block to
+        // the sheet (export) or from the sheet to the block (import).
+        AttOut | AttIn => {
+            pen.poly(&[(6.0, 1.5), (11.0, 4.0), (6.0, 6.5), (1.0, 4.0)], true, b);
+            pen.poly(&[(1.0, 4.0), (1.0, 8.5), (6.0, 11.0), (11.0, 8.5), (11.0, 4.0)], false, b);
+            pen.rect(13.0, 8.0, 10.0, 14.0, b);
+            pen.l(13.0, 12.5, 23.0, 12.5);
+            pen.l(13.0, 17.0, 23.0, 17.0);
+            pen.l(17.0, 8.0, 17.0, 22.0);
+            let thick = Stroke::new(pen.w * 1.8, a);
+            if icon == AttOut {
+                pen.p.line(vec![pen.at(5.0, 13.0), pen.at(5.0, 19.0), pen.at(8.5, 19.0)], thick);
+                pen.big_arrow(12.5, 19.0, 1.0, 0.0, 4.5, 3.0, a);
+            } else {
+                pen.p.line(vec![pen.at(12.0, 19.0), pen.at(5.0, 19.0), pen.at(5.0, 16.5)], thick);
+                pen.big_arrow(5.0, 12.0, 0.0, -1.0, 4.5, 3.0, a);
+            }
+        }
         LayerOff | LayerIso | LayerFreeze | LayerLock | LayerMatch | MakeCurrent | LayerPrev => {
             pen.poly(&[(2.0, 9.0), (10.0, 5.0), (18.0, 9.0), (10.0, 13.0)], true, b);
             pen.poly(&[(2.0, 13.0), (10.0, 17.0), (18.0, 13.0)], false, b);

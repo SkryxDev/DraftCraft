@@ -21,6 +21,7 @@ use crate::{Accept, EngineError, Input, Interactive, Prompt, Result, Session, St
 
 mod attdef;
 mod attedit;
+mod attio;
 mod burst;
 mod description;
 mod dyngrip;
@@ -89,6 +90,8 @@ pub fn specs() -> Vec<CommandSpec> {
         blockreplace::blockreplace_spec(),
         extract::dataextraction_spec(),
         extract::eattext_spec(),
+        attio::attout_spec(),
+        attio::attin_spec(),
         description::description_spec(),
     ]
     .into_iter()
