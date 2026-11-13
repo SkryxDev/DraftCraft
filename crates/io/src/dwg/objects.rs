@@ -1,7 +1,7 @@
 //! The objects of a DWG file that DraftCraft reads into the drawing's own model. So far: the
 //! DIMASSOC objects that make a dimension follow the geometry it measures.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use draftcraft_doc::Drawing;
 use draftcraft_dwg::file::{DwgFile, ObjectReader, ObjectRef};
@@ -62,6 +62,48 @@ fn dimassoc(r: &mut ObjectReader) -> DwgResult<Vec<Tag>> {
         tags.push(Tag::i(75, i64::from(last)));
     }
     Ok(tags)
+}
+
+/// Most entries of one dictionary that are read.
+const MAX_ENTRIES: u32 = 1 << 20;
+
+/// DICTIONARY (§20.4.56): its entries, by name, each with the handle of the object it holds.
+fn dictionary(r: &mut ObjectReader) -> DwgResult<Vec<(String, u64)>> {
+    r.common_refs()?;
+    let n = r.bl()?;
+    // From AutoCAD 2007 on the names are in the string stream: an entry may take no data bits.
+    let min_bits = if r.has_string_stream() { 0 } else { 2 };
+    if n > MAX_ENTRIES {
+        return Err(draftcraft_dwg::records::Error::format(format!("too many dictionary entries: {n}")));
+    }
+    let n = r.count(n, min_bits, "dictionary entry")?;
+    if r.version() == draftcraft_dwg::DwgVersion::R14 {
+        let _unknown = r.rc()?;
+    } else if r.version() >= draftcraft_dwg::DwgVersion::R2000 {
+        let _cloning = r.bs()?;
+        let _hard_owner = r.rc()?;
+    }
+    let mut names = Vec::with_capacity(n);
+    for _ in 0..n {
+        names.push(r.text()?);
+    }
+    names.into_iter().map(|name| Ok((name, r.reference()?))).collect()
+}
+
+/// The entries of the dictionary named `key` in the dictionary at `root` (the named-object
+/// dictionary): each object's handle, with its name. Empty when either can't be read.
+pub(super) fn named_entries(file: &DwgFile, objects: &[ObjectRef], root: u64, key: &str) -> HashMap<u64, String> {
+    let entries = |handle: u64| {
+        objects
+            .iter()
+            .find(|o| o.handle == handle && o.type_name == "DICTIONARY")
+            .and_then(|o| file.read_object(o).and_then(|mut r| dictionary(&mut r)).ok())
+            .unwrap_or_default()
+    };
+    let Some((_, inner)) = entries(root).into_iter().find(|(name, _)| name.eq_ignore_ascii_case(key)) else {
+        return HashMap::new();
+    };
+    entries(inner).into_iter().map(|(name, h)| (h, name)).collect()
 }
 
 /// Read the objects into `d`. Returns the handles of the objects read.

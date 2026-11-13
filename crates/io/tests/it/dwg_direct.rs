@@ -989,3 +989,208 @@ fn hatch_edges_read_as_the_acadrust_reader_reads_them() {
         assert!(!unread.by_type.contains_key("HATCH"), "{version:?}: {}", unread.summary());
     }
 }
+
+/// A drawing with annotation: leaders (straight with an arrowhead, a spline without one, in a
+/// dimension style of its own), a feature control frame, and multileaders with text content, with
+/// a block whose attribute has its own value, smoothed as a spline, with two leader lines, and
+/// with none.
+fn annotation_drawing() -> draftcraft_doc::Drawing {
+    use draftcraft_doc::*;
+    use draftcraft_geom::Vec3;
+    let p = |x: f64, y: f64| Vec3::new(x, y, 0.0);
+    let mut d = Drawing::new_imperial();
+    let mut own_style = d.dim_styles.first().cloned().expect("a dimension style");
+    own_style.name = "NOTES".into();
+    d.dim_styles.push(own_style);
+    let mut tag = Block::new("CALLOUT");
+    let def = Attrib {
+        tag: "NO".into(),
+        text: Text {
+            insert: p(0.0, 0.0),
+            align_pt: None,
+            height: 0.2,
+            value: "1".into(),
+            rotation: 0.0,
+            width_factor: 1.0,
+            oblique: 0.0,
+            style: "Standard".into(),
+            halign: HAlign::Left,
+            valign: VAlign::Baseline,
+        },
+        invisible: false,
+        constant: false,
+        prompt: String::new(),
+        props: AttribProps::default(),
+        multiline: None,
+        modes: AttribModes::default(),
+    };
+    let def_handle = d.new_handle();
+    tag.entities.push(Entity::new(def_handle, EntityKind::AttDef(def.clone())));
+    d.blocks.insert("CALLOUT".into(), std::sync::Arc::new(tag));
+    let leaders = [
+        Leader { vertices: vec![p(0.0, 0.0), p(5.0, 5.0), p(8.0, 5.0)], arrow: true, spline: false, style: "Standard".into() },
+        Leader { vertices: vec![p(10.0, 0.0), p(12.0, 4.0), p(15.0, 5.0), p(18.0, 5.0)], arrow: false, spline: true, style: "NOTES".into() },
+    ];
+    for l in leaders {
+        d.add(&Space::Model, Common::default(), EntityKind::Leader(l)).expect("leader");
+    }
+    let frame =
+        Tolerance { insert: p(30.0, 0.0), dir: Vec3::new(0.0, 1.0, 0.0), style: "NOTES".into(), text: "{\\Fgdt;j}%%v0.05{\\Fgdt;m}%%vA%%vB".into() };
+    d.add(&Space::Model, Common::default(), EntityKind::Tolerance(frame)).expect("tolerance");
+    let text = |at: Vec3, contents: &str| MText {
+        insert: at,
+        height: 0.18,
+        width: 0.0,
+        attach: 1,
+        rotation: 0.0,
+        style: "Standard".into(),
+        contents: contents.into(),
+        line_spacing: 1.0,
+        line_spacing_exact: false,
+        columns: None,
+    };
+    let ml = |leaders: Vec<Vec<Vec3>>, landing: Vec3, text: Option<MText>| MLeader {
+        leaders,
+        landing,
+        dogleg: 0.36,
+        text,
+        style: "Standard".into(),
+        arrow_size: 0.18,
+        spline: false,
+        block: None,
+    };
+    d.mleader_styles.push(MLeaderStyle { name: "CALLOUTS".into(), ..MLeaderStyle::default() });
+    let mut plain = ml(vec![vec![p(40.0, 0.0)]], p(44.0, 3.0), Some(text(p(44.5, 3.1), "SEE NOTE 4")));
+    plain.style = "CALLOUTS".into();
+    let two = ml(vec![vec![p(50.0, 0.0)], vec![p(52.0, -1.0), p(53.0, 1.0)]], p(55.0, 3.0), Some(text(p(55.5, 3.1), "TYP.\\P2 PLACES")));
+    let mut curved = ml(vec![vec![p(60.0, 0.0), p(62.0, 2.0)]], p(65.0, 3.0), Some(text(p(65.5, 3.1), "WELD")));
+    curved.spline = true;
+    let none = ml(Vec::new(), p(75.0, 3.0), Some(text(p(75.0, 3.0), "NO LEADER")));
+    let mut block = ml(vec![vec![p(80.0, 0.0)]], p(84.0, 3.0), None);
+    block.block = Some(Insert {
+        block: "CALLOUT".into(),
+        insert: p(84.5, 3.0),
+        scale: Vec3::new(1.0, 1.0, 1.0),
+        rotation: 0.0,
+        attribs: vec![Attrib { text: Text { value: "7".into(), insert: p(84.5, 3.0), ..def.text.clone() }, ..def.clone() }],
+        cols: 1,
+        rows: 1,
+        col_spacing: 0.0,
+        row_spacing: 0.0,
+        clip: None,
+    });
+    for m in [plain, two, curved, none, block] {
+        d.add(&Space::Model, Common::default(), EntityKind::MLeader(m)).expect("multileader");
+    }
+    d
+}
+
+#[test]
+fn leaders_tolerances_and_multileaders_read_as_the_acadrust_reader_reads_them() {
+    use draftcraft_doc::EntityKind;
+    use draftcraft_io::{DwgReader, SaveOptions, Version, read_dwg_with, write_with};
+    let source = annotation_drawing();
+    for version in [Version::R2000, Version::R2004, Version::R2010, Version::R2013, Version::R2018] {
+        let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
+        let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
+        let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
+        // Up to 2004 a multileader is saved as a leader and its text or block reference: every
+        // entity is compared.
+        let (got, want) = (d.model.iter().cloned().collect::<Vec<_>>(), reference.model.iter().cloned().collect::<Vec<_>>());
+        let count = |f: fn(&EntityKind) -> bool| (got.iter().filter(|e| f(&e.kind)).count(), want.iter().filter(|e| f(&e.kind)).count());
+        assert_eq!(count(|k| matches!(k, EntityKind::Tolerance(_))), (1, 1), "{version:?}");
+        let multileaders = if version >= Version::R2010 { 5 } else { 0 };
+        assert_eq!(count(|k| matches!(k, EntityKind::MLeader(_))), (multileaders, multileaders), "{version:?}");
+        assert_eq!(got.len(), want.len(), "{version:?}: unread {}", unread.summary());
+        let with_value = got.iter().filter_map(|e| match &e.kind {
+            EntityKind::MLeader(m) => m.block.as_ref(),
+            EntityKind::Insert(i) => Some(i),
+            _ => None,
+        });
+        assert!(with_value.flat_map(|i| &i.attribs).any(|a| a.text.value == "7"), "{version:?}: the block's attribute value");
+        if version >= Version::R2010 {
+            assert!(got.iter().any(|e| matches!(&e.kind, EntityKind::MLeader(m) if m.style == "CALLOUTS")), "{version:?}: the multileader style");
+        }
+        for (ge, we) in got.iter().zip(&want) {
+            let (g, w) = (serde_json::to_value(ge.as_ref()).unwrap(), serde_json::to_value(we.as_ref()).unwrap());
+            assert!(close(&g["kind"], &w["kind"], false), "{version:?}\nread      {}\nreference {}", g["kind"], w["kind"]);
+            assert!(close(&g["common"], &w["common"], false), "{version:?}: properties\nread      {}\nreference {}", g["common"], w["common"]);
+        }
+        for t in ["LEADER", "TOLERANCE", "MULTILEADER"] {
+            assert!(!unread.by_type.keys().any(|k| k.starts_with(t)), "{version:?}: {}", unread.summary());
+        }
+    }
+}
+
+/// Mirrored text, written through acadrust's API (DraftCraft keeps text readable and never saves
+/// it mirrored): texts and paragraph texts whose plane faces down, left-aligned and aligned on a
+/// second point, rotated, beside their upright twins.
+fn mirrored_text_dwg(version: acadrust::types::DxfVersion) -> Vec<u8> {
+    use acadrust::entities::*;
+    use acadrust::types::Vector3;
+    let mut doc = acadrust::CadDocument::with_version(version);
+    for (z, y) in [(1.0, 0.0), (-1.0, 10.0)] {
+        let mut t = Text::with_value("MIRRORED", Vector3::new(5.0, y, 0.0));
+        t.height = 0.5;
+        t.rotation = 0.3;
+        t.normal = Vector3::new(0.0, 0.0, z);
+        doc.add_entity(EntityType::Text(t)).unwrap();
+        let mut c = Text::with_value("CENTRED", Vector3::new(5.0, y + 2.0, 0.0));
+        c.height = 0.5;
+        c.horizontal_alignment = TextHorizontalAlignment::Center;
+        c.alignment_point = Some(Vector3::new(8.0, y + 2.0, 0.0));
+        c.normal = Vector3::new(0.0, 0.0, z);
+        doc.add_entity(EntityType::Text(c)).unwrap();
+        let mut m = MText::with_value("PARAGRAPH\\PTWO LINES", Vector3::new(5.0, y + 5.0, 0.0));
+        m.height = 0.4;
+        m.rectangle_width = 6.0;
+        m.rotation = 0.2;
+        m.attachment_point = AttachmentPoint::TopLeft;
+        m.normal = Vector3::new(0.0, 0.0, z);
+        doc.add_entity(EntityType::MText(Box::new(m))).unwrap();
+    }
+    acadrust::DwgWriter::write_to_vec(&doc).unwrap()
+}
+
+#[test]
+fn mirrored_text_reads_as_the_acadrust_reader_reads_it() {
+    use acadrust::types::DxfVersion as A;
+    use draftcraft_doc::EntityKind;
+    use draftcraft_io::{DwgReader, read_dwg_with};
+    for version in [A::AC1015, A::AC1018, A::AC1024, A::AC1027, A::AC1032] {
+        let bytes = mirrored_text_dwg(version);
+        let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
+        let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
+        let texts = |d: &draftcraft_doc::Drawing| {
+            d.model.iter().filter(|e| matches!(e.kind, EntityKind::Text(_) | EntityKind::MText(_))).cloned().collect::<Vec<_>>()
+        };
+        let (got, want) = (texts(&d), texts(&reference));
+        assert_eq!(want.len(), 6, "{version:?}");
+        assert_eq!(got.len(), want.len(), "{version:?}: unread {}", unread.summary());
+        for (ge, we) in got.iter().zip(&want) {
+            let (g, w) = (serde_json::to_value(ge.as_ref()).unwrap(), serde_json::to_value(we.as_ref()).unwrap());
+            assert!(close(&g["kind"], &w["kind"], false), "{version:?}\nread      {}\nreference {}", g["kind"], w["kind"]);
+            assert!(close(&g["common"], &w["common"], false), "{version:?}: properties\nread      {}\nreference {}", g["common"], w["common"]);
+        }
+        // The mirrored ones are not the upright ones read again.
+        assert_ne!(serde_json::to_value(&got[0].kind).unwrap(), serde_json::to_value(&got[3].kind).unwrap(), "{version:?}");
+    }
+}
+
+#[test]
+fn damaged_annotation_and_hatches_never_panic() {
+    use draftcraft_io::{SaveOptions, Version, write_with};
+    for source in [annotation_drawing(), hatches_drawing()] {
+        for version in [Version::R2000, Version::R2018] {
+            let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
+            let mut b = bytes.clone();
+            for i in (0..b.len()).step_by(b.len() / 1500 + 1) {
+                for flip in [0x01, 0x5A, 0xFF] {
+                    b[i] ^= flip;
+                    let _ = dwg::read(&b);
+                    b[i] ^= flip;
+                }
+            }
+        }
+    }
+}
