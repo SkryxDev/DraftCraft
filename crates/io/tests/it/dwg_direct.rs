@@ -53,14 +53,15 @@ fn every_object_of_every_version_is_accounted_for() {
         for t in READ_SO_FAR {
             assert!(!unread.by_type.keys().any(|k| k == t || *k == format!("{t} (not decoded)")), "{name}: {t} left unread: {}", unread.summary());
         }
-        for t in ["DIMENSION_LINEAR", "DICTIONARY"] {
-            assert!(unread.by_type.contains_key(t), "{name}: no {t} among {}", unread.summary());
-        }
+        // A type of a later step is still counted, not dropped.
+        assert!(unread.by_type.contains_key("DICTIONARY"), "{name}: no DICTIONARY among {}", unread.summary());
     }
 }
 
 /// The object types the reader puts in the drawing so far.
 const READ_SO_FAR: &[&str] = &[
+    "DIMENSION_LINEAR",
+    "DIMASSOC",
     "LINE",
     "CIRCLE",
     "ARC",
@@ -335,7 +336,7 @@ fn read_so_far(k: &draftcraft_doc::EntityKind) -> bool {
     use draftcraft_doc::EntityKind::*;
     match k {
         Line(_) | Point(_) | Circle(_) | Arc(_) | Ellipse(_) | LwPolyline(_) | Text(_) | MText(_) | Solid(_) | Trace(_) | Face3d(_) | XLine(_)
-        | Ray(_) => true,
+        | Ray(_) | Dimension(_) => true,
         Insert(i) => i.attribs.is_empty(),
         _ => false,
     }
@@ -405,7 +406,7 @@ fn simple_entities_match_autocads_dxf() {
             if by_handle {
                 assert_eq!(g.handle, w.handle, "{name}: handle in {wp}");
             }
-            let (mut g, w) = (serde_json::to_value(g.as_ref()).unwrap(), serde_json::to_value(w.as_ref()).unwrap());
+            let (mut g, mut w) = (serde_json::to_value(g.as_ref()).unwrap(), serde_json::to_value(w.as_ref()).unwrap());
             // The R14 DWG also carries extended data that R12 has no place for (AutoCAD keeps an
             // R14 entity's lineweight there): compared without it.
             if r14
@@ -413,6 +414,25 @@ fn simple_entities_match_autocads_dxf() {
                 && let Some(c) = g["common"].as_object_mut()
             {
                 c.remove("xdata");
+            }
+            // So do a dimension's style override in it (AutoCAD keeps an R14 dimension's text
+            // style there) and its associativity, which R12 has no DIMASSOC object for.
+            // The two DWGs AutoCAD made from DXFs hold no DIMASSOC objects (the DXFs they were
+            // made from had none), while their reference is the original drawing's DXF.
+            if name.contains("-from-") {
+                assert!(g["kind"].get("assoc").is_none(), "{name}: associativity read from a file that holds none");
+                if let Some(k) = w.get("kind").cloned().as_mut().and_then(|k| k.as_object_mut()) {
+                    k.remove("assoc");
+                    w["kind"] = serde_json::Value::Object(k.clone());
+                }
+            }
+            for key in ["overrides", "assoc"] {
+                if r14
+                    && w["kind"].get(key).is_none()
+                    && let Some(k) = g["kind"].as_object_mut()
+                {
+                    k.remove(key);
+                }
             }
             assert!(close(&g["kind"], &w["kind"], r14), "{name}: {wp}\nread {}\nreference {}", g["kind"], w["kind"]);
             assert!(close(&g["common"], &w["common"], r14), "{name}: properties in {wp}\nread {}\nreference {}", g["common"], w["common"]);
@@ -703,5 +723,87 @@ fn polylines_and_splines_read_as_the_acadrust_reader_reads_them() {
         for t in ["POLYLINE", "VERTEX", "SEQEND", "SPLINE", "polyline", "vertex"] {
             assert!(!unread.by_type.keys().any(|k| k.starts_with(t)), "{version:?}: {t} left unread: {}", unread.summary());
         }
+    }
+}
+
+/// A drawing with one dimension of every kind: linear (rotated, with oblique extension lines and an
+/// override), aligned with text the user placed and wrote, both angular kinds, radius, diameter,
+/// both ordinate kinds, and a mirrored linear one.
+fn dimensions_drawing() -> draftcraft_doc::Drawing {
+    use draftcraft_doc::*;
+    use draftcraft_geom::Vec3;
+    let p = |x: f64, y: f64| Vec3::new(x, y, 0.0);
+    let dim = |kind: DimKind, defpt: Vec3, text_mid: Vec3, p13: Vec3, p14: Vec3, p15: Vec3, p16: Vec3| Dimension {
+        kind,
+        defpt,
+        text_mid,
+        p13,
+        p14,
+        p15,
+        p16,
+        text: String::new(),
+        style: "Standard".into(),
+        measurement: 0.0,
+        text_rotation: 0.0,
+        user_text_pos: false,
+        block: None,
+        insertion_point: Vec3::ZERO,
+        overrides: Default::default(),
+        assoc: Vec::new(),
+        marks: Default::default(),
+    };
+    let mut d = Drawing::new_imperial();
+    let mut linear = dim(DimKind::Linear { rotation: 0.3 }, p(10.0, 5.0), p(5.0, 5.0), p(0.0, 0.0), p(10.0, 2.0), Vec3::ZERO, Vec3::ZERO);
+    linear.marks.oblique = Some(0.3 + 1.0);
+    linear.overrides.insert("textHeight".into(), serde_json::json!(0.3));
+    let mut aligned = dim(DimKind::Aligned, p(32.0, 6.0), p(28.0, 8.0), p(20.0, 0.0), p(30.0, 4.0), Vec3::ZERO, Vec3::ZERO);
+    aligned.text = "<> typ.".into();
+    aligned.user_text_pos = true;
+    let kinds = vec![
+        linear,
+        aligned,
+        dim(DimKind::Angular, p(45.0, 8.0), p(46.0, 9.0), p(40.0, 0.0), p(48.0, 0.0), p(40.0, 0.0), p(46.0, 6.0)),
+        dim(DimKind::Angular3P, p(58.0, 8.0), p(58.0, 9.0), p(55.0, 0.0), p(62.0, 3.0), p(54.0, 2.0), Vec3::ZERO),
+        dim(DimKind::Radius, p(70.0, 0.0), p(73.0, 2.0), Vec3::ZERO, Vec3::ZERO, p(74.0, 3.0), Vec3::ZERO),
+        dim(DimKind::Diameter, p(80.0, 0.0), p(84.0, 3.0), Vec3::ZERO, Vec3::ZERO, p(86.0, 0.0), Vec3::ZERO),
+        dim(DimKind::Ordinate { x_type: true }, p(0.0, 20.0), p(5.0, 30.0), p(5.0, 22.0), p(5.0, 28.0), Vec3::ZERO, Vec3::ZERO),
+        dim(DimKind::Ordinate { x_type: false }, p(0.0, 20.0), p(15.0, 25.0), p(8.0, 25.0), p(14.0, 25.0), Vec3::ZERO, Vec3::ZERO),
+    ];
+    for k in kinds {
+        d.add(&Space::Model, Common::default(), EntityKind::Dimension(k)).expect("add");
+    }
+    d
+}
+
+#[test]
+fn every_kind_of_dimension_reads_as_the_acadrust_reader_reads_it() {
+    use draftcraft_doc::EntityKind;
+    use draftcraft_io::{DwgReader, SaveOptions, Version, read_dwg_with, write_with};
+    let source = dimensions_drawing();
+    for version in [Version::R2000, Version::R2004, Version::R2010, Version::R2013, Version::R2018] {
+        let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
+        let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
+        let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
+        let dims = |d: &draftcraft_doc::Drawing| d.model.iter().filter(|e| matches!(e.kind, EntityKind::Dimension(_))).cloned().collect::<Vec<_>>();
+        let (got, want) = (dims(&d), dims(&reference));
+        assert_eq!(want.len(), 8, "{version:?}");
+        assert_eq!(got.len(), want.len(), "{version:?}: unread {}", unread.summary());
+        for (ge, we) in got.iter().zip(&want) {
+            let (mut g, mut w) = (serde_json::to_value(ge.as_ref()).unwrap(), serde_json::to_value(we.as_ref()).unwrap());
+            // DWG stores anonymous blocks unnumbered: this reader numbers them as AutoCAD does in a
+            // DXF (*D0 first), acadrust from *D1. The dimension's block must hold the same.
+            let block = |d: &draftcraft_doc::Drawing, v: &serde_json::Value| {
+                let b = d.blocks.get(v["kind"]["block"].as_str().unwrap_or_default());
+                b.map(|b| b.entities.iter().map(|e| serde_json::to_value(&e.kind).unwrap()).collect::<Vec<_>>())
+            };
+            let (gb, wb) = (block(&d, &g), block(&reference, &w));
+            assert!(wb.is_some(), "{version:?}: the reference's dimension has a block");
+            assert!(close(&serde_json::json!(gb), &serde_json::json!(wb), false), "{version:?}: the dimension's block");
+            g["kind"]["block"] = serde_json::Value::Null;
+            w["kind"]["block"] = serde_json::Value::Null;
+            assert!(close(&g["kind"], &w["kind"], false), "{version:?}\nread      {}\nreference {}", g["kind"], w["kind"]);
+            assert!(close(&g["common"], &w["common"], false), "{version:?}: properties\nread      {}\nreference {}", g["common"], w["common"]);
+        }
+        assert!(!unread.by_type.keys().any(|k| k.starts_with("DIMENSION")), "{version:?}: {}", unread.summary());
     }
 }

@@ -12,6 +12,7 @@
 mod blocks;
 mod entities;
 mod header;
+mod objects;
 mod tables;
 
 use std::collections::BTreeMap;
@@ -92,8 +93,9 @@ pub fn read(bytes: &[u8]) -> Result<(Drawing, Unread)> {
         }
     }
     let entities = entities::read(&file, &objects, &tables, &block_table, &mut d, &mut unread);
+    let others = objects::read(&file, &objects, &mut d, &mut unread);
     for o in &objects {
-        if !tables.read.contains(&o.handle) && !block_table.read.contains(&o.handle) && !entities.contains(&o.handle) {
+        if !tables.read.contains(&o.handle) && !block_table.read.contains(&o.handle) && !entities.contains(&o.handle) && !others.contains(&o.handle) {
             unread.count(&o.type_name);
         }
     }

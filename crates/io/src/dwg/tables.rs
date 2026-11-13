@@ -318,7 +318,7 @@ fn aci((c, index): (ColorValue, i16)) -> i64 {
 
 /// The names of records by handle as the DXF reader's tables hold them: by the handle in
 /// hexadecimal.
-fn by_hex(names: &HashMap<u64, String>) -> HashMap<String, String> {
+pub(super) fn by_hex(names: &HashMap<u64, String>) -> HashMap<String, String> {
     names.iter().map(|(h, n)| (format!("{h:X}"), n.clone())).collect()
 }
 

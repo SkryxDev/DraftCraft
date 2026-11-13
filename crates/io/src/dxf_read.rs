@@ -20,6 +20,11 @@ pub(crate) use entities::{SplineParts, mesh_faces_of, spline_from};
 pub(crate) use tables::style_font_of;
 pub(crate) use text::mirror_text;
 
+/// Apply a DIMASSOC object, as its DXF groups, to the dimension it names. The DWG reader uses it too.
+pub(crate) fn apply_dimassoc(d: &mut Drawing, tags: &[Tag]) {
+    dimassoc::dimassoc(d, tags);
+}
+
 /// A page setup from the groups of a layout's plot settings. The DWG reader uses it too, so a
 /// page setup means the same from either format.
 pub(crate) fn page_setup_of(plot: &[Tag]) -> PageSetup {
