@@ -2753,6 +2753,40 @@ fn foreign_table_reads_cell_text_height_and_keeps_style_scale() {
     assert_eq!(t2.cells[0][1].text_height, None);
 }
 
+/// LTYPE group 50, an embedded shape's or text's rotation, is in degrees in AutoCAD's files (its
+/// DXF of ZIGZAG and BATTING has 180 where its DWG of the same drawing has pi). A file an earlier
+/// DraftCraft wrote (its application registered, its linetypes unmarked) has radians; DraftCraft
+/// now writes degrees and marks the linetype.
+#[test]
+fn linetype_rotations_are_degrees_as_autocad_writes_them() {
+    let dxf = |apps: &str, rotation: &str| {
+        format!(
+            "0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLTYPE\n0\nLTYPE\n2\nZIGZAG\n70\n0\n3\nzig\n72\n65\n73\n2\n40\n0.4\n\
+             49\n0.0001\n74\n0\n49\n-0.2\n74\n2\n75\n0\n340\n0\n46\n0.1\n50\n{rotation}\n44\n0\n45\n0\n9\nX\n0\nENDTAB\n\
+             0\nTABLE\n2\nAPPID\n{apps}0\nENDTAB\n0\nENDSEC\n0\nEOF\n"
+        )
+    };
+    let rotation = |text: &str| {
+        let d = read_dxf(text.as_bytes()).unwrap();
+        let lt = d.linetypes.iter().find(|l| l.name == "ZIGZAG").cloned().unwrap();
+        lt.pattern.iter().find(|e| e.text.is_some()).map(|e| e.rotation).unwrap()
+    };
+    let near = |a: f64, b: f64| (a - b).abs() < 1e-12;
+    // AutoCAD's: degrees.
+    assert!(near(rotation(&dxf("0\nAPPID\n2\nACAD\n70\n0\n", "180.0")), std::f64::consts::PI));
+    // An earlier DraftCraft's: radians.
+    let old = dxf("0\nAPPID\n2\nACAD\n70\n0\n0\nAPPID\n2\nDRAFTCRAFT\n70\n0\n", "3.141592653589793");
+    assert!(near(rotation(&old), std::f64::consts::PI));
+    // Written now: degrees and the mark, read back as it was.
+    let d = read_dxf(old.as_bytes()).unwrap();
+    let written = write_dxf(&d);
+    assert!(written.contains("LTYPE_DEGREES"), "the linetype is marked");
+    let lines: Vec<&str> = written.lines().map(str::trim).collect();
+    let fifty = lines.windows(2).find(|w| w[0] == "50" && w[1].starts_with("180")).is_some();
+    assert!(fifty, "group 50 in degrees");
+    assert!(near(rotation(&written), std::f64::consts::PI));
+}
+
 /// AutoCAD's table cells of other values than text (ACAD_TABLE A35 of ACadSharp's samples, saved
 /// by AutoCAD): the value block holds the value and the text AutoCAD shows for it (302), which the
 /// cell reads. A text value keeps its own string (1).

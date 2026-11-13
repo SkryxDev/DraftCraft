@@ -20,6 +20,11 @@ use serde_json::Value;
 
 /// Registered application name of DraftCraft's extended data.
 pub(crate) const APP: &str = "DRAFTCRAFT";
+
+/// The DraftCraft extended data of a linetype whose element rotations (group 50) are in degrees,
+/// as AutoCAD writes them (its DXF of ZIGZAG and BATTING has 180 where its DWG has pi). Without
+/// it, a file DraftCraft wrote has them in radians, as DraftCraft wrote them before.
+pub(crate) const LTYPE_DEGREES: &str = "LTYPE_DEGREES";
 /// Named-object-dictionary key of the constraint XRECORD.
 pub(crate) const CONSTRAINTS_KEY: &str = "DRAFTCRAFT_CONSTRAINTS";
 /// Named-object-dictionary key of the saved layer states XRECORD.
