@@ -6,8 +6,8 @@
 use std::collections::{HashMap, HashSet};
 
 use draftcraft_doc::{
-    Arc, Attrib, AttribModes, AttribProps, Circle, Common, DimKind, Dimension, Drawing, Ellipse, Entity, EntityKind, Face3d, HAlign, Handle, Insert,
-    Line, Lineweight, LwPolyline, MText, Point, PolyfaceMesh, Polyline3d, RawTag, RayLine, Solid, Text, VAlign,
+    Arc, Attrib, AttribModes, AttribProps, Circle, Common, DimKind, Dimension, Drawing, Ellipse, Entity, EntityKind, Face3d, Gradient, HAlign,
+    Handle, Hatch, HatchLoop, Insert, Line, Lineweight, LwPolyline, MText, Point, PolyfaceMesh, Polyline3d, RawTag, RayLine, Solid, Text, VAlign,
 };
 use draftcraft_dwg::DwgVersion as V;
 use draftcraft_dwg::file::{DwgFile, EntityLinetype, EntityRefs, EntitySpace, ObjectReader, ObjectRef, XDataBlock, XDataItem};
@@ -210,6 +210,7 @@ fn reads(type_name: &str) -> bool {
             | "VERTEX_PFACE"
             | "VERTEX_PFACE_FACE"
             | "SPLINE"
+            | "HATCH"
             | "DIMENSION_ORDINATE"
             | "DIMENSION_LINEAR"
             | "DIMENSION_ALIGNED"
@@ -238,6 +239,202 @@ enum Body {
     /// A dimension, waiting for its style and block, with its extension lines' angle (oblique)
     /// for linear and aligned ones.
     Dimension(Box<Dimension>, f64),
+    /// A hatch, waiting for the boundary objects of its loops (how many each names) and for its
+    /// extended data (origin, background, a gradient DraftCraft wrote there).
+    Hatch(Box<Hatch>, Vec<u32>, Vec<RawPatternLine>),
+}
+
+/// A pattern definition line as the file holds it: angle in degrees, base point, offset, dashes.
+type RawPatternLine = (f64, Vec2, Vec2, Vec<f64>);
+
+/// Most loops, edges, vertices, pattern lines, dashes or seed points of one hatch that are read.
+const MAX_HATCH_ITEMS: u32 = 1 << 20;
+
+/// HATCH (§20.4.57): the gradient (AutoCAD 2004 and later), the boundary loops, the pattern and
+/// the seed points. Edges become the drawing's loop vertices by the DXF reader's rules.
+fn hatch(r: &mut ObjectReader) -> DwgResult<Shape> {
+    let ver = r.version();
+    let mut gradient = None;
+    if ver >= V::R2004 {
+        let is_gradient = r.bl()? != 0;
+        let _reserved = r.bl()?;
+        let angle = r.bd()?;
+        let shift = r.bd()?;
+        let _single_color = r.bl()?;
+        let _tint = r.bd()?;
+        let n = r.bl()?;
+        let n = r.count(n, 20, "gradient colour")?;
+        let mut colors = Vec::with_capacity(n);
+        for _ in 0..n {
+            let _value = r.bd()?;
+            let _unknown = r.bs()?;
+            let rgb = r.bl()?;
+            let _ignored = r.rc()?;
+            colors.push(rgb);
+        }
+        let name = r.text()?;
+        if is_gradient {
+            // A colour word: 0xC3 in its top byte names a colour index, otherwise it is RGB.
+            let color = |w: Option<&u32>, d: draftcraft_color::Color| {
+                w.map_or(d, |&w| match w >> 24 {
+                    0xC3 => draftcraft_color::Color::from_aci(i16::from(u8::try_from(w & 0xff).unwrap_or(7))),
+                    _ => draftcraft_color::Color::True(draftcraft_color::Rgb::from_u32(w & 0xff_ffff)),
+                })
+            };
+            let d = crate::dxf_read::default_gradient();
+            gradient = Some(Gradient {
+                name: if name.is_empty() { d.name } else { name },
+                color1: color(colors.first(), d.color1),
+                color2: color(colors.get(1), d.color2),
+                angle: if angle.is_finite() { angle } else { 0.0 },
+                centered: shift.abs() < 1e-9,
+            });
+        }
+    }
+    let elevation = r.bd()?;
+    let normal = v3(r.bd3()?);
+    let pattern = r.text()?;
+    let solid_fill = r.b()?;
+    let associative = r.b()?;
+    let n_loops = r.bl()?;
+    let n_loops = r.count(n_loops.min(MAX_HATCH_ITEMS), 8, "hatch loop")?;
+    let mut loops = Vec::with_capacity(n_loops);
+    let mut sources = Vec::with_capacity(n_loops);
+    let mut derived = false;
+    for _ in 0..n_loops {
+        let flags = r.bl()?;
+        derived |= flags & 4 != 0;
+        let mut vertices = Vec::new();
+        if flags & 2 != 0 {
+            // A polyline loop: vertices with or without bulges.
+            let has_bulges = r.b()?;
+            let _closed = r.b()?;
+            let n = r.bl()?;
+            let n = r.count(n.min(MAX_HATCH_ITEMS), 128, "hatch polyline vertex")?;
+            for _ in 0..n {
+                let [x, y] = r.rd2()?;
+                let bulge = if has_bulges { r.bd()? } else { 0.0 };
+                vertices.push(PolyVertex::with_bulge(Vec2::new(x, y), bulge));
+            }
+        } else {
+            let n = r.bl()?;
+            let n = r.count(n.min(MAX_HATCH_ITEMS), 8, "hatch edge")?;
+            for _ in 0..n {
+                hatch_edge(r, &mut vertices)?;
+            }
+        }
+        crate::dxf_read::close_loop(&mut vertices);
+        loops.push(HatchLoop { vertices, outer: flags & 1 != 0, sources: Vec::new() });
+        sources.push(r.bl()?);
+    }
+    let style = r.bs()?;
+    let _pattern_type = r.bs()?;
+    let (mut angle, mut scale, mut raw) = (0.0, 1.0, Vec::new());
+    if !solid_fill {
+        angle = r.bd()?;
+        scale = r.bd()?;
+        let _double = r.b()?;
+        let n = u32::from(r.bs()?);
+        let n = r.count(n, 10, "hatch pattern line")?;
+        for _ in 0..n {
+            let line_angle = r.bd()?;
+            let [bx, by] = r.bd2()?;
+            let [ox, oy] = r.bd2()?;
+            let n_dashes = u32::from(r.bs()?);
+            let n_dashes = r.count(n_dashes, 2, "hatch dash")?;
+            let mut dashes = Vec::with_capacity(n_dashes);
+            for _ in 0..n_dashes {
+                dashes.push(r.bd()?);
+            }
+            raw.push((line_angle.to_degrees(), Vec2::new(bx, by), Vec2::new(ox, oy), dashes));
+        }
+    }
+    if derived {
+        let _pixel_size = r.bd()?;
+    }
+    let n_seeds = r.bl()?;
+    for _ in 0..r.count(n_seeds.min(MAX_HATCH_ITEMS), 128, "hatch seed point")? {
+        let _seed = r.rd2()?;
+    }
+    let solid = solid_fill || pattern.eq_ignore_ascii_case("SOLID");
+    if solid {
+        raw.clear();
+    }
+    let h = Hatch {
+        pattern: if pattern.is_empty() { "SOLID".into() } else { pattern.to_ascii_uppercase() },
+        solid,
+        loops,
+        scale: if scale.is_finite() { scale } else { 1.0 },
+        angle: if angle.is_finite() { angle } else { 0.0 },
+        associative,
+        style: u8::try_from(style).unwrap_or(0),
+        elevation: if elevation.is_finite() { elevation } else { 0.0 },
+        gradient,
+        origin: Vec2::ZERO,
+        background: None,
+        // Made once the origin is known: it is in the extended data.
+        pattern_lines: Vec::new(),
+    };
+    Ok(Shape { body: Body::Hatch(Box::new(h), sources, raw), thickness: 0.0, normal })
+}
+
+/// One edge of a hatch's boundary loop, onto its vertices.
+fn hatch_edge(r: &mut ObjectReader, vertices: &mut Vec<PolyVertex>) -> DwgResult<()> {
+    let p2 = |r: &mut ObjectReader| -> DwgResult<Vec2> {
+        let [x, y] = r.rd2()?;
+        Ok(Vec2::new(x, y))
+    };
+    match r.rc()? {
+        1 => {
+            let (a, b) = (p2(r)?, p2(r)?);
+            crate::dxf_read::push_line(vertices, a, b);
+        }
+        2 => {
+            let center = p2(r)?;
+            let (radius, start, end, ccw) = (r.bd()?, r.bd()?, r.bd()?, r.b()?);
+            crate::dxf_read::push_arc(vertices, center, radius, start, end, ccw);
+        }
+        3 => {
+            let (center, major) = (p2(r)?, p2(r)?);
+            let (ratio, start, end, ccw) = (r.bd()?, r.bd()?, r.bd()?, r.b()?);
+            crate::dxf_read::push_ellipse(vertices, center, major, ratio, start, end, ccw);
+        }
+        4 => {
+            let degree = usize::try_from(r.bl()?).unwrap_or(3);
+            let rational = r.b()?;
+            let _periodic = r.b()?;
+            let n_knots = r.bl()?;
+            let n_control = r.bl()?;
+            let n_knots = r.count(n_knots.min(MAX_HATCH_ITEMS), 2, "hatch spline knot")?;
+            let n_control = r.count(n_control.min(MAX_HATCH_ITEMS), 128, "hatch spline control point")?;
+            let mut knots = Vec::with_capacity(n_knots);
+            for _ in 0..n_knots {
+                knots.push(r.bd()?);
+            }
+            let (mut control, mut weights) = (Vec::with_capacity(n_control), Vec::new());
+            for _ in 0..n_control {
+                control.push(p2(r)?);
+                if rational {
+                    weights.push(r.bd()?);
+                }
+            }
+            let mut fit = Vec::new();
+            if r.version() >= V::R2010 {
+                let n_fit = r.bl()?;
+                let n_fit = r.count(n_fit.min(MAX_HATCH_ITEMS), 128, "hatch spline fit point")?;
+                for _ in 0..n_fit {
+                    fit.push(p2(r)?);
+                }
+                if n_fit > 0 {
+                    let _start_tangent = p2(r)?;
+                    let _end_tangent = p2(r)?;
+                }
+            }
+            crate::dxf_read::push_spline(vertices, degree, knots, control, weights, &fit);
+        }
+        other => return Err(draftcraft_dwg::records::Error::format(format!("unknown hatch edge type {other}"))),
+    }
+    Ok(())
 }
 
 /// DIMENSION (§20.4.20 to §20.4.26): the fields every dimension has, then its kind's points.
@@ -1059,6 +1256,7 @@ fn shape(r: &mut ObjectReader, type_name: &str, partial: &mut Vec<&'static str>)
         "VERTEX_3D" | "VERTEX_MESH" | "VERTEX_PFACE" => vertex_3d(r)?,
         "VERTEX_PFACE_FACE" => pface_face(r)?,
         "SPLINE" => spline(r)?,
+        "HATCH" => hatch(r)?,
         "DIMENSION_ORDINATE" | "DIMENSION_LINEAR" | "DIMENSION_ALIGNED" | "DIMENSION_ANG_3PT" | "DIMENSION_ANG_2LN" | "DIMENSION_RADIUS"
         | "DIMENSION_DIAMETER" => dimension(r, type_name)?,
         "ATTDEF" => attribute(r, true)?,
@@ -1148,6 +1346,26 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
                 dm.marks.oblique = Some(draftcraft_geom::norm_angle(base + oblique));
             }
             Some(EntityKind::Dimension(*dm))
+        }
+        Body::Hatch(mut h, counts, raw) => {
+            // The boundary objects each loop names, then what the extended data holds.
+            for (l, count) in h.loops.iter_mut().zip(counts) {
+                for _ in 0..count.min(MAX_HATCH_ITEMS) {
+                    let s = r.reference()?;
+                    if s != 0 {
+                        l.sources.push(Handle(s));
+                    }
+                }
+            }
+            let tags = xdata_tags(&r.xdata(), &n.tables.apps);
+            let (origin, background) = crate::dxf_read::hatch_xdata(&tags);
+            h.origin = origin;
+            h.background = background;
+            h.pattern_lines = crate::dxf_read::pattern_lines_from(raw, h.scale, h.angle, origin);
+            if h.gradient.is_none() {
+                h.gradient = crate::dxf_read::xdata_gradient(&tags);
+            }
+            Some(EntityKind::Hatch(*h))
         }
         Body::Vertex(v) => {
             vertex = Some(v);
