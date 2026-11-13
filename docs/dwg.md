@@ -157,6 +157,14 @@ cargo run --release -p draftcraft-io --example direct_sweep -- --vs-dxf f.dwg f.
 - **Against another program's DXF** (`--vs-dxf`): the direct reading against BlackCAD's `cad dxf`
   (or AutoCAD's SAVEAS) of the same file, entity by entity (numbers within 1e-9).
 
+### In the browser
+
+The web build (`trunk build --release` in `apps/draftcraft-web`) reads directly too. Served
+locally and driven by headless Chromium, it opened AutoCAD's MI-201 files, every test drawing of
+every type and a drawing of 100,000 entities dropped on the page, with no page or console errors
+(a panic in wasm shows as one), each drawn as it is on the desktop, and the read notes at the
+command line. The 2007 file is refused with its reason.
+
 ### Against BlackCAD
 
 BlackCAD 0.17.0 (`cad info`, `cad dxf`) over 81 files: AutoCAD's MI-201 files, every test drawing
@@ -185,6 +193,15 @@ Each was found by these tests, fixed, and has a test of its own:
 | Stress, `layers` | 100,000 layers: 136 s (now 0.65 s) | Table records merged through a name index; layers known to the drawing kept in a set |
 | Step 11 tests | A file with two block records called `*Paper_Space` put a layout's entities on the wrong tab | The active paper space is the one the block control names |
 | Step 10 tests | Dictionaries from 2007 on, and some hatch and multileader lists, refused as too long for their record | Per-item minimum sizes that hold for the smallest real record |
+
+Found outside the reader:
+
+- With acadrust disabled, a 2007-2009 file (AC1021) can't be opened until step 13 (acadrust reads
+  them).
+- Opening a file that can't be read reports "invalid parameters for `open`: …" before the reason
+  (the engine wraps every reading error as bad parameters).
+- Files from AutoCAD 2013 on have a header handle no variable name is known for
+  (`header $UNKNOWN_H_R2013` in the read notes).
 
 Found in DraftCraft's current save path (acadrust's writer), for the writer steps: text longer
 than 65,535 characters is cut to its length modulo 65,536 (a 16-bit length). The drawing model
