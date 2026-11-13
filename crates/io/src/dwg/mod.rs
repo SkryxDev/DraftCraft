@@ -13,6 +13,7 @@ mod blocks;
 mod entities;
 mod header;
 mod objects;
+mod table;
 mod tables;
 
 use std::collections::BTreeMap;
@@ -80,6 +81,8 @@ pub fn read(bytes: &[u8]) -> Result<(Drawing, Unread)> {
             "DIMSTYLE" => &tables.dim_styles,
             "UCSNAME" | "PUCSNAME" | "UCSBASE" | "PUCSBASE" | "UCSORTHOREF" | "PUCSORTHOREF" => &tables.ucss,
             "DIMBLK" | "DIMBLK1" | "DIMBLK2" | "DIMLDRBLK" => blocks,
+            // A multiline style: named once the objects' names are read, below.
+            "CMLSTYLE" => continue,
             _ => {
                 unread.count(&format!("header ${name}"));
                 continue;
@@ -92,11 +95,22 @@ pub fn read(bytes: &[u8]) -> Result<(Drawing, Unread)> {
             None => unread.count(&format!("header ${name}")),
         }
     }
-    // Multileader style names: the entries of the ACAD_MLEADERSTYLE dictionary.
-    let named = refs.as_ref().and_then(|r| r.roots.get("DICTIONARY_NAMED_OBJECTS")).copied().unwrap_or(0);
-    let mleader_styles = objects::named_entries(&file, &objects, named, "ACAD_MLEADERSTYLE");
-    let entities = entities::read(&file, &objects, &tables, &block_table, &mleader_styles, &mut d, &mut unread);
-    let others = objects::read(&file, &objects, &mut d, &mut unread);
+    // What entities need from the objects: multileader style names, image and underlay
+    // definitions, by the named-object dictionary.
+    let root = refs.as_ref().and_then(|r| r.roots.get("DICTIONARY_NAMED_OBJECTS")).copied().unwrap_or(0);
+    let named = objects::named(&file, &objects, root);
+    // The current multiline style by its key in the ACAD_MLINESTYLE dictionary, as AutoCAD's
+    // DXF writes it ("Standard" for the style called STANDARD).
+    if let Some(&h) = refs.as_ref().and_then(|r| r.names.get("CMLSTYLE")) {
+        let dict = refs.as_ref().and_then(|r| r.roots.get("DICTIONARY_ACAD_MLINESTYLE")).copied().unwrap_or(0);
+        match objects::entries_by_handle(&file, &objects, dict).get(&h).or_else(|| named.mline_styles.get(&h)) {
+            Some(name) => d.header.set_str("CMLSTYLE", name),
+            None if h == 0 => d.header.set_str("CMLSTYLE", ""),
+            None => unread.count("header $CMLSTYLE"),
+        }
+    }
+    let entities = entities::read(&file, &objects, &tables, &block_table, &named, &mut d, &mut unread);
+    let others = objects::read(&file, &objects, &tables, &mut d, &mut unread);
     for o in &objects {
         if !tables.read.contains(&o.handle) && !block_table.read.contains(&o.handle) && !entities.contains(&o.handle) && !others.contains(&o.handle) {
             unread.count(&o.type_name);

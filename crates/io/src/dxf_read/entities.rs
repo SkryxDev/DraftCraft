@@ -394,6 +394,15 @@ pub(super) fn acad_table(tags: &[Tag], table_cells_left: &mut usize) -> Table {
     }
     flat.resize(rows * cols, TableCell::default());
     let cells: Vec<Vec<TableCell>> = if cols == 0 { vec![Vec::new(); rows] } else { flat.chunks(cols).map(<[TableCell]>::to_vec).collect() };
+    table_from(T(tags).p(10), col_widths, row_heights, cells, tags)
+}
+
+/// A table from what either file holds: its insertion point, sizes and cells, with DraftCraft's
+/// extended data (`tags`: title and header rows, text height, style, cell styles, formulas,
+/// breaks, data link). A table from another writer reads its first row merged across every
+/// column as a title; its text height is its style's, resolved once the styles are read.
+pub(crate) fn table_from(insert: Vec3, col_widths: Vec<f64>, row_heights: Vec<f64>, cells: Vec<Vec<TableCell>>, tags: &[Tag]) -> Table {
+    let cols = col_widths.len();
     let x = crate::dxf_ext::xdata(tags, crate::dxf_ext::APP);
     let ours = x.iter().position(|t| t.code == 1000 && t.str() == "TABLE").map(|p| x.get(p + 1..).unwrap_or(&[]));
     let (title, header, text_height, style) = match ours {
@@ -407,7 +416,7 @@ pub(super) fn acad_table(tags: &[Tag], table_cells_left: &mut usize) -> Table {
         // Their text height is resolved to the table style's once the styles are read (`apply`).
         None => (cols > 1 && cells.first().and_then(|r| r.first()).and_then(|c| c.merged) == Some((1, cols as u32)), false, 0.0, "Standard".into()),
     };
-    let mut t = Table { insert: T(tags).p(10), col_widths, row_heights, cells, style, text_height, title, header, ..Table::default() };
+    let mut t = Table { insert, col_widths, row_heights, cells, style, text_height, title, header, ..Table::default() };
     crate::dxf_table::read_table_xdata(tags, &mut t);
     t
 }

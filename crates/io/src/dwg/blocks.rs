@@ -267,6 +267,9 @@ pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], tables: &Tables, d: &m
             order = list;
         }
     }
+    // The active paper space is the one the control object names: a file may have more records
+    // called *Paper_Space (some writers don't number the others).
+    let control_paper = order.get(1).copied().filter(|h| *h != 0);
     order.extend(objects.iter().filter(|o| o.type_name == "BLOCK_HEADER").map(|o| o.handle));
     let mut seen = HashSet::new();
     let mut headers: Vec<(u64, Header)> = Vec::new();
@@ -322,7 +325,9 @@ pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], tables: &Tables, d: &m
         layout_of_block.insert(l.block, l.layout.name.clone());
         d.layouts.push(l.layout);
     }
-    let paper_space = headers.iter().find(|(_, b)| b.name.eq_ignore_ascii_case("*Paper_Space")).map(|(h, _)| *h);
+    let paper_space = control_paper
+        .filter(|p| headers.iter().any(|(h, _)| h == p))
+        .or_else(|| headers.iter().find(|(_, b)| b.name.eq_ignore_ascii_case("*Paper_Space")).map(|(h, _)| *h));
     if d.layouts.is_empty() {
         d.layouts.push(Layout::new("Layout1", 1));
         if let Some(h) = paper_space {
@@ -341,7 +346,7 @@ pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], tables: &Tables, d: &m
             out.model = h;
             Space::Model
         } else if up.starts_with("*PAPER_SPACE") {
-            if up == "*PAPER_SPACE" {
+            if Some(h) == paper_space {
                 out.paper = h;
             }
             Space::Layout(layout_of_block.get(&h).cloned().unwrap_or_else(|| first_layout.clone()))

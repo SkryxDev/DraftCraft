@@ -30,6 +30,9 @@ pub(super) struct Tables {
     pub layers: HashMap<u64, String>,
     pub dim_styles: HashMap<u64, String>,
     pub ucss: HashMap<u64, String>,
+    /// The linetype table's records in its order, without ByLayer and ByBlock (the order a
+    /// multiline style's linetype index counts in, before AutoCAD 2018).
+    pub linetype_order: Vec<u64>,
     /// The handles of the objects this category read.
     pub read: HashSet<u64>,
 }
@@ -97,6 +100,11 @@ pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], d: &mut Drawing, unrea
                 t.read.insert(o.handle);
             }
             Err(_) => unread.count("STYLE (not decoded)"),
+        }
+    }
+    for o in objects.iter().filter(|o| o.type_name == "LTYPE_CONTROL").take(1) {
+        if let Ok(list) = file.read_object(o).and_then(|mut r| control_entries(&mut r)) {
+            t.linetype_order = list;
         }
     }
     for o in of("LTYPE") {
@@ -179,6 +187,17 @@ fn style(r: &mut ObjectReader, apps: &HashMap<u64, String>) -> DwgResult<(TextSt
 
 /// LTYPE (specification §20.4.58): the name, the description and the pattern, whose text and
 /// shape elements each name a style.
+/// A table's control object (§20.4.53): its records, in table order. The ByLayer and ByBlock
+/// linetypes come after these and are not among them.
+fn control_entries(r: &mut ObjectReader) -> DwgResult<Vec<u64>> {
+    let n = r.bl()?;
+    if n > 1 << 20 {
+        return Err(draftcraft_dwg::records::Error::format(format!("too many table records: {n}")));
+    }
+    r.common_refs()?;
+    (0..n).map(|_| r.reference()).collect()
+}
+
 fn linetype(r: &mut ObjectReader, styles: &HashMap<u64, String>) -> DwgResult<Linetype> {
     let name = record_name(r)?;
     let description = r.text()?;

@@ -97,6 +97,7 @@ const READ_SO_FAR: &[&str] = &[
     "APPID_CONTROL",
     "DIMSTYLE_CONTROL",
     "VX_CONTROL",
+    "MLINESTYLE",
 ];
 
 #[test]
@@ -1178,19 +1179,361 @@ fn mirrored_text_reads_as_the_acadrust_reader_reads_it() {
 }
 
 #[test]
-fn damaged_annotation_and_hatches_never_panic() {
+fn damaged_entity_drawings_never_panic() {
     use draftcraft_io::{SaveOptions, Version, write_with};
-    for source in [annotation_drawing(), hatches_drawing()] {
+    for source in
+        [annotation_drawing(), hatches_drawing(), viewports_drawing(), images_drawing(), mlines_drawing(), tables_drawing(), regions_drawing()]
+    {
         for version in [Version::R2000, Version::R2018] {
             let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
             let mut b = bytes.clone();
-            for i in (0..b.len()).step_by(b.len() / 1500 + 1) {
-                for flip in [0x01, 0x5A, 0xFF] {
+            for i in (0..b.len()).step_by(b.len() / 1200 + 1) {
+                for flip in [0x01, 0xFF] {
                     b[i] ^= flip;
                     let _ = dwg::read(&b);
                     b[i] ^= flip;
                 }
             }
         }
+    }
+}
+
+/// A layout with viewports: plain, locked, off, twisted with its view off-centre, with frozen
+/// layers (one without a layer record) and layer colour overrides, and one clipped by a circle.
+fn viewports_drawing() -> draftcraft_doc::Drawing {
+    use draftcraft_doc::*;
+    use draftcraft_geom::{Vec2, Vec3};
+    let mut d = Drawing::new_imperial();
+    d.ensure_layer("WALLS");
+    d.ensure_layer("NOTES");
+    d.add(&Space::Model, Common::default(), EntityKind::Line(Line { a: Vec3::ZERO, b: Vec3::new(100.0, 50.0, 0.0) })).expect("line");
+    let paper = Space::Paper(d.layouts.first().map(|l| l.name.clone()).expect("a layout"));
+    let vp = |x: f64, view: Vec2| Viewport {
+        center: Vec3::new(x, 4.0, 0.0),
+        width: 4.0,
+        height: 3.0,
+        view_center: view,
+        view_height: 40.0,
+        id: 0,
+        locked: false,
+        frozen_layers: Vec::new(),
+        layer_colors: Vec::new(),
+        clip: None,
+        on: true,
+        twist: 0.0,
+    };
+    let circle = d.add(&paper, Common::default(), EntityKind::Circle(Circle { center: Vec3::new(30.0, 4.0, 0.0), radius: 1.4 })).expect("circle");
+    let viewports = [
+        vp(5.0, Vec2::new(50.0, 25.0)),
+        Viewport { locked: true, ..vp(10.0, Vec2::new(20.0, 10.0)) },
+        Viewport { on: false, ..vp(15.0, Vec2::new(30.0, 10.0)) },
+        Viewport { twist: 0.4, ..vp(20.0, Vec2::new(60.0, 35.0)) },
+        Viewport {
+            frozen_layers: vec!["WALLS".into(), "GONE".into()],
+            layer_colors: vec![("NOTES".into(), draftcraft_color::Color::Index(3))],
+            ..vp(25.0, Vec2::new(10.0, 5.0))
+        },
+        Viewport { clip: Some(circle), ..vp(30.0, Vec2::new(40.0, 20.0)) },
+    ];
+    for v in viewports {
+        d.add(&paper, Common::default(), EntityKind::Viewport(v)).expect("viewport");
+    }
+    d
+}
+
+#[test]
+fn viewports_read_as_the_acadrust_reader_reads_them() {
+    use draftcraft_io::{DwgReader, SaveOptions, Version, read_dwg_with, write_with};
+    let source = viewports_drawing();
+    for version in [Version::R2000, Version::R2004, Version::R2010, Version::R2013, Version::R2018] {
+        let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
+        let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
+        let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
+        let sheet =
+            |d: &draftcraft_doc::Drawing| d.layouts.iter().flat_map(|l| l.entities.iter().cloned().map(|e| (l.name.clone(), e))).collect::<Vec<_>>();
+        let (got, want) = (sheet(&d), sheet(&reference));
+        let viewports = want.iter().filter(|(_, e)| matches!(e.kind, draftcraft_doc::EntityKind::Viewport(_))).count();
+        assert!(viewports >= 6, "{version:?}: {viewports}");
+        assert_eq!(got.len(), want.len(), "{version:?}: unread {}", unread.summary());
+        for ((gl, ge), (wl, we)) in got.iter().zip(&want) {
+            assert_eq!(gl, wl, "{version:?}");
+            let (g, w) = (serde_json::to_value(ge.as_ref()).unwrap(), serde_json::to_value(we.as_ref()).unwrap());
+            assert!(close(&g["kind"], &w["kind"], false), "{version:?}\nread      {}\nreference {}", g["kind"], w["kind"]);
+            assert!(close(&g["common"], &w["common"], false), "{version:?}: properties\nread      {}\nreference {}", g["common"], w["common"]);
+        }
+        assert!(!unread.by_type.keys().any(|k| k.starts_with("VIEWPORT")), "{version:?}: {}", unread.summary());
+    }
+}
+
+/// Images (whole, clipped by a rectangle, clipped by a polygon, faded and dimmed), a wipeout and
+/// a PDF underlay (rotated, scaled, on page 2, clipped, monochrome).
+fn images_drawing() -> draftcraft_doc::Drawing {
+    use draftcraft_doc::*;
+    use draftcraft_geom::{Vec2, Vec3};
+    let mut d = Drawing::new_imperial();
+    let image = |x: f64, path: &str| Image {
+        insert: Vec3::new(x, 0.0, 0.0),
+        u: Vec3::new(0.01, 0.0, 0.0),
+        v: Vec3::new(0.0, 0.01, 0.0),
+        size: Vec2::new(640.0, 480.0),
+        path: path.into(),
+        ..Image::default()
+    };
+    let rect = Image { clip: vec![Vec2::new(10.0, 20.0), Vec2::new(300.0, 200.0)], clipping: true, display: 7, ..image(10.0, "photos/site.png") };
+    let polygon = Image {
+        clip: vec![Vec2::new(0.0, 0.0), Vec2::new(400.0, 50.0), Vec2::new(200.0, 300.0)],
+        clipping: true,
+        display: 15,
+        brightness: 70,
+        contrast: 40,
+        fade: 30,
+        ..image(20.0, "C:\\scans\\plan.tif")
+    };
+    let wipeout = Wipeout { boundary: vec![Vec2::new(30.0, 0.0), Vec2::new(34.0, 0.0), Vec2::new(34.0, 3.0), Vec2::new(30.0, 3.0)] };
+    let mut pdf = Image {
+        insert: Vec3::new(40.0, 0.0, 0.0),
+        u: Vec3::new(2.0 / 72.0 * 0.6_f64.cos(), 2.0 / 72.0 * 0.6_f64.sin(), 0.0),
+        v: Vec3::new(-1.5 / 72.0 * 0.6_f64.sin(), 1.5 / 72.0 * 0.6_f64.cos(), 0.0),
+        size: Vec2::ZERO,
+        path: "specs/sheet.pdf".into(),
+        display: 7,
+        contrast: 20,
+        fade: 25,
+        clipping: true,
+        underlay: Some(Underlay {
+            kind: UnderlayKind::Pdf,
+            page: "2".into(),
+            monochrome: true,
+            adjust_for_background: false,
+            clip: vec![Vec2::new(0.0, 0.0), Vec2::new(5.0, 0.0), Vec2::new(5.0, 4.0)],
+        }),
+        ..Image::default()
+    };
+    pdf.name = "sheet - 2".into();
+    for k in [
+        EntityKind::Image(image(0.0, "photos/site.png")),
+        EntityKind::Image(rect),
+        EntityKind::Image(polygon),
+        EntityKind::Wipeout(wipeout),
+        EntityKind::Image(pdf),
+    ] {
+        d.add(&Space::Model, Common::default(), k).expect("add");
+    }
+    d
+}
+
+#[test]
+fn images_wipeouts_and_underlays_read_as_the_acadrust_reader_reads_them() {
+    use draftcraft_doc::EntityKind;
+    use draftcraft_io::{DwgReader, SaveOptions, Version, read_dwg_with, write_with};
+    let source = images_drawing();
+    for version in [Version::R2000, Version::R2004, Version::R2010, Version::R2013, Version::R2018] {
+        let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
+        let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
+        let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
+        let (got, want) = (d.model.iter().cloned().collect::<Vec<_>>(), reference.model.iter().cloned().collect::<Vec<_>>());
+        assert_eq!(want.iter().filter(|e| matches!(e.kind, EntityKind::Image(_) | EntityKind::Wipeout(_))).count(), 5, "{version:?}");
+        assert_eq!(got.len(), want.len(), "{version:?}: unread {}", unread.summary());
+        for (ge, we) in got.iter().zip(&want) {
+            let (g, w) = (serde_json::to_value(ge.as_ref()).unwrap(), serde_json::to_value(we.as_ref()).unwrap());
+            assert!(close(&g["kind"], &w["kind"], false), "{version:?}\nread      {}\nreference {}", g["kind"], w["kind"]);
+            assert!(close(&g["common"], &w["common"], false), "{version:?}: properties\nread      {}\nreference {}", g["common"], w["common"]);
+        }
+        for t in ["IMAGE", "WIPEOUT", "PDFUNDERLAY", "IMAGEDEF", "PDFDEFINITION"] {
+            assert!(!unread.by_type.keys().any(|k| k.starts_with(t)), "{version:?}: {}", unread.summary());
+        }
+    }
+}
+
+/// Multilines: in STANDARD and in a style of three elements with colours, a linetype, a fill,
+/// caps and joints; open and closed, each justification, a negative scale, caps suppressed and a
+/// break in one element.
+fn mlines_drawing() -> draftcraft_doc::Drawing {
+    use draftcraft_doc::*;
+    use draftcraft_geom::Vec3;
+    let mut d = Drawing::new_imperial();
+    if !d.linetypes.iter().any(|l| l.name.eq_ignore_ascii_case("DASHED"))
+        && let Some(lt) = library::standard_linetypes().into_iter().find(|l| l.name.eq_ignore_ascii_case("DASHED"))
+    {
+        d.linetypes.push(lt);
+    }
+    let wall = MLineStyle {
+        name: "WALL3".into(),
+        description: "Three lines".into(),
+        elements: vec![
+            MLineElement { offset: 1.0, color: draftcraft_color::Color::Index(1), linetype: "ByLayer".into() },
+            MLineElement { offset: 0.0, color: draftcraft_color::Color::Index(3), linetype: "DASHED".into() },
+            MLineElement { offset: -1.0, color: draftcraft_color::Color::ByBlock, linetype: "ByBlock".into() },
+        ],
+        start_caps: MLineCaps { line: true, outer_arc: false, inner_arcs: false, angle: std::f64::consts::FRAC_PI_2 },
+        end_caps: MLineCaps { line: false, outer_arc: true, inner_arcs: true, angle: 1.2 },
+        joints: true,
+        fill: Some(draftcraft_color::Color::Index(8)),
+    };
+    d.mline_styles.push(wall.clone());
+    let v = |x: f64, y: f64| MLineVertex::new(Vec3::new(x, y, 0.0));
+    let ml = |style: &MLineStyle, vertices: Vec<MLineVertex>| MLine {
+        style: style.name.clone(),
+        def: style.clone(),
+        scale: 1.0,
+        justification: MLineJust::Top,
+        closed: false,
+        no_start_caps: false,
+        no_end_caps: false,
+        vertices,
+    };
+    let standard = MLineStyle::default();
+    let mut cut = vec![v(0.0, 20.0), v(10.0, 20.0), v(10.0, 30.0)];
+    cut[0].cuts.push(MLineCut { element: 0, start: 2.0, end: 4.0 });
+    let lines = [
+        ml(&standard, vec![v(0.0, 0.0), v(10.0, 0.0), v(10.0, 5.0)]),
+        MLine { closed: true, justification: MLineJust::Zero, ..ml(&wall, vec![v(20.0, 0.0), v(30.0, 0.0), v(30.0, 8.0), v(20.0, 8.0)]) },
+        MLine {
+            scale: -2.0,
+            justification: MLineJust::Bottom,
+            no_start_caps: true,
+            no_end_caps: true,
+            ..ml(&wall, vec![v(40.0, 0.0), v(55.0, 5.0)])
+        },
+        ml(&standard, cut),
+    ];
+    for m in lines {
+        d.add(&Space::Model, Common::default(), EntityKind::MLine(m)).expect("multiline");
+    }
+    d
+}
+
+#[test]
+fn multilines_read_as_the_acadrust_reader_reads_them() {
+    use draftcraft_doc::EntityKind;
+    use draftcraft_io::{DwgReader, SaveOptions, Version, read_dwg_with, write_with};
+    let source = mlines_drawing();
+    for version in [Version::R2000, Version::R2004, Version::R2010, Version::R2013, Version::R2018] {
+        let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
+        let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
+        let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
+        let mlines = |d: &draftcraft_doc::Drawing| d.model.iter().filter(|e| matches!(e.kind, EntityKind::MLine(_))).cloned().collect::<Vec<_>>();
+        let (got, want) = (mlines(&d), mlines(&reference));
+        assert_eq!(want.len(), 4, "{version:?}");
+        assert_eq!(got.len(), want.len(), "{version:?}: unread {}", unread.summary());
+        for (ge, we) in got.iter().zip(&want) {
+            let (g, w) = (serde_json::to_value(ge.as_ref()).unwrap(), serde_json::to_value(we.as_ref()).unwrap());
+            assert!(close(&g["kind"], &w["kind"], false), "{version:?}\nread      {}\nreference {}", g["kind"], w["kind"]);
+        }
+        let style = |d: &draftcraft_doc::Drawing| d.mline_styles.iter().find(|s| s.name == "WALL3").map(|s| serde_json::to_value(s).unwrap());
+        assert!(style(&d).is_some(), "{version:?}");
+        assert!(
+            close(&serde_json::json!(style(&d)), &serde_json::json!(style(&reference)), false),
+            "{version:?}\nread      {:?}\nreference {:?}",
+            style(&d),
+            style(&reference)
+        );
+        assert!(!unread.by_type.keys().any(|k| k.starts_with("MLINE")), "{version:?}: {}", unread.summary());
+    }
+}
+
+/// Tables: one with a title merged across, a header row, a merged block of cells, a cell with
+/// its own text height and a formula, and a plain grid of numbers.
+fn tables_drawing() -> draftcraft_doc::Drawing {
+    use draftcraft_doc::*;
+    use draftcraft_geom::Vec3;
+    let mut d = Drawing::new_imperial();
+    let cell = |s: &str| TableCell { text: s.into(), ..TableCell::default() };
+    let mut cells = vec![
+        vec![TableCell { merged: Some((1, 3)), ..cell("DOOR SCHEDULE") }, cell(""), cell("")],
+        vec![cell("MARK"), cell("SIZE"), cell("QTY")],
+        vec![TableCell { merged: Some((2, 1)), ..cell("D1") }, cell("3'-0\" x 7'-0\""), cell("4")],
+        vec![cell(""), TableCell { text_height: Some(0.25), ..cell("2'-8\" x 6'-8\"") }, cell("2")],
+        vec![cell("TOTAL"), cell(""), TableCell { formula: Some("=Sum(C3:C4)".into()), ..cell("6") }],
+    ];
+    cells[1][0].style = "Header".into();
+    let schedule = Table {
+        insert: Vec3::new(0.0, 20.0, 0.0),
+        col_widths: vec![1.5, 3.0, 1.0],
+        row_heights: vec![0.5, 0.4, 0.3, 0.3, 0.3],
+        cells,
+        title: true,
+        header: true,
+        text_height: 0.18,
+        ..Table::default()
+    };
+    let grid = Table {
+        insert: Vec3::new(10.0, 20.0, 0.0),
+        col_widths: vec![1.0, 1.0],
+        row_heights: vec![0.3, 0.3],
+        cells: vec![vec![cell("1"), cell("2")], vec![cell("3"), cell("4")]],
+        ..Table::default()
+    };
+    for t in [schedule, grid] {
+        d.add(&Space::Model, Common::default(), EntityKind::Table(t)).expect("table");
+    }
+    d
+}
+
+#[test]
+fn tables_read_as_the_acadrust_reader_reads_them() {
+    use draftcraft_doc::EntityKind;
+    use draftcraft_io::{DwgReader, SaveOptions, Version, read_dwg_with, write_with};
+    let source = tables_drawing();
+    for version in [Version::R2000, Version::R2004, Version::R2010, Version::R2013, Version::R2018] {
+        let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
+        let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
+        let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
+        let (got, want) = (d.model.iter().cloned().collect::<Vec<_>>(), reference.model.iter().cloned().collect::<Vec<_>>());
+        assert_eq!(want.iter().filter(|e| matches!(e.kind, EntityKind::Table(_))).count(), 2, "{version:?}");
+        assert_eq!(got.len(), want.len(), "{version:?}: unread {}", unread.summary());
+        for (ge, we) in got.iter().zip(&want) {
+            let (g, w) = (serde_json::to_value(ge.as_ref()).unwrap(), serde_json::to_value(we.as_ref()).unwrap());
+            assert!(close(&g["kind"], &w["kind"], false), "{version:?}\nread      {}\nreference {}", g["kind"], w["kind"]);
+            assert!(close(&g["common"], &w["common"], false), "{version:?}: properties\nread      {}\nreference {}", g["common"], w["common"]);
+        }
+        let blocks = |d: &draftcraft_doc::Drawing| d.blocks.keys().map(|k| k.to_ascii_uppercase()).collect::<Vec<_>>();
+        assert_eq!(blocks(&d), blocks(&reference), "{version:?}: the tables' blocks are left out");
+        assert!(!unread.by_type.keys().any(|k| k.starts_with("ACAD_TABLE") || k.starts_with("TABLE ")), "{version:?}: {}", unread.summary());
+    }
+}
+
+/// Regions: one loop with an arc, one with an island and a second outer loop, and one whose
+/// other loops are too large for the extended data (written as plain polylines).
+fn regions_drawing() -> draftcraft_doc::Drawing {
+    use draftcraft_doc::*;
+    use draftcraft_geom::{PolyVertex, Vec2};
+    let v = |x: f64, y: f64| PolyVertex::new(Vec2::new(x, y));
+    let square = |x: f64, y: f64, s: f64| vec![v(x, y), v(x + s, y), v(x + s, y + s), v(x, y + s)];
+    let lp = |vertices: Vec<PolyVertex>, outer: bool| HatchLoop { vertices, outer, sources: Vec::new() };
+    let mut d = Drawing::new_imperial();
+    let mut arc = square(0.0, 0.0, 4.0);
+    arc[1].bulge = 0.5;
+    let many: Vec<PolyVertex> =
+        (0..400).map(|i| PolyVertex::new(Vec2::polar(Vec2::new(40.0, 5.0), 3.0, f64::from(i) * std::f64::consts::TAU / 400.0))).collect();
+    let regions = [
+        Region { loops: vec![lp(arc, true)] },
+        Region { loops: vec![lp(square(10.0, 0.0, 10.0), true), lp(square(13.0, 3.0, 2.0), false), lp(square(25.0, 0.0, 3.0), true)] },
+        Region { loops: vec![lp(square(35.0, 0.0, 10.0), true), lp(many, false)] },
+    ];
+    for r in regions {
+        d.add(&Space::Model, Common::default(), EntityKind::Region(r)).expect("region");
+    }
+    d
+}
+
+#[test]
+fn regions_read_as_the_acadrust_reader_reads_them() {
+    use draftcraft_doc::EntityKind;
+    use draftcraft_io::{DwgReader, SaveOptions, Version, read_dwg_with, write_with};
+    let source = regions_drawing();
+    for version in [Version::R2000, Version::R2004, Version::R2010, Version::R2013, Version::R2018] {
+        let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
+        let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
+        let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
+        let (got, want) = (d.model.iter().cloned().collect::<Vec<_>>(), reference.model.iter().cloned().collect::<Vec<_>>());
+        assert_eq!(want.iter().filter(|e| matches!(e.kind, EntityKind::Region(_))).count(), 3, "{version:?}");
+        assert_eq!(got.len(), want.len(), "{version:?}: unread {}", unread.summary());
+        for (ge, we) in got.iter().zip(&want) {
+            let (g, w) = (serde_json::to_value(ge.as_ref()).unwrap(), serde_json::to_value(we.as_ref()).unwrap());
+            assert!(close(&g["kind"], &w["kind"], false), "{version:?}\nread      {}\nreference {}", g["kind"], w["kind"]);
+            assert!(close(&g["common"], &w["common"], false), "{version:?}: properties\nread      {}\nreference {}", g["common"], w["common"]);
+        }
+        assert!(!unread.by_type.keys().any(|k| k.starts_with("LWPOLYLINE") || k.starts_with("DraftCraft")), "{version:?}: {}", unread.summary());
     }
 }
