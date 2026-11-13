@@ -130,6 +130,9 @@ fn route_ui_subsystems(app: &mut CadApp, id: &str, params: &Value) -> Option<Res
     if let Some(r) = crate::bedit::route(app, id, params) {
         return Some(r);
     }
+    if let Some(r) = attribute_file(app, id, params) {
+        return Some(r);
+    }
     if let Some(r) = crate::ribbon::context::route(app, id, params) {
         return Some(r);
     }
@@ -349,6 +352,40 @@ fn user_qsave(app: &mut CadApp) -> Option<Result<Value, String>> {
         return run_ui_command(app, "ui.saveas", &Value::Null);
     }
     app.hold_lossy_save().then_some(Ok(Value::Null))
+}
+
+/// ATTOUT and ATTIN from the ribbon, a menu or typed: the file dialog, then the engine's prompts
+/// (ATTOUT then asks for the block references). `None` with FILEDIA off or no file dialog here:
+/// the engine's command asks for the file name instead. JSON calls carry `path` and never get here.
+fn attribute_file(app: &mut CadApp, id: &str, params: &Value) -> Option<Result<Value, String>> {
+    if !matches!(id, "attout" | "attin") || !params.is_null() || app.session.state().is_err() || !app.session.settings.filedia {
+        return None;
+    }
+    let path = if id == "attout" {
+        let pick = app.services.pick_save.as_ref()?;
+        let title = app.session.state().map(|s| s.title.clone()).unwrap_or_default();
+        let stem = std::path::Path::new(&title).file_stem().map(|s| s.to_string_lossy().to_string()).filter(|s| !s.is_empty());
+        pick(&format!("{}.txt", stem.unwrap_or_else(|| "Drawing".into())))
+    } else {
+        if app.services.no_file_system {
+            let hint = "ATTIN: there is no file system here; run it with the file's contents, e.g. attin {\"text\": \"HANDLE\\tTAG\\n'1A2\\tvalue\"}";
+            app.session.echo(hint.to_string());
+            app.set_status(hint);
+            return Some(Ok(Value::Null));
+        }
+        let pick = app.services.pick_file.as_ref()?;
+        pick("Text, tab-delimited (TXT)", &["txt"])
+    };
+    let Some(path) = path else { return Some(Ok(Value::Null)) };
+    if let Err(e) = app.session.start(id) {
+        app.session.echo(e.to_string());
+        return Some(Err(e.to_string()));
+    }
+    if let Err(e) = app.session.input(draftcraft_engine::Input::Text(path)) {
+        app.session.echo(e.to_string());
+        return Some(Err(e.to_string()));
+    }
+    Some(Ok(Value::Null))
 }
 
 fn run_ui_command_inner(app: &mut CadApp, id: &str, params: &Value) -> Option<Result<Value, String>> {
@@ -1076,6 +1113,41 @@ mod tests {
         assert!(r["data"].is_string());
         assert_eq!(asked.borrow().len(), 1);
         assert!(app.ui.dialog.is_none());
+    }
+
+    /// ATTOUT from the ribbon asks where to save, then for the block references; ATTIN asks for
+    /// the file and applies it. JSON calls never open a dialog.
+    #[test]
+    fn attout_and_attin_ask_for_the_file() {
+        let path = std::env::temp_dir().join(format!("draftcraft-attout-ui-{}.txt", std::process::id()));
+        let ps = path.to_string_lossy().to_string();
+        let (mut app, asked) = app_with_picker(Some(ps.clone()));
+        let s = &mut app.session;
+        s.execute("attdef", &json!({"tag": "NUMBER", "default": "", "at": [0, 0], "height": 1})).unwrap();
+        let hs: Vec<String> = s.doc().unwrap().model.iter().map(|e| e.handle.hex()).collect();
+        s.execute("block", &json!({"name": "TAG", "base": [0, 0], "handles": hs, "keep": "delete"})).unwrap();
+        let h =
+            s.execute("insert", &json!({"name": "TAG", "at": [5, 5], "attribs": {"NUMBER": "1"}})).unwrap()["handle"].as_str().unwrap().to_string();
+        let handle = draftcraft_engine::doc::Handle::parse_hex(&h).unwrap();
+
+        app.start("attout");
+        assert_eq!(*asked.borrow(), vec!["Drawing1.txt".to_string()]);
+        assert!(app.session.prompt_text().contains("Select objects"), "{}", app.session.prompt_text());
+        app.session.input(draftcraft_engine::Input::Pick(vec![handle])).unwrap();
+        app.session.input(draftcraft_engine::Input::Enter).unwrap();
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(text.contains(&format!("'{h}\tTAG\t1")), "{text}");
+
+        // ATTIN's picker is the file picker; without one, the engine asks on the command line.
+        std::fs::write(&path, text.replace("\tTAG\t1", "\tTAG\t2")).unwrap();
+        app.cmdline("attin");
+        assert!(app.session.prompt_text().contains("input file name"), "{}", app.session.prompt_text());
+        app.cmdline(&ps);
+        assert!(app.session.running.is_none());
+        let r = app.run("attout", json!({})).unwrap();
+        assert!(r["text"].as_str().unwrap().contains(&format!("'{h}\tTAG\t2")), "{r}");
+        assert_eq!(asked.borrow().len(), 1, "JSON calls open no dialog");
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
