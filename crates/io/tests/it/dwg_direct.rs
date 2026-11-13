@@ -60,6 +60,7 @@ fn every_object_of_every_version_is_accounted_for() {
 
 /// The object types the reader puts in the drawing so far.
 const READ_SO_FAR: &[&str] = &[
+    "MLEADERSTYLE",
     "DIMENSION_LINEAR",
     "DIMASSOC",
     "LINE",
@@ -1717,6 +1718,18 @@ fn autocad_samples_entities_read_as_autocads_dxf() {
         assert_eq!(s.control.len(), 4, "{code}");
         for (c, (x, y)) in s.control.iter().zip(want) {
             assert!(near(c.x, x) && near(c.y, y), "{code}: control point {c:?}, AutoCAD's ({x}, {y})");
+        }
+        // Multileader styles (MLEADERSTYLE objects, written from 2004 on): AutoCAD's Standard and
+        // Annotative, with the values of its DXF.
+        if code != "AC1015" {
+            for (name, annotative) in [("Standard", false), ("Annotative", true)] {
+                let st = d.mleader_styles.iter().find(|s| s.name == name).unwrap_or_else(|| panic!("{code}: multileader style {name}"));
+                assert!(
+                    near(st.arrow_size, 0.18) && near(st.text_height, 0.18) && near(st.landing_gap, 0.09) && near(st.dogleg, 0.36),
+                    "{code}: {st:?}"
+                );
+                assert_eq!((st.text_style.as_str(), st.annotative), ("Standard", annotative), "{code}: {name}");
+            }
         }
         // No entity keeps AutoCAD's round-trip spline data as extended data.
         assert!(d.model.iter().all(|e| !e.common.xdata.iter().any(|t| t.code == 1001 && t.value == "ACAD_SPLINE_DATA")), "{code}");

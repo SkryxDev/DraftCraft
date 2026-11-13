@@ -4,6 +4,7 @@
 use std::collections::{HashMap, HashSet};
 
 use draftcraft_doc::Drawing;
+use draftcraft_dwg::DwgVersion as V;
 use draftcraft_dwg::file::{DwgFile, ObjectReader, ObjectRef};
 use draftcraft_dwg::records::Result as DwgResult;
 use draftcraft_dxf::Tag;
@@ -258,6 +259,69 @@ pub(super) fn named(file: &DwgFile, objects: &[ObjectRef], root: u64) -> Named {
     n
 }
 
+/// MLEADERSTYLE: its leader, landing, arrow, text and block settings, in the order AutoCAD's own
+/// files hold them (ACadSharp's samples: every version reads to the end of the record, with the
+/// values of AutoCAD's DXF). From 2010 on a version comes first and the attachment directions
+/// last; 2013 adds a flag. The drawing keeps what the DXF reader keeps: the arrow size, text
+/// height, landing gap, dogleg length, text style and whether it is annotative.
+fn mleader_style(r: &mut ObjectReader, name: &str, tables: &Tables) -> DwgResult<draftcraft_doc::MLeaderStyle> {
+    use draftcraft_doc::MLeaderStyle;
+    let def = MLeaderStyle::default();
+    let ver = r.version();
+    r.common_refs()?;
+    if ver >= V::R2010 {
+        let _version = r.bs()?;
+    }
+    let _content = (r.bs()?, r.bs()?, r.bs()?);
+    let _max_points = r.bl()?;
+    let _angles = (r.bd()?, r.bd()?);
+    let _leader_type = r.bs()?;
+    let _line_color = r.color()?;
+    let _line_type = r.reference()?;
+    let _line_weight = r.bl()?;
+    let _landing = r.b()?;
+    let landing_gap = r.bd()?;
+    let _dogleg = r.b()?;
+    let dogleg = r.bd()?;
+    let _description = r.text()?;
+    let _arrow_block = r.reference()?;
+    let arrow_size = r.bd()?;
+    let _text_default = r.text()?;
+    let text_style = r.reference()?;
+    let _attachments = (r.bs()?, r.bs()?, r.bs()?, r.bs()?);
+    let _text_color = r.color()?;
+    let text_height = r.bd()?;
+    let _frame = r.b()?;
+    let _align_left = r.b()?;
+    let _align_space = r.bd()?;
+    let _block = r.reference()?;
+    let _block_color = r.color()?;
+    let _block_scale = r.bd3()?;
+    let _block_scale_on = r.b()?;
+    let _block_rotation = (r.bd()?, r.b()?);
+    let _block_connection = r.bs()?;
+    let _scale = r.bd()?;
+    let annotative = r.b()?;
+    let _changed = r.b()?;
+    let _break_size = r.bd()?;
+    if ver >= V::R2010 {
+        let _attachment = (r.bs()?, r.bs()?, r.bs()?);
+    }
+    if ver >= V::R2013 {
+        let _text_extended = r.b()?;
+    }
+    let num = |v: f64, d: f64| if v.is_finite() && v >= 0.0 { v } else { d };
+    Ok(MLeaderStyle {
+        name: name.to_string(),
+        arrow_size: num(arrow_size, def.arrow_size),
+        text_height: if text_height.is_finite() && text_height > 0.0 { text_height } else { def.text_height },
+        landing_gap: num(landing_gap, def.landing_gap),
+        dogleg: num(dogleg, def.dogleg),
+        text_style: tables.styles.get(&text_style).filter(|n| !n.is_empty()).cloned().unwrap_or(def.text_style),
+        annotative,
+    })
+}
+
 /// MLINESTYLE (§20.4.73): name, description, flags, fill colour, cap angles and elements, each
 /// with its offset, colour and linetype (a handle from AutoCAD 2018 on, before that an index into
 /// the linetype table's order, 0x7FFF ByLayer and 0x7FFE ByBlock).
@@ -305,8 +369,26 @@ fn mline_style(r: &mut ObjectReader, tables: &Tables) -> DwgResult<Option<draftc
 }
 
 /// Read the objects into `d`. Returns the handles of the objects read.
-pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], tables: &Tables, d: &mut Drawing, unread: &mut Unread) -> HashSet<u64> {
+pub(super) fn read(file: &DwgFile, objects: &[ObjectRef], tables: &Tables, named: &Named, d: &mut Drawing, unread: &mut Unread) -> HashSet<u64> {
     let mut read = HashSet::new();
+    // Multileader styles, named by the ACAD_MLEADERSTYLE dictionary, by the DXF reader's rule: a
+    // name the drawing has is replaced.
+    for o in objects.iter().filter(|o| o.type_name == "MLEADERSTYLE") {
+        let Some(name) = named.mleader_styles.get(&o.handle).filter(|n| !n.is_empty()) else {
+            unread.count("MLEADERSTYLE of no dictionary entry");
+            continue;
+        };
+        match file.read_object(o).and_then(|mut r| mleader_style(&mut r, name, tables)) {
+            Ok(st) => {
+                match d.mleader_styles.iter_mut().find(|s| s.name.eq_ignore_ascii_case(name)) {
+                    Some(x) => *x = st,
+                    None => d.mleader_styles.push(st),
+                }
+                read.insert(o.handle);
+            }
+            Err(_) => unread.count("MLEADERSTYLE (not decoded)"),
+        }
+    }
     // Multiline styles, then each multiline's elements from its style.
     let mut styles = Vec::new();
     for o in objects.iter().filter(|o| o.type_name == "MLINESTYLE") {

@@ -128,7 +128,7 @@ pub fn read(bytes: &[u8]) -> Result<(Drawing, Unread)> {
         }
     }
     let entities = entities::read(&file, &objects, &tables, &block_table, &named, &mut d, &mut unread);
-    let others = objects::read(&file, &objects, &tables, &mut d, &mut unread);
+    let others = objects::read(&file, &objects, &tables, &named, &mut d, &mut unread);
     for o in &objects {
         if !tables.read.contains(&o.handle) && !block_table.read.contains(&o.handle) && !entities.contains(&o.handle) && !others.contains(&o.handle) {
             unread.count(&o.type_name);
