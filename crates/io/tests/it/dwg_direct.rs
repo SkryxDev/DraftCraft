@@ -868,7 +868,8 @@ fn hatches_drawing() -> draftcraft_doc::Drawing {
         l.vertices = vec![PolyVertex::with_bulge(Vec2::new(56.0, 5.0), 1.0), PolyVertex::with_bulge(Vec2::new(64.0, 5.0), 1.0)];
     }
     let mut by_layer = hatch("SOLID", vec![outer(square(70.0, 0.0, 10.0))]);
-    by_layer.gradient = Some(Gradient { name: "CURVED".into(), color1: color::Color::Index(5), color2: color::Color::ByLayer, angle: 0.0, centered: true });
+    by_layer.gradient =
+        Some(Gradient { name: "CURVED".into(), color1: color::Color::Index(5), color2: color::Color::ByLayer, angle: 0.0, centered: true });
     for h in [solid, ansi, own, gradient, associative, by_layer] {
         d.add(&Space::Model, Common::default(), EntityKind::Hatch(h)).expect("add");
     }
@@ -1537,5 +1538,20 @@ fn regions_read_as_the_acadrust_reader_reads_them() {
             assert!(close(&g["common"], &w["common"], false), "{version:?}: properties\nread      {}\nreference {}", g["common"], w["common"]);
         }
         assert!(!unread.by_type.keys().any(|k| k.starts_with("LWPOLYLINE") || k.starts_with("DraftCraft")), "{version:?}: {}", unread.summary());
+    }
+}
+
+/// DIMASSOC objects as DraftCraft's save path writes them (through acadrust) name subentities
+/// with values AutoCAD's own files have as zero: each is read, in every version.
+#[test]
+fn saved_dimension_associations_are_read() {
+    use draftcraft_io::{SaveOptions, Version, write_with};
+    let source = draftcraft_io::read(include_bytes!("../../../../examples/apartment.dxf"), "apartment.dxf").unwrap();
+    for version in [Version::R2000, Version::R2004, Version::R2010, Version::R2013, Version::R2018] {
+        let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
+        let file = DwgFile::open(&bytes).unwrap();
+        assert!(file.objects().any(|o| o.type_name == "DIMASSOC"), "{version:?}: the drawing has associative dimensions");
+        let (_, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
+        assert!(!unread.by_type.keys().any(|k| k.starts_with("DIMASSOC")), "{version:?}: {}", unread.summary());
     }
 }
