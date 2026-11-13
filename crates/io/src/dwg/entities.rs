@@ -6,8 +6,8 @@
 use std::collections::{HashMap, HashSet};
 
 use draftcraft_doc::{
-    Arc, Attrib, AttribModes, AttribProps, Circle, Common, Drawing, Ellipse, Entity, EntityKind, Face3d, HAlign, Handle, Insert, Line, Lineweight,
-    LwPolyline, MText, Point, PolyfaceMesh, Polyline3d, RawTag, RayLine, Solid, Text, VAlign,
+    Arc, Attrib, AttribModes, AttribProps, Circle, Common, DimKind, Dimension, Drawing, Ellipse, Entity, EntityKind, Face3d, HAlign, Handle, Insert,
+    Line, Lineweight, LwPolyline, MText, Point, PolyfaceMesh, Polyline3d, RawTag, RayLine, Solid, Text, VAlign,
 };
 use draftcraft_dwg::DwgVersion as V;
 use draftcraft_dwg::file::{DwgFile, EntityLinetype, EntityRefs, EntitySpace, ObjectReader, ObjectRef, XDataBlock, XDataItem};
@@ -109,6 +109,20 @@ fn attrib_props(c: &Common, insert_layer: &str) -> AttribProps {
     }
 }
 
+/// Extended data groups without the application `app`'s.
+fn without_app(groups: Vec<RawTag>, app: &str) -> Vec<RawTag> {
+    let mut keep = true;
+    groups
+        .into_iter()
+        .filter(|g| {
+            if g.code == 1001 {
+                keep = !g.value.eq_ignore_ascii_case(app);
+            }
+            keep
+        })
+        .collect()
+}
+
 /// Other applications' extended data as the groups the drawing keeps with the entity, by the DXF
 /// reader's rules: the applications that reader turns into properties are not kept as groups (and
 /// are counted, as this reader doesn't read them yet), and an application whose list braces don't
@@ -196,6 +210,13 @@ fn reads(type_name: &str) -> bool {
             | "VERTEX_PFACE"
             | "VERTEX_PFACE_FACE"
             | "SPLINE"
+            | "DIMENSION_ORDINATE"
+            | "DIMENSION_LINEAR"
+            | "DIMENSION_ALIGNED"
+            | "DIMENSION_ANG_3PT"
+            | "DIMENSION_ANG_2LN"
+            | "DIMENSION_RADIUS"
+            | "DIMENSION_DIAMETER"
     )
 }
 
@@ -214,6 +235,147 @@ enum Body {
     Polyline(PolyKind, u32),
     /// A vertex or a polyface face, waiting for its polyline.
     Vertex(Vertex),
+    /// A dimension, waiting for its style and block, with its extension lines' angle (oblique)
+    /// for linear and aligned ones.
+    Dimension(Box<Dimension>, f64),
+}
+
+/// DIMENSION (§20.4.20 to §20.4.26): the fields every dimension has, then its kind's points.
+fn dimension(r: &mut ObjectReader, type_name: &str) -> DwgResult<Shape> {
+    let ver = r.version();
+    if ver >= V::R2010 {
+        let _version = r.rc()?;
+    }
+    let normal = v3(r.bd3()?);
+    let [mx, my] = r.rd2()?;
+    let elevation = r.bd()?;
+    // Bit 0 clear: the text was placed by the user (DXF group 70, 128).
+    let flags = r.rc()?;
+    let text = r.text()?;
+    let text_rotation = r.bd()?;
+    let _horizontal_direction = r.bd()?;
+    let _insert_scale = r.bd3()?;
+    let _insert_rotation = r.bd()?;
+    let mut measurement = 0.0;
+    if ver >= V::R2000 {
+        let _attachment = r.bs()?;
+        let _line_spacing_style = r.bs()?;
+        let _line_spacing = r.bd()?;
+        measurement = r.bd()?;
+    }
+    if ver >= V::R2007 {
+        let _unknown = r.b()?;
+        let _flip_arrow_1 = r.b()?;
+        let _flip_arrow_2 = r.b()?;
+    }
+    let [ix, iy] = r.rd2()?;
+    let p = |r: &mut ObjectReader| -> DwgResult<Vec3> { Ok(v3(r.bd3()?)) };
+    let defpt;
+    let (mut p13, mut p14, mut p15, mut p16) = (Vec3::ZERO, Vec3::ZERO, Vec3::ZERO, Vec3::ZERO);
+    let mut oblique = 0.0;
+    let kind = match type_name {
+        "DIMENSION_ORDINATE" => {
+            defpt = p(r)?;
+            p13 = p(r)?;
+            p14 = p(r)?;
+            DimKind::Ordinate { x_type: r.rc()? & 1 != 0 }
+        }
+        "DIMENSION_LINEAR" | "DIMENSION_ALIGNED" => {
+            p13 = p(r)?;
+            p14 = p(r)?;
+            defpt = p(r)?;
+            oblique = r.bd()?;
+            if type_name == "DIMENSION_LINEAR" { DimKind::Linear { rotation: r.bd()? } } else { DimKind::Aligned }
+        }
+        "DIMENSION_ANG_3PT" => {
+            defpt = p(r)?;
+            p13 = p(r)?;
+            p14 = p(r)?;
+            p15 = p(r)?;
+            DimKind::Angular3P
+        }
+        "DIMENSION_ANG_2LN" => {
+            let [ax, ay] = r.rd2()?;
+            p16 = Vec3::new(ax, ay, elevation);
+            p13 = p(r)?;
+            p14 = p(r)?;
+            p15 = p(r)?;
+            defpt = p(r)?;
+            DimKind::Angular
+        }
+        "DIMENSION_RADIUS" => {
+            // The centre (10), then the point on the arc (15).
+            defpt = p(r)?;
+            p15 = p(r)?;
+            let _leader_length = r.bd()?;
+            DimKind::Radius
+        }
+        _ => {
+            // DIMENSION_DIAMETER: the far end of the chord (15) first, then its near end (10).
+            p15 = p(r)?;
+            defpt = p(r)?;
+            let _leader_length = r.bd()?;
+            DimKind::Diameter
+        }
+    };
+    // The text midpoint is the one point of a dimension in its object coordinate system.
+    let mid = Vec3::new(mx, my, elevation);
+    let dim = Dimension {
+        kind,
+        defpt,
+        text_mid: if normal.z < 0.0 { ocs_n(normal, mid) } else { mid },
+        p13,
+        p14,
+        p15,
+        p16,
+        text: mtext_dxf::decode_line(&text),
+        style: "Standard".into(),
+        measurement,
+        text_rotation,
+        user_text_pos: flags & 1 == 0,
+        block: None,
+        insertion_point: Vec3::new(ix, iy, 0.0),
+        overrides: Default::default(),
+        assoc: Vec::new(),
+        marks: Default::default(),
+    };
+    Ok(Shape { body: Body::Dimension(Box::new(dim), oblique), thickness: 0.0, normal })
+}
+
+/// An object's extended data as the DXF groups it would be in a DXF file, for the DXF reader's
+/// rules that read properties from them (a dimension's overrides, DraftCraft's own data).
+/// References are written as their handles in hexadecimal, as a DXF holds them.
+fn xdata_tags(blocks: &[XDataBlock], apps: &HashMap<u64, String>) -> Vec<draftcraft_dxf::Tag> {
+    use draftcraft_dxf::Tag;
+    let mut out = Vec::new();
+    for b in blocks {
+        let Some(name) = apps.get(&b.app) else { continue };
+        out.push(Tag::s(1001, name.clone()));
+        for v in &b.items {
+            let pt = |out: &mut Vec<Tag>, base: i32, p: &[f64; 3]| {
+                out.extend([Tag::f(base, p[0]), Tag::f(base + 10, p[1]), Tag::f(base + 20, p[2])]);
+            };
+            match v {
+                XDataItem::Text(t) => out.push(Tag::s(1000, t.clone())),
+                XDataItem::Open => out.push(Tag::s(1002, "{")),
+                XDataItem::Close => out.push(Tag::s(1002, "}")),
+                XDataItem::Layer(h) => out.push(Tag::s(1003, format!("{h:X}"))),
+                XDataItem::Bytes(bytes) => out.push(Tag::s(1004, bytes.iter().map(|x| format!("{x:02X}")).collect::<String>())),
+                XDataItem::Handle(h) => out.push(Tag::s(1005, format!("{h:X}"))),
+                XDataItem::Point(p) => pt(&mut out, 1010, p),
+                XDataItem::Position(p) => pt(&mut out, 1011, p),
+                XDataItem::Displacement(p) => pt(&mut out, 1012, p),
+                XDataItem::Direction(p) => pt(&mut out, 1013, p),
+                XDataItem::Real(x) => out.push(Tag::f(1040, *x)),
+                XDataItem::Distance(x) => out.push(Tag::f(1041, *x)),
+                XDataItem::ScaleFactor(x) => out.push(Tag::f(1042, *x)),
+                XDataItem::Int16(i) => out.push(Tag::i(1070, i64::from(*i))),
+                XDataItem::Int32(i) => out.push(Tag::i(1071, i64::from(*i))),
+                XDataItem::Undecoded(_) => {}
+            }
+        }
+    }
+    out
 }
 
 /// The kind of a polyline, with what its own record holds.
@@ -897,6 +1059,8 @@ fn shape(r: &mut ObjectReader, type_name: &str, partial: &mut Vec<&'static str>)
         "VERTEX_3D" | "VERTEX_MESH" | "VERTEX_PFACE" => vertex_3d(r)?,
         "VERTEX_PFACE_FACE" => pface_face(r)?,
         "SPLINE" => spline(r)?,
+        "DIMENSION_ORDINATE" | "DIMENSION_LINEAR" | "DIMENSION_ALIGNED" | "DIMENSION_ANG_3PT" | "DIMENSION_ANG_2LN" | "DIMENSION_RADIUS"
+        | "DIMENSION_DIAMETER" => dimension(r, type_name)?,
         "ATTDEF" => attribute(r, true)?,
         "MINSERT" => insert(r, true)?,
         "SOLID" => solid(r, false)?,
@@ -953,6 +1117,38 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
             polyline = Some((kind, c, list));
             None
         }
+        Body::Dimension(mut dm, oblique) => {
+            let style = r.reference()?;
+            let block = r.reference()?;
+            dm.style = n.tables.dim_styles.get(&style).cloned().unwrap_or_else(|| "Standard".into());
+            dm.block = n.blocks.get(&block).cloned().filter(|b| !b.is_empty());
+            // The overrides, associativity and marks the extended data holds, by the DXF
+            // reader's rules for them.
+            let tags = xdata_tags(&r.xdata(), &n.tables.apps);
+            let (styles, blocks, ltypes) =
+                (super::tables::by_hex(&n.tables.styles), super::tables::by_hex(n.blocks), super::tables::by_hex(&n.tables.linetypes));
+            dm.overrides = crate::dxf_ext::read_dstyle(&tags, &styles, &blocks, &ltypes);
+            dm.assoc = crate::dxf_ext::read_assoc(&tags);
+            if let Some(center) = crate::dxf_ext::read_arclen(&tags) {
+                dm.kind = DimKind::ArcLength;
+                dm.p15 = center;
+            }
+            dm.marks = crate::dxf_ext::read_marks(&tags);
+            // The extension lines' angle relative to the dimension line (DIMEDIT Oblique), as
+            // a DXF holds it in group 52, in degrees.
+            let base = match dm.kind {
+                DimKind::Linear { rotation } => Some(rotation),
+                DimKind::Aligned => Some((dm.p14.xy() - dm.p13.xy()).angle()),
+                _ => None,
+            };
+            if let Some(base) = base
+                && oblique.is_finite()
+                && oblique.to_degrees().rem_euclid(180.0) != 0.0
+            {
+                dm.marks.oblique = Some(draftcraft_geom::norm_angle(base + oblique));
+            }
+            Some(EntityKind::Dimension(*dm))
+        }
         Body::Vertex(v) => {
             vertex = Some(v);
             None
@@ -975,6 +1171,11 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
     };
     let entity = kind.map(|kind| {
         let mut c = common(r, &refs, n, &mut partial);
+        // A dimension's ACAD extended data is its overrides, read above: as the DXF reader does,
+        // it is not kept as other applications' data too.
+        if matches!(kind, EntityKind::Dimension(_)) {
+            c.xdata = without_app(std::mem::take(&mut c.xdata), "ACAD");
+        }
         c.thickness = thickness;
         c.extrusion = normal;
         let mut e = Entity::new(Handle(o.handle), kind);
