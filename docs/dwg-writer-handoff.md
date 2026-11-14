@@ -35,7 +35,8 @@ holds what the DXF of the same drawing holds, and what a command adds to one is 
 |---|---|
 | `crates/dwg/src/compose/object.rs` | `ObjectWriter`: one object, field by field, in every version (the mirror of `file::ObjectReader`) |
 | `crates/dwg/src/compose/sections.rs` | header variables, classes, object map |
-| `crates/dwg/src/compose/file.rs` | `compose(Parts)`: the file laid out for 2000 (flat) and 2004/2010/2013/2018 (paged, through `write::container::pack`) |
+| `crates/dwg/src/compose/file.rs` | `compose(Parts)`: the file laid out for 2000 (flat) and 2004/2010/2013/2018 (paged, through `compose/container.rs`) |
+| `crates/dwg/src/compose/small.rs`, `fields.rs` | the application information and revision history sections; the three bit streams the style encoders (`read/styles.rs`) write into |
 | `crates/dwg/src/compose/r2007/` | AutoCAD 2007 container: Reed-Solomon pages (`codes.rs`), its compression (`compress.rs`), CRC-64 checks, the page and section maps |
 | `crates/io/src/dwg/write/rec.rs` | the records: `Doc`, `Rec`, `Groups` |
 | `crates/io/src/dwg/write/mod.rs` | `Cx` (names to handles, classes, structure), `encode`, `write` |
@@ -108,9 +109,6 @@ set; an AutoCAD 2018 MTEXT ends with a null reference.
 
 ## Known choices to revisit
 
-- `crates/dwg/src/write` (withshalom's first writer, over BlackCAD's records) is still there:
-  `compose` uses its container, its small sections and its style codec. Once nothing else needs
-  it, what `compose` uses moves there and the rest goes.
 - A LEADER's first field after its vertices ("origin") is written as zero; a hatch gradient, a
   UCS and a named view are written from the specification and the reader, with no AutoCAD file
   of them to compare with. ACadSharp's samples (MIT, not in the repository) hold most entity

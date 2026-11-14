@@ -16,7 +16,6 @@ crates/dwg  (draftcraft-dwg: layer 0, depends on no other workspace crate)
   read/       DWG R13 to 2018 and later: container (r2000, r2004, r2007), sections, classes, objects
   compose/    a DWG file laid out from its objects, header and classes, as each version
               stores it (r2000 sections, the 2004 pages, the 2007 Reed-Solomon pages in r2007/)
-  write/      BlackCAD's writer from records (its object encoding and read-back check)
   records/    BlackCAD's records, for the first mapping (dwg_read) and as an independent
               reading of the files the writer makes, in tests
   bits.rs, crc.rs, lz77.rs   the format's primitives, shared by reading and writing

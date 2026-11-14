@@ -576,7 +576,7 @@ impl ObjectWriter {
     pub fn grouped(&mut self, kind: &str, items: Vec<(u16, crate::file::XrValue)>, text_styles: &[(String, u64)]) -> crate::records::Result<()> {
         use crate::read::model::{Groups, Handle};
         let lookup = crate::read::styles::Lookup::from_text_styles(text_styles.iter().map(|(n, h)| (n.clone(), Handle(*h))).collect());
-        let mut w = crate::write::objects::ObjW::new(self.ver, Handle(self.handle));
+        let mut w = super::ObjW::new(self.ver);
         crate::read::styles::encode_with(&mut w, &Groups { kind: kind.to_string(), items }, &lookup)?;
         let (dat, strs, has_strings, hdl) = w.into_streams();
         self.dat.append(&dat);

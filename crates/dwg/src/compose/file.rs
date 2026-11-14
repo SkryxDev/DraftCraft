@@ -1,13 +1,13 @@
 //! The whole file from its parts, laid out as its version stores it.
 
+use super::container::{self, FileInfo, MAX_PAGE, Section};
+use super::small as shared;
 use crate::bits::BitWriter;
 use crate::crc::{crc16, file_header_crc_xor};
 use crate::file::HeaderValue;
 use crate::read::section::FILE_HEADER_END;
 use crate::read::version::DwgVersion as V;
 use crate::records::{Error, Result};
-use crate::write::container::{self, FileInfo, MAX_PAGE, Section};
-use crate::write::sections as shared;
 
 use super::object::TextEncoding;
 use super::sections::{Class, classes_section, header_section, object_map};

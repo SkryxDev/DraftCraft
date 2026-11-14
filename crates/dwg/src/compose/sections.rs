@@ -120,7 +120,7 @@ fn parse_floats(t: &str) -> Vec<f64> {
 
 /// A variable's value when the drawing has none: AutoCAD's own default.
 fn default_value(name: &str, kind: VarKind) -> HeaderValue {
-    let dt = crate::write::sections::default_text(name);
+    let dt = super::small::default_text(name);
     match kind {
         VarKind::B => HeaderValue::Bool(match dt {
             "" => matches!(

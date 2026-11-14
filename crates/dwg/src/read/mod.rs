@@ -2,8 +2,7 @@
 //!
 //! Reading: [`read_bytes`] turns a DWG file of any version from R13 to
 //! AutoCAD 2018 and later (AC1012–AC1032) into a [`Drawing`].
-//! Writing: [`write::to_bytes`] writes a drawing as an AutoCAD 2018
-//! (AC1032) file.
+//! Writing is [`crate::compose`]'s.
 //!
 //! The drawing is `cad-model`'s database, re-exported here as
 //! [`cad_model`].
