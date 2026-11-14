@@ -2,7 +2,7 @@
 //!
 //! - [`read`]: DWG files from R13 to AutoCAD 2018 and later into the [`records`] of
 //!   their objects, which `draftcraft-io` maps straight into the drawing.
-//! - [`write`] and [`compose`]: DWG files of every version AutoCAD saves (2000 to 2018) from the
+//! - [`compose`]: DWG files of every version AutoCAD saves (2000 to 2018) from the
 //!   drawing's objects.
 //! - [`file`]: a DWG file opened to its parts (version, sections, the object list), for a reader
 //!   that builds the drawing itself.
@@ -22,7 +22,6 @@ pub mod file;
 pub mod lz77;
 pub mod read;
 pub mod records;
-pub mod write;
 
 pub use read::{DwgVersion, read_bytes};
 

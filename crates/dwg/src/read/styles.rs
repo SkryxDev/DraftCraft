@@ -15,10 +15,10 @@
 use super::streams::Streams;
 use super::version::DwgVersion as V;
 use crate::bits::BitReader;
+use crate::compose::{FieldRef as Ref, ObjW};
 use crate::read::error::{Error, Result};
 use crate::read::geom::Vec3;
 use crate::read::model::{Drawing, Groups, Handle, ObjectKind, XrValue};
-use crate::write::objects::{ObjW, Ref};
 
 /// How a value is stored in the DWG record.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1078,12 +1078,7 @@ fn encode_layout(w: &mut ObjW, g: &Groups, l: &Layout) -> Result<()> {
 }
 
 /// Write a style object's type data and handles (after the common part
-/// and common handles).
-pub(crate) fn encode(w: &mut ObjW, g: &Groups, d: &Drawing) -> Result<()> {
-    encode_with(w, g, &Lookup::new(d))
-}
-
-/// [`encode`] with the text styles given.
+/// and common handles), with the text styles a table style refers to given.
 pub(crate) fn encode_with(w: &mut ObjW, g: &Groups, lookup: &Lookup) -> Result<()> {
     if w.ver < since(&g.kind) {
         return Err(Error::unsupported(format!("{} before {:?}", g.kind, since(&g.kind))));
@@ -1845,11 +1840,11 @@ mod tests {
     fn a_claimed_count_does_not_size_the_list() {
         let l = layout("ACDBSECTIONVIEWSTYLE", V::R2018).expect("laid out");
         // Sound: two items, both written.
-        let mut w = ObjW::new(V::R2018, Handle(0x100));
+        let mut w = ObjW::new(V::R2018);
         encode_layout(&mut w, &groups("ACDBSECTIONVIEWSTYLE", 2), &l).unwrap();
         // Two billion claimed: the list holds what is there, and nothing
         // the size of the claim is allocated (that aborted the process).
-        let mut w = ObjW::new(V::R2018, Handle(0x100));
+        let mut w = ObjW::new(V::R2018);
         encode_layout(&mut w, &groups("ACDBSECTIONVIEWSTYLE", i32::MAX), &l).unwrap();
     }
 }

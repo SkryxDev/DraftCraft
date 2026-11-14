@@ -16,7 +16,6 @@ crates/dwg  (draftcraft-dwg: layer 0, depends on no other workspace crate)
   read/       DWG R13 to 2018 and later: container (r2000, r2004, r2007), sections, classes, objects
   compose/    a DWG file laid out from its objects, header and classes, as each version
               stores it (r2000 sections, the 2004 pages, the 2007 Reed-Solomon pages in r2007/)
-  write/      BlackCAD's writer from records (its object encoding and read-back check)
   records/    BlackCAD's records, for the first mapping (dwg_read) and as an independent
               reading of the files the writer makes, in tests
   bits.rs, crc.rs, lz77.rs   the format's primitives, shared by reading and writing
@@ -104,14 +103,13 @@ DraftCraft writes every version itself, and acadrust is gone. What remains:
 | 15–16 | DraftCraft's own DWG writer (objects, sections and container, a read-back check on every save) | done |
 | 17 | The other save versions: 2000, 2004, 2007, 2010, 2013 | done |
 | 18 | acadrust removed | done |
-| 19 | Dynamic-block parameters and actions made in the Block Editor written to DWG (those a file brought are) | Lost on a DWG save; kept in DXF |
+| 19 | Dynamic-block parameters and actions made in the Block Editor written to DWG | done |
 
-Decisions open:
-
-- **ARC_DIMENSION and LARGE_RADIAL_DIMENSION**: the drawing has no place for an arc-length
-  dimension's leader and partial flag or a jogged radius's jog, and the writer can't write either
-  type back; the DXF reader keeps both as raw records. Raw carry (step 12), or new dimension kinds
-  in the drawing and the writer.
+ARC_DIMENSION and LARGE_RADIAL_DIMENSION are read and written in DXF and DWG as AutoCAD 2027
+writes them (its 2000 and 2018 files and its DXF): an arc-length dimension is `DimKind::ArcLength`
+with its partial and leader flags in `DimMarks`, a jogged radius `DimKind::Radius` with
+`DimMarks::jogged`. Their DWG fields are pinned by
+`arc_length_and_jogged_radius_dimensions_are_laid_out_as_autocad_writes_them`.
 
 Not yet confirmed against a file AutoCAD saved (an AutoCAD drawing with them would settle each):
 

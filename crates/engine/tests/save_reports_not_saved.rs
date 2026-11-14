@@ -241,3 +241,54 @@ fn ole_objects_are_not_reported() {
         assert_eq!(not_saved_as(&d, v), [("MLINE".to_string(), 1), ("ole2frame".to_string(), 1)].into_iter().collect(), "{v:?}");
     }
 }
+
+/// A text longer than a DWG text field holds (65,535 characters) keeps only its start in a DWG
+/// file. Saving says so, instead of cutting it silently; DXF keeps it whole.
+#[test]
+fn a_dwg_save_reports_the_texts_it_shortens() {
+    use draftcraft_engine::cmd::file::texts_shortened_as;
+    use draftcraft_engine::doc::Text;
+    use draftcraft_engine::geom::Vec3;
+    set_io(IoHooks { read: |_, _| Err("no reader in this test".into()), write: |_, _| Ok(b"0\nEOF\n".to_vec()), plot: None });
+    set_write_as(|_, _, _: &SaveAs| Ok(b"x".to_vec()));
+    let text = |value: String| {
+        EntityKind::Text(Text {
+            insert: Vec3::ZERO,
+            align_pt: None,
+            height: 1.0,
+            value,
+            rotation: 0.0,
+            width_factor: 1.0,
+            oblique: 0.0,
+            style: "Standard".into(),
+            halign: Default::default(),
+            valign: Default::default(),
+        })
+    };
+    let mut d = Drawing::new_imperial();
+    d.add(&Space::Model, Common::default(), text("x".repeat(70_000))).unwrap();
+    d.add(&Space::Model, Common::default(), text("short".into())).unwrap();
+    // 65,535 characters fit from 2007 (UTF-16 units), not before (bytes and the ending 0).
+    d.add(&Space::Model, Common::default(), text("y".repeat(65_535))).unwrap();
+    assert_eq!(texts_shortened_as(&d, draftcraft_engine::cmd::file::Version::R2007), 1);
+    assert_eq!(texts_shortened_as(&d, draftcraft_engine::cmd::file::Version::R2004), 2);
+    // Characters outside the basic plane take two UTF-16 units.
+    let mut wide = Drawing::new_imperial();
+    wide.add(&Space::Model, Common::default(), text("😀".repeat(40_000))).unwrap();
+    assert_eq!(texts_shortened_as(&wide, draftcraft_engine::cmd::file::Version::R2018), 1);
+
+    let mut s = Session::empty();
+    s.open_drawing(d, "long.dxf", None);
+    let path = std::env::temp_dir().join(format!("draftcraft-long-text-{}.dwg", std::process::id()));
+    let r = s.execute("saveas", &json!({ "path": path.to_string_lossy(), "version": "2018" })).unwrap();
+    let _ = std::fs::remove_file(&path);
+    assert_eq!(r["textsShortened"], json!(1), "{r}");
+    let msg =
+        "1 entity has a text longer than a DWG text field holds (65,535 characters): the DWG file keeps the start of its text; DXF keeps it whole";
+    assert!(s.log.iter().any(|l| l == msg), "{:?}", s.log);
+
+    let dxf = std::env::temp_dir().join(format!("draftcraft-long-text-{}.dxf", std::process::id()));
+    let r = s.execute("saveas", &json!({ "path": dxf.to_string_lossy() })).unwrap();
+    let _ = std::fs::remove_file(&dxf);
+    assert!(r.get("textsShortened").is_none(), "DXF keeps it whole");
+}

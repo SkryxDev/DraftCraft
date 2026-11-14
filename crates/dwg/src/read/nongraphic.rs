@@ -339,10 +339,6 @@ pub(crate) fn mline_flags_to_dxf(dwg: u16) -> u16 {
     MLINE_FLAG_BITS.iter().filter(|(d, _)| dwg & d != 0).fold(0, |acc, (_, x)| acc | x)
 }
 
-pub(crate) fn mline_flags_to_dwg(dxf: u16) -> u16 {
-    MLINE_FLAG_BITS.iter().filter(|(_, x)| dxf & x != 0).fold(0, |acc, (d, _)| acc | d)
-}
-
 fn mlinestyle_data(s: &mut Streams) -> Result<MLineStyle> {
     let name = s.tv()?;
     let description = s.tv()?;

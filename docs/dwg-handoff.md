@@ -91,8 +91,6 @@ and the note says saving over the file would lose it.
 - 3DSOLID, REGION and BODY whose description is binary (AutoCAD 2004 and later files) or in the
   data store (2013 and later). Text ones (AutoCAD 2000 files, DraftCraft's own) are kept.
 - MESH (subdivision meshes) and SHAPE (a shape from an SHX file: its name needs the file).
-- ARC_DIMENSION and LARGE_RADIAL_DIMENSION are read as far as the drawing has a place for them
-  (see "Decisions open" in `dwg.md`).
 
 **Behaviour that is not kept**
 

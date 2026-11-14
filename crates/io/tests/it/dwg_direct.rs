@@ -680,7 +680,16 @@ fn dimensions_drawing() -> draftcraft_doc::Drawing {
     let mut aligned = dim(DimKind::Aligned, p(32.0, 6.0), p(28.0, 8.0), p(20.0, 0.0), p(30.0, 4.0), Vec3::ZERO, Vec3::ZERO);
     aligned.text = "<> typ.".into();
     aligned.user_text_pos = true;
+    // An arc-length dimension of part of an arc of radius 5 about (100, 0), with a leader; a
+    // jogged radius of a circle of radius 5 about (120, 0).
+    let mut arc = dim(DimKind::ArcLength, p(107.0, 3.0), p(104.0, 6.0), p(104.33, 2.5), p(102.5, 4.33), p(100.0, 0.0), Vec3::ZERO);
+    arc.marks.arc_partial = true;
+    arc.marks.arc_leader = true;
+    let mut jogged = dim(DimKind::Radius, p(120.0, 0.0), p(123.0, 3.0), Vec3::ZERO, Vec3::ZERO, p(123.54, 3.54), Vec3::ZERO);
+    jogged.marks.jogged = Some(JoggedRadius { center: p(135.0, 10.0), jog: p(129.0, 6.0) });
     let kinds = vec![
+        arc,
+        jogged,
         linear,
         aligned,
         dim(DimKind::Angular, p(45.0, 8.0), p(46.0, 9.0), p(40.0, 0.0), p(48.0, 0.0), p(40.0, 0.0), p(46.0, 6.0)),
@@ -707,7 +716,7 @@ fn every_kind_of_dimension_reads_as_its_dxf_reads_it() {
         let reference = via_dxf(&source, version);
         let dims = |d: &draftcraft_doc::Drawing| d.model.iter().filter(|e| matches!(e.kind, EntityKind::Dimension(_))).cloned().collect::<Vec<_>>();
         let (got, want) = (dims(&d), dims(&reference));
-        assert_eq!(want.len(), 8, "{version:?}");
+        assert_eq!(want.len(), 10, "{version:?}");
         assert_eq!(got.len(), want.len(), "{version:?}: unread {}", unread.summary());
         for (ge, we) in got.iter().zip(&want) {
             let (mut g, mut w) = (serde_json::to_value(ge.as_ref()).unwrap(), serde_json::to_value(we.as_ref()).unwrap());
@@ -1604,4 +1613,106 @@ fn a_2000_attribute_chain_ends_before_its_seqend() {
     }
     assert!(seqends >= 2, "the drawing's block references carry attributes");
     assert_eq!(draftcraft_io::read(&bytes, "t.dwg").unwrap().model.len(), d.model.len());
+}
+
+/// An arc-length dimension and a jogged radius are AutoCAD's ARC_DIMENSION and
+/// LARGE_RADIAL_DIMENSION in a DWG file, their fields after the common dimension data in the order
+/// AutoCAD 2027's own 2000 and 2018 files hold them (observed black-box): the dimension arc
+/// point, the arc's two points, its centre, the partial flag, the start and end angles, the leader
+/// flag and the two points again; the centre, the point on the circle, the leader length, the
+/// overriding centre and the jog.
+#[test]
+fn arc_length_and_jogged_radius_dimensions_are_laid_out_as_autocad_writes_them() {
+    use draftcraft_doc::{DimKind, Dimension, Drawing, EntityKind, JoggedRadius, Space};
+    use draftcraft_dwg::DwgVersion as DV;
+    use draftcraft_geom::Vec3;
+    use draftcraft_io::{Version, write_dwg_own};
+    let base = Dimension {
+        kind: DimKind::ArcLength,
+        defpt: Vec3::new(14.0, 0.0, 0.0),
+        text_mid: Vec3::ZERO,
+        p13: Vec3::new(10.0, 0.0, 0.0),
+        p14: Vec3::new(0.0, 10.0, 0.0),
+        p15: Vec3::ZERO,
+        p16: Vec3::ZERO,
+        text: String::new(),
+        style: "Standard".into(),
+        measurement: 0.0,
+        text_rotation: 0.0,
+        user_text_pos: false,
+        block: None,
+        insertion_point: Vec3::ZERO,
+        overrides: Default::default(),
+        assoc: Vec::new(),
+        marks: Default::default(),
+    };
+    let mut d = Drawing::new_metric();
+    let mut arc = base.clone();
+    arc.marks.arc_partial = true;
+    d.add(&Space::Model, Default::default(), EntityKind::Dimension(arc)).unwrap();
+    let mut jr = base;
+    jr.kind = DimKind::Radius;
+    jr.defpt = Vec3::new(30.0, 0.0, 0.0);
+    jr.p15 = Vec3::new(35.0, 0.0, 0.0);
+    jr.marks.jogged = Some(JoggedRadius { center: Vec3::new(45.0, 10.0, 0.0), jog: Vec3::new(39.0, 6.0, 0.0) });
+    d.add(&Space::Model, Default::default(), EntityKind::Dimension(jr)).unwrap();
+    for v in [Version::R2000, Version::R2018] {
+        let bytes = write_dwg_own(&d, v).unwrap().0;
+        let file = DwgFile::open(&bytes).unwrap();
+        let mut seen = Vec::new();
+        for o in file.objects().filter(|o| o.is_entity) {
+            let mut r = file.read_object(&o).unwrap();
+            if !matches!(o.type_name.as_str(), "ARC_DIMENSION" | "LARGE_RADIAL_DIMENSION") {
+                continue;
+            }
+            seen.push(o.type_name.clone());
+            // The common dimension data.
+            if r.version() >= DV::R2010 {
+                r.rc().unwrap();
+            }
+            r.bd3().unwrap();
+            r.rd2().unwrap();
+            r.bd().unwrap();
+            r.rc().unwrap();
+            r.text().unwrap();
+            for _ in 0..2 {
+                r.bd().unwrap();
+            }
+            r.bd3().unwrap();
+            r.bd().unwrap();
+            r.bs().unwrap();
+            r.bs().unwrap();
+            r.bd().unwrap();
+            r.bd().unwrap();
+            if r.version() >= DV::R2007 {
+                for _ in 0..3 {
+                    r.b().unwrap();
+                }
+            }
+            r.rd2().unwrap();
+            if o.type_name == "ARC_DIMENSION" {
+                assert_eq!(r.bd3().unwrap(), [14.0, 0.0, 0.0], "{v:?}: the dimension arc point");
+                assert_eq!(r.bd3().unwrap(), [10.0, 0.0, 0.0]);
+                assert_eq!(r.bd3().unwrap(), [0.0, 10.0, 0.0]);
+                assert_eq!(r.bd3().unwrap(), [0.0, 0.0, 0.0], "the centre");
+                assert!(r.b().unwrap(), "partial");
+                assert_eq!(r.bd().unwrap(), 0.0);
+                assert!((r.bd().unwrap() - std::f64::consts::FRAC_PI_2).abs() < 1e-12);
+                assert!(!r.b().unwrap(), "no leader");
+                assert_eq!(r.bd3().unwrap(), [10.0, 0.0, 0.0]);
+                assert_eq!(r.bd3().unwrap(), [0.0, 10.0, 0.0]);
+            } else {
+                assert_eq!(r.bd3().unwrap(), [30.0, 0.0, 0.0], "{v:?}: the centre");
+                assert_eq!(r.bd3().unwrap(), [35.0, 0.0, 0.0]);
+                assert_eq!(r.bd().unwrap(), 0.0);
+                assert_eq!(r.bd3().unwrap(), [45.0, 10.0, 0.0]);
+                assert_eq!(r.bd3().unwrap(), [39.0, 6.0, 0.0]);
+            }
+            assert_eq!(r.remaining_bits(), 0, "{v:?} {}: nothing after", o.type_name);
+        }
+        assert_eq!(seen, ["ARC_DIMENSION", "LARGE_RADIAL_DIMENSION"], "{v:?}");
+        let back = draftcraft_io::read(&bytes, "t.dwg").unwrap();
+        let kinds: Vec<_> = back.model.iter().filter_map(|e| if let EntityKind::Dimension(x) = &e.kind { Some(x.kind) } else { None }).collect();
+        assert_eq!(kinds, [DimKind::ArcLength, DimKind::Radius]);
+    }
 }

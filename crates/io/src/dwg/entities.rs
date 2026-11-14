@@ -343,6 +343,8 @@ fn reads(type_name: &str) -> bool {
             | "DIMENSION_ANG_2LN"
             | "DIMENSION_RADIUS"
             | "DIMENSION_DIAMETER"
+            | "ARC_DIMENSION"
+            | "LARGE_RADIAL_DIMENSION"
     )
 }
 
@@ -1027,7 +1029,45 @@ fn dimension(r: &mut ObjectReader, type_name: &str) -> DwgResult<Shape> {
     let defpt;
     let (mut p13, mut p14, mut p15, mut p16) = (Vec3::ZERO, Vec3::ZERO, Vec3::ZERO, Vec3::ZERO);
     let mut oblique = 0.0;
+    let mut marks = draftcraft_doc::DimMarks::default();
     let kind = match type_name {
+        "ARC_DIMENSION" => {
+            // The point on the dimension arc, the arc's two points and centre, whether it
+            // measures part of the arc, its start and end angles, whether it has a leader, and
+            // the two points again (AutoCAD's files, 2000 to 2018).
+            defpt = p(r)?;
+            p13 = p(r)?;
+            p14 = p(r)?;
+            p15 = p(r)?;
+            marks.arc_partial = r.b()?;
+            let start = r.bd()?;
+            let _end = r.bd()?;
+            marks.arc_leader = r.b()?;
+            let _first = p(r)?;
+            let _second = p(r)?;
+            // DraftCraft draws the arc counter-clockwise from p13 to p14: p13 is the point at
+            // the start angle.
+            let c = p15.xy();
+            let off = |q: Vec3| {
+                let a = c.angle_to(q.xy());
+                draftcraft_geom::norm_angle(a - start).min(draftcraft_geom::norm_angle(start - a))
+            };
+            if start.is_finite() && off(p14) < off(p13) {
+                std::mem::swap(&mut p13, &mut p14);
+            }
+            DimKind::ArcLength
+        }
+        "LARGE_RADIAL_DIMENSION" => {
+            // The centre, the point on the arc, the leader length, then the centre the
+            // dimension line starts from instead and the jog.
+            defpt = p(r)?;
+            p15 = p(r)?;
+            let _leader_length = r.bd()?;
+            let center = p(r)?;
+            let jog = p(r)?;
+            marks.jogged = Some(draftcraft_doc::JoggedRadius { center, jog });
+            DimKind::Radius
+        }
         "DIMENSION_ORDINATE" => {
             defpt = p(r)?;
             p13 = p(r)?;
@@ -1091,7 +1131,7 @@ fn dimension(r: &mut ObjectReader, type_name: &str) -> DwgResult<Shape> {
         insertion_point: Vec3::new(ix, iy, 0.0),
         overrides: Default::default(),
         assoc: Vec::new(),
-        marks: Default::default(),
+        marks,
     };
     Ok(Shape { body: Body::Dimension(Box::new(dim), oblique), thickness: 0.0, normal })
 }
@@ -2026,8 +2066,15 @@ fn shape(r: &mut ObjectReader, type_name: &str, partial: &mut Vec<&'static str>)
         "MLINE" => mline(r)?,
         "WIPEOUT" => raster(r, true)?,
         "PDFUNDERLAY" => underlay(r)?,
-        "DIMENSION_ORDINATE" | "DIMENSION_LINEAR" | "DIMENSION_ALIGNED" | "DIMENSION_ANG_3PT" | "DIMENSION_ANG_2LN" | "DIMENSION_RADIUS"
-        | "DIMENSION_DIAMETER" => dimension(r, type_name)?,
+        "DIMENSION_ORDINATE"
+        | "DIMENSION_LINEAR"
+        | "DIMENSION_ALIGNED"
+        | "DIMENSION_ANG_3PT"
+        | "DIMENSION_ANG_2LN"
+        | "DIMENSION_RADIUS"
+        | "DIMENSION_DIAMETER"
+        | "ARC_DIMENSION"
+        | "LARGE_RADIAL_DIMENSION" => dimension(r, type_name)?,
         "ATTDEF" => attribute(r, true, partial)?,
         "MINSERT" => insert(r, true)?,
         "SOLID" => solid(r, false)?,
@@ -2165,7 +2212,7 @@ fn entity(r: &mut ObjectReader, o: &ObjectRef, n: &Names) -> DwgResult<(Decoded,
                 dm.kind = DimKind::ArcLength;
                 dm.p15 = center;
             }
-            dm.marks = crate::dxf_ext::read_marks(&tags);
+            dm.marks = crate::dxf_ext::merge_marks(std::mem::take(&mut dm.marks), crate::dxf_ext::read_marks(&tags));
             // The extension lines' angle relative to the dimension line (DIMEDIT Oblique), as
             // a DXF holds it in group 52, in degrees.
             let base = match dm.kind {

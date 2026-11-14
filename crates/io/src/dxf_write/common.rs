@@ -39,13 +39,15 @@ pub(super) fn dim_xdata(w: &mut W, dm: &Dimension, cx: &Ctx) {
         w.s(1002, "}");
     }
     let mut ours = Vec::new();
-    if matches!(dm.kind, DimKind::ArcLength) {
-        ours.extend(dxf_ext::arclen_xdata(dm.p15));
-    }
     if !dm.assoc.is_empty() {
         ours.extend(dxf_ext::assoc_xdata(&dm.assoc));
     }
-    ours.extend(dxf_ext::marks_xdata(&dm.marks));
+    // A jogged radius is its own type, which holds the jog.
+    let mut marks = dm.marks.clone();
+    if matches!(dm.kind, DimKind::Radius) {
+        marks.jogged = None;
+    }
+    ours.extend(dxf_ext::marks_xdata(&marks));
     if !ours.is_empty() {
         w.s(1001, dxf_ext::APP);
         w.xdata(ours);

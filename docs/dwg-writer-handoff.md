@@ -21,9 +21,7 @@ starts from the head of PR #15 (which contains `main` at f6f72215).
   AutoCAD's universal-time variables, and AutoCAD's variable dictionary when the drawing has none.
 - `cargo test -p draftcraft-io --no-fail-fast`: all pass (the `it` suite 578, 21 ignored), and
   `cargo test -p draftcraft-dwg` (101).
-- **Not verified in AutoCAD itself.** A nested session was set up to open the files in the
-  user's AutoCAD 2027 with computer use, and access to AutoCAD was refused twice; AutoCAD may be
-  blocked in the app's Computer use settings. What stands in for it is below.
+- **Verified in AutoCAD 2027**: see "What is left", item 1, for the files and versions opened.
 
 ## How it is built
 
@@ -35,7 +33,8 @@ holds what the DXF of the same drawing holds, and what a command adds to one is 
 |---|---|
 | `crates/dwg/src/compose/object.rs` | `ObjectWriter`: one object, field by field, in every version (the mirror of `file::ObjectReader`) |
 | `crates/dwg/src/compose/sections.rs` | header variables, classes, object map |
-| `crates/dwg/src/compose/file.rs` | `compose(Parts)`: the file laid out for 2000 (flat) and 2004/2010/2013/2018 (paged, through `write::container::pack`) |
+| `crates/dwg/src/compose/file.rs` | `compose(Parts)`: the file laid out for 2000 (flat) and 2004/2010/2013/2018 (paged, through `compose/container.rs`) |
+| `crates/dwg/src/compose/small.rs`, `fields.rs` | the application information and revision history sections; the three bit streams the style encoders (`read/styles.rs`) write into |
 | `crates/dwg/src/compose/r2007/` | AutoCAD 2007 container: Reed-Solomon pages (`codes.rs`), its compression (`compress.rs`), CRC-64 checks, the page and section maps |
 | `crates/io/src/dwg/write/rec.rs` | the records: `Doc`, `Rec`, `Groups` |
 | `crates/io/src/dwg/write/mod.rs` | `Cx` (names to handles, classes, structure), `encode`, `write` |
@@ -94,20 +93,24 @@ set; an AutoCAD 2018 MTEXT ends with a null reference.
    dimensions 2000, tables 2010, attributes and annotation 2000), after four fixes: anonymous
    blocks stored unnumbered (`*D`, `*T`), the `AcDbSavedByObjectVersion` extended data on visual
    styles up to 2013, an empty VX table in 2000 files, and SEQENDs left out of the 2000 entity
-   chain. The image files were not checked.
-2. **Dynamic-block parameters and actions made in the Block Editor** are lost on a DWG save (those
-   a file brought are written; `crates/engine/tests/dynblock_authoring.rs` saves only DXF).
+   chain. Since then, also with no recovery and AUDIT 0: mi201 2018, dimensions 2018 (with arc
+   length and jogged radius dimensions, which AutoCAD lists as its own types), hatches 2007 and
+   2018 (patterns, gradients, solid fill with a hole), mlines 2013, regions 2007, viewports 2007
+   and 2018 (the layout viewports show the model). AutoCAD's own save of our mi201 2018 file
+   reads in DraftCraft the same as ours. The image files were not checked.
+2. Dynamic-block parameters and actions made in the Block Editor are written to DWG: the Block
+   Editor keeps the evaluation graph's node list (`rebuild_graph` in
+   `crates/doc/src/dynblock/author.rs`), and `crates/engine/tests/dynblock_authoring.rs` saves
+   both DXF and DWG.
 3. Text longer than 65,535 characters (UTF-16 units from 2007, bytes before) is cut to that
-   length, the most a DWG text field holds; it is not reported.
+   length, the most a DWG text field holds; the save reports how many entities were cut
+   (`textsShortened`).
 4. Reader coverage that came from files acadrust wrote (edge hatch loops, curves, mirrored text,
    table cell styles) is now covered only by DraftCraft's own files; AutoCAD's files with them
    would make it independent again.
 
 ## Known choices to revisit
 
-- `crates/dwg/src/write` (withshalom's first writer, over BlackCAD's records) is still there:
-  `compose` uses its container, its small sections and its style codec. Once nothing else needs
-  it, what `compose` uses moves there and the rest goes.
 - A LEADER's first field after its vertices ("origin") is written as zero; a hatch gradient, a
   UCS and a named view are written from the specification and the reader, with no AutoCAD file
   of them to compare with. ACadSharp's samples (MIT, not in the repository) hold most entity

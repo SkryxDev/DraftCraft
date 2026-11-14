@@ -120,7 +120,7 @@ fn parse_floats(t: &str) -> Vec<f64> {
 
 /// A variable's value when the drawing has none: AutoCAD's own default.
 fn default_value(name: &str, kind: VarKind) -> HeaderValue {
-    let dt = crate::write::sections::default_text(name);
+    let dt = super::small::default_text(name);
     match kind {
         VarKind::B => HeaderValue::Bool(match dt {
             "" => matches!(
@@ -289,6 +289,7 @@ pub fn class_versions(dxf_name: &str) -> (u32, u32) {
         "ACDBDETAILVIEWSTYLE" => (33, 427),
         "DIMASSOC" => (23, 12),
         "DICTIONARYVAR" => (20, 0),
+        "ARC_DIMENSION" | "LARGE_RADIAL_DIMENSION" => (25, 20),
         _ => (0, 0),
     }
 }

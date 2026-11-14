@@ -826,6 +826,56 @@ pub fn not_saved_as(d: &Drawing, version: Version) -> std::collections::BTreeMap
     out
 }
 
+/// The most a DWG text field holds: 65,535 UTF-16 units from 2007, before that 65,534 bytes in
+/// the drawing's code page and the 0 that ends them. The writer keeps the start of a longer text.
+fn dwg_text_fits(text: &str, version: Version) -> bool {
+    if version >= Version::R2007 {
+        text.encode_utf16().count() <= usize::from(u16::MAX)
+    } else {
+        // A character is at least one byte in any code page.
+        text.chars().count() < usize::from(u16::MAX)
+    }
+}
+
+/// How many entities of `d` have a text longer than a DWG file of `version` holds in one field
+/// ([`dwg_text_fits`]): text and multiline text, attributes and their definitions, a dimension's
+/// text, a multileader's text and table cells. The file keeps the start of each.
+pub fn texts_shortened_as(d: &Drawing, version: Version) -> usize {
+    use draftcraft_doc::EntityKind;
+    let long = |t: &str| !dwg_text_fits(t, version);
+    let attrib = |a: &draftcraft_doc::Attrib| long(&a.text.value) || a.multiline.as_ref().is_some_and(|m| long(&m.mtext.contents));
+    let stores = std::iter::once(&d.model).chain(d.layouts.iter().map(|l| &l.entities)).chain(d.blocks.values().map(|b| &b.entities));
+    stores
+        .flat_map(|s| s.iter())
+        .filter(|e| match &e.kind {
+            EntityKind::Text(t) => long(&t.value),
+            EntityKind::MText(t) => long(&t.contents),
+            EntityKind::Insert(i) => i.attribs.iter().any(attrib),
+            EntityKind::AttDef(a) => attrib(a),
+            EntityKind::Dimension(dm) => long(&dm.text),
+            EntityKind::MLeader(m) => m.text.as_ref().is_some_and(|t| long(&t.contents)),
+            EntityKind::Table(t) => t.cells.iter().flatten().any(|c| long(&c.text)),
+            _ => false,
+        })
+        .count()
+}
+
+/// Report the texts a DWG file just written as `version` keeps only the start of
+/// ([`texts_shortened_as`]): at the command line, and as `textsShortened` in the result.
+pub(super) fn report_shortened(s: &mut Session, r: &mut Value, version: Version) {
+    let n = s.state().map(|st| texts_shortened_as(st.drawing(), version)).unwrap_or(0);
+    if n == 0 {
+        return;
+    }
+    let (count, them) = if n == 1 { ("1 entity has".to_string(), "its") } else { (format!("{n} entities have"), "their") };
+    s.echo(format!(
+        "{count} a text longer than a DWG text field holds (65,535 characters): the DWG file keeps the start of {them} text; DXF keeps it whole"
+    ));
+    if let Some(o) = r.as_object_mut() {
+        o.insert("textsShortened".into(), json!(n));
+    }
+}
+
 /// The command-line warning for [`not_saved`] entities, or `None` when the file keeps everything.
 pub fn not_saved_message(lost: &std::collections::BTreeMap<String, usize>) -> Option<String> {
     if lost.is_empty() {
@@ -862,6 +912,10 @@ pub(super) fn report_loss(s: &mut Session, r: &mut Value, path: &str) {
     } else {
         let lost = loss_on_save(s, path);
         report_not_saved(s, r, &lost);
+        if drops_unknown(path) {
+            let version = drawing_version(s, path);
+            report_shortened(s, r, version);
+        }
     }
 }
 
@@ -942,6 +996,7 @@ fn save_reporting(s: &mut Session, p: &Value, run: fn(&mut Session, &Value) -> R
     report_new_folder(s, &mut r, folder);
     if r.get("path").and_then(Value::as_str).is_some_and(drops_unknown) {
         report_not_saved(s, &mut r, &lost);
+        report_shortened(s, &mut r, version);
     } else if version >= Version::R2013 && r.get("path").and_then(Value::as_str).is_some_and(is_dxf_file) {
         report_sat_text_dropped(s, &mut r);
     }

@@ -198,28 +198,60 @@ pub(super) fn entity_with_table_budget(kind: &str, tags: &[Tag], table_cells_lef
                 clip: None,
             })
         }
-        "DIMENSION" => {
+        "DIMENSION" | "ARC_DIMENSION" | "LARGE_RADIAL_DIMENSION" => {
             let ty = t.i(70).unwrap_or(0) & 0x0f;
-            let kind = match ty {
-                0 => DimKind::Linear { rotation: t.fd(50, 0.0).to_radians() },
-                1 => DimKind::Aligned,
-                2 => DimKind::Angular,
-                3 => DimKind::Diameter,
-                4 => DimKind::Radius,
-                5 => DimKind::Angular3P,
-                6 => DimKind::Ordinate { x_type: t.i(70).unwrap_or(0) & 64 != 0 },
-                8 => DimKind::ArcLength,
-                _ => DimKind::Aligned,
+            // The groups of the type's own subclass: the arc-length and jogged radius
+            // dimensions reuse 70, 71 and 40 there with meanings of their own.
+            let own = |marker: &str| T(tags.iter().position(|g| g.code == 100 && g.str() == marker).and_then(|i| tags.get(i + 1..)).unwrap_or(&[]));
+            let mut marks = draftcraft_doc::DimMarks::default();
+            let (mut p13, mut p14, mut p15) = (t.p(13), t.p(14), t.p(15));
+            let kind = match kind {
+                "ARC_DIMENSION" => {
+                    let a = own("AcDbArcDimension");
+                    (p13, p14, p15) = (a.p(13), a.p(14), a.p(15));
+                    // DraftCraft draws the arc counter-clockwise from p13 to p14; the file
+                    // gives the arc's start and end angles (40, 41) beside its two points.
+                    let c = p15.xy();
+                    let off = |p: Vec3, angle: f64| {
+                        draftcraft_geom::norm_angle(c.angle_to(p.xy()) - angle).min(draftcraft_geom::norm_angle(angle - c.angle_to(p.xy())))
+                    };
+                    if let Some(start) = a.f(40).filter(|v| v.is_finite())
+                        && off(p14, start) < off(p13, start)
+                    {
+                        std::mem::swap(&mut p13, &mut p14);
+                    }
+                    marks.arc_partial = a.i(70).unwrap_or(0) != 0;
+                    marks.arc_leader = a.i(71).unwrap_or(0) != 0;
+                    DimKind::ArcLength
+                }
+                "LARGE_RADIAL_DIMENSION" => {
+                    let a = own("AcDbRadialDimensionLarge");
+                    p15 = a.p(15);
+                    marks.jogged = Some(draftcraft_doc::JoggedRadius { center: a.p(13), jog: a.p(14) });
+                    (p13, p14) = (Vec3::ZERO, Vec3::ZERO);
+                    DimKind::Radius
+                }
+                _ => match ty {
+                    0 => DimKind::Linear { rotation: t.fd(50, 0.0).to_radians() },
+                    1 => DimKind::Aligned,
+                    2 => DimKind::Angular,
+                    3 => DimKind::Diameter,
+                    4 => DimKind::Radius,
+                    5 => DimKind::Angular3P,
+                    6 => DimKind::Ordinate { x_type: t.i(70).unwrap_or(0) & 64 != 0 },
+                    8 => DimKind::ArcLength,
+                    _ => DimKind::Aligned,
+                },
             };
             EntityKind::Dimension(Dimension {
                 kind,
                 defpt: t.p(10),
                 // The text midpoint is the one OCS point of a DIMENSION.
                 text_mid: if c.extrusion.z < 0.0 { ocs(&c, t.p(11)) } else { t.p(11) },
-                p13: t.p(13),
-                p14: t.p(14),
-                p15: t.p(15),
-                p16: t.p(16),
+                p13,
+                p14,
+                p15,
+                p16: if kind == DimKind::ArcLength { Vec3::ZERO } else { t.p(16) },
                 text: mtext_dxf::decode_line(&t.s(1).unwrap_or_default()),
                 style: t.s(3).unwrap_or_else(|| "Standard".into()),
                 measurement: t.fd(42, 0.0),
@@ -229,7 +261,7 @@ pub(super) fn entity_with_table_budget(kind: &str, tags: &[Tag], table_cells_lef
                 insertion_point: t.p(12),
                 overrides: Default::default(),
                 assoc: Vec::new(),
-                marks: Default::default(),
+                marks,
             })
         }
         "LEADER" => EntityKind::Leader(Leader {
@@ -502,14 +534,14 @@ pub(super) fn entity_plot_style(tags: &[Tag], rx: &Rx) -> Option<String> {
 /// needs the file's handle maps.
 pub(super) fn entity_extras(kind: &str, tags: &[Tag], h: Handle, k: &mut EntityKind, rx: &mut Rx) {
     match (kind, k) {
-        ("DIMENSION", EntityKind::Dimension(dm)) => {
+        ("DIMENSION" | "ARC_DIMENSION" | "LARGE_RADIAL_DIMENSION", EntityKind::Dimension(dm)) => {
             dm.overrides = crate::dxf_ext::read_dstyle(tags, &rx.styles, &rx.brs, &rx.ltypes);
             dm.assoc = crate::dxf_ext::read_assoc(tags);
             if let Some(center) = crate::dxf_ext::read_arclen(tags) {
                 dm.kind = DimKind::ArcLength;
                 dm.p15 = center;
             }
-            dm.marks = crate::dxf_ext::read_marks(tags);
+            dm.marks = crate::dxf_ext::merge_marks(std::mem::take(&mut dm.marks), crate::dxf_ext::read_marks(tags));
             // Group 52: the extension lines' angle relative to the dimension line (DIMEDIT Oblique).
             let base = match dm.kind {
                 DimKind::Linear { rotation } => Some(rotation),
