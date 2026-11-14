@@ -1356,6 +1356,115 @@ fn write_dwg_fixtures() {
     }
 }
 
+/// Dimension and table blocks DraftCraft numbers from 1 (`*D1`, `*T1`) are stored unnumbered and
+/// flagged anonymous, as AutoCAD stores them: AutoCAD 2027's AUDIT reported every one stored as
+/// `*D1` ("AcDbBlockTableRecord: "*D11" Name Invalid anonymous name "*D"") in every version.
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn anonymous_blocks_are_stored_unnumbered() {
+    use draftcraft_dwg::records::model::ObjectKind;
+    use draftcraft_io::{SaveOptions, Version, write_with};
+    for (what, d, prefix) in [("dimensions", dimensions_drawing(), "*D"), ("tables", tables_drawing(), "*T")] {
+        for version in [Version::R2000, Version::R2004, Version::R2007, Version::R2010, Version::R2013, Version::R2018] {
+            let bytes = write_with(&d, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
+            let file = draftcraft_dwg::read_bytes(&bytes).unwrap();
+            let anonymous: Vec<(String, bool)> = file
+                .objects
+                .values()
+                .filter_map(|o| match &o.kind {
+                    ObjectKind::BlockHeader(b) if b.name.to_ascii_uppercase().starts_with(prefix) => Some((b.name.clone(), b.anonymous)),
+                    _ => None,
+                })
+                .collect();
+            assert!(!anonymous.is_empty(), "{what} {version:?}: no {prefix} block");
+            for (name, flag) in &anonymous {
+                assert_eq!(name, prefix, "{what} {version:?}: stored with its number");
+                assert!(flag, "{what} {version:?}: {name} not flagged anonymous");
+            }
+            // Read back, every dimension and table is there again (a dimension's block under a
+            // name of its own; a table's block is drawn again from the table).
+            let back = draftcraft_io::read(&bytes, "t.dwg").unwrap();
+            assert_eq!(back.model.len(), d.model.len(), "{what} {version:?}");
+            if prefix == "*D" {
+                let names: Vec<&str> = back.blocks.keys().map(String::as_str).filter(|n| n.starts_with("*D")).collect();
+                assert_eq!(names.len(), anonymous.len(), "{what} {version:?}: {names:?}");
+            }
+        }
+    }
+}
+
+/// A drawing read from AutoCAD's 2018 DXF (its 24 visual styles carry no mark of their layout),
+/// saved as 2000 to 2013: every visual style carries `ACAD` / `AcDbSavedByObjectVersion` / 0, as
+/// AutoCAD writes them in those versions. Without it AutoCAD 2027 couldn't read them in a 2000
+/// file ("Error 67 (eDwgObjectImproperlyRead)", the file had to be recovered) or a 2004 one (an
+/// error on opening). From 2018 AutoCAD writes no mark.
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn visual_styles_carry_their_object_version() {
+    use draftcraft_dwg::records::model::XValue;
+    use draftcraft_io::{SaveOptions, Version, write_with};
+    let d = draftcraft_io::read_dxf(include_bytes!("../data/mi201/mi201-r2018.dxf")).unwrap();
+    for (version, marked) in [
+        (Version::R2000, true),
+        (Version::R2004, true),
+        (Version::R2007, true),
+        (Version::R2010, true),
+        (Version::R2013, true),
+        (Version::R2018, false),
+    ] {
+        let bytes = write_with(&d, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
+        let file = draftcraft_dwg::read_bytes(&bytes).unwrap();
+        let styles: Vec<_> = file.objects.values().filter(|o| o.type_name == "VISUALSTYLE").collect();
+        assert_eq!(styles.len(), 24, "{version:?}");
+        for s in styles {
+            let mark = s.xdata.iter().any(|x| {
+                x.app_name().is_some_and(|a| a.eq_ignore_ascii_case("ACAD"))
+                    && x.items.iter().any(|i| matches!(i, XValue::Str(t) if t == "AcDbSavedByObjectVersion"))
+            });
+            assert_eq!(mark, marked, "{version:?}: visual style {:?}", s.handle);
+        }
+    }
+}
+
+/// A 2000 file names the viewport entity header (VX) table in its header, as AutoCAD's do:
+/// without it AutoCAD 2027 reported "Missing AcDbVXTable" and had the file recovered. DXF has
+/// no such table, so the writer adds an empty one; later versions have no such variable.
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn a_2000_file_has_a_vx_table() {
+    use draftcraft_dwg::file::{DwgFile, HeaderValue};
+    use draftcraft_io::{SaveOptions, Version, write_with};
+    for d in [attributes_drawing(), viewports_drawing()] {
+        let bytes = write_with(&d, "t.dwg", &SaveOptions { version: Some(Version::R2000), binary: false }).unwrap();
+        let file = DwgFile::open(&bytes).unwrap();
+        let header = file.header().unwrap();
+        let vx = header.vars.iter().find_map(|(n, v)| match (n, v) {
+            (&"VX_CONTROL", HeaderValue::Handle(h)) => Some(*h),
+            _ => None,
+        });
+        let vx = vx.filter(|h| *h != 0).expect("the header names a VX table");
+        let object = file.objects().find(|o| o.handle == vx).expect("the VX table is in the file");
+        assert_eq!(object.type_code, 0x46);
+        // Its fields end where its size says its references start: no extended data, no
+        // reactors, no entries. Without the extended data's terminator AutoCAD 2027 reads it as
+        // "eDwgObjectImproperlyRead" and discards it.
+        let raw = file.object_bytes(&object).expect("its bytes");
+        let mut r = draftcraft_dwg::bits::BitReader::new(raw);
+        r.ms().unwrap();
+        let start = r.position();
+        assert_eq!(r.bs().unwrap(), 0x46);
+        let size = r.rl().unwrap() as usize;
+        r.handle().unwrap();
+        assert_eq!(r.bs().unwrap(), 0, "no extended data");
+        assert_eq!(r.bl().unwrap(), 0, "no reactors");
+        assert_eq!(r.bl().unwrap(), 0, "no entries");
+        assert_eq!(r.position() - start, size, "the fields fill the object up to its references");
+        assert!(header.verified, "the header's tables are where it says");
+        // The drawing reads back whole.
+        assert_eq!(draftcraft_io::read(&bytes, "t.dwg").unwrap().model.len(), d.model.len());
+    }
+}
+
 /// AutoCAD's own sample drawings, when `DRAFTCRAFT_DWG_SAMPLES` names their folder (ACadSharp's
 /// `samples`, MIT: `sample_AC1015.dwg` to `sample_AC1032.dwg`, saved by AutoCAD). Colour book
 /// colours read as AutoCAD has them in every version: from the DBCOLOR object the entity names
@@ -1467,4 +1576,32 @@ fn autocad_samples_entities_read_as_autocads_dxf() {
         assert_eq!(att.multiline.as_ref().map(|m| m.mtext.contents.as_str()), Some("my multi line text for the attrrib"), "{code}");
         assert!(near(att.text.height, 1.720_654_456_209_621), "{code}");
     }
+}
+
+/// In a 2000 file the chain of a block reference's attributes ends at the last attribute: its
+/// next link is null, and the SEQEND, no link of the chain, has no neighbours, as in AutoCAD's
+/// own 2000 files. Chained after the last attribute, AutoCAD 2027's AUDIT reports
+/// "AcDbBlockReference wrong subobject class" and has the file recovered.
+#[test]
+fn a_2000_attribute_chain_ends_before_its_seqend() {
+    use draftcraft_dwg::file::DwgFile;
+    use draftcraft_io::{SaveOptions, Version, write_with};
+    let d = attributes_drawing();
+    let bytes = write_with(&d, "t.dwg", &SaveOptions { version: Some(Version::R2000), binary: false }).unwrap();
+    let file = DwgFile::open(&bytes).unwrap();
+    let objects: Vec<_> = file.objects().collect();
+    let mut seqends = 0;
+    for (i, o) in objects.iter().enumerate() {
+        if o.type_name != "SEQEND" {
+            continue;
+        }
+        seqends += 1;
+        let next = |o: &draftcraft_dwg::file::ObjectRef| file.read_object(o).unwrap().entity_refs().unwrap().next;
+        assert_eq!(next(o), Some(0), "SEQEND {:X} has no neighbours", o.handle);
+        let last = objects.get(i.wrapping_sub(1)).expect("an attribute before the SEQEND");
+        assert_eq!(last.type_name, "ATTRIB");
+        assert_eq!(next(last), Some(0), "ATTRIB {:X} ends its chain", last.handle);
+    }
+    assert!(seqends >= 2, "the drawing's block references carry attributes");
+    assert_eq!(draftcraft_io::read(&bytes, "t.dwg").unwrap().model.len(), d.model.len());
 }

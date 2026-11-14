@@ -253,8 +253,10 @@ fn block_header(cx: &Cx<'_>, w: &mut ObjectWriter, r: &Rec<'_>) {
     let (xref, overlay) = (flags & 4 != 0, flags & 8 != 0);
     let owned: &[u64] = cx.owned.get(&r.handle).map_or(&[], Vec::as_slice);
     let has_attributes = cx.doc.blocks.iter().find(|d| d.begin.owner == r.handle).is_some_and(|d| d.entities.iter().any(|e| e.kind == "ATTDEF"));
-    record_name(w, cx.block_names.get(&r.handle).map_or(name, String::as_str), 0);
-    w.b(flags & 1 != 0);
+    let stored = cx.block_names.get(&r.handle);
+    record_name(w, stored.map_or(name, String::as_str), 0);
+    // A name stored unnumbered is an anonymous block's, whatever flags its definition carried.
+    w.b(flags & 1 != 0 || stored.is_some());
     w.b(has_attributes || flags & 2 != 0);
     w.b(xref);
     w.b(overlay);

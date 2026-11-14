@@ -131,7 +131,9 @@ impl Cx<'_> {
     /// A writer for `r` as the DWG type `type_code`, with its extended data written.
     pub fn writer(&self, type_code: u16, r: &Rec<'_>) -> ObjectWriter {
         let mut w = ObjectWriter::new(self.ver, type_code, r.handle, self.codepage, TextEncoding { ansi });
-        w.xdata(&common::xdata(self, r.xdata));
+        let mut xdata = common::xdata(self, r.xdata);
+        common::saved_by_object_version(self, r, &mut xdata);
+        w.xdata(&xdata);
         w
     }
     pub fn layer(&self, name: &str) -> u64 {
@@ -501,7 +503,7 @@ pub fn write(tags: &[Tag], ver: V, info: &FileInfo<'_>) -> Result<(Vec<u8>, Unwr
     let encoded = encode_pruned(doc, ver, counted, &mut again);
     let doc = &encoded.cx.doc;
     let cx = &encoded.cx;
-    let objects: Vec<(u64, Vec<u8>)> = encoded.objects.into_iter().map(|o| (o.handle, o.bytes)).collect();
+    let mut objects: Vec<(u64, Vec<u8>)> = encoded.objects.into_iter().map(|o| (o.handle, o.bytes)).collect();
     // Two objects under one handle: a file AutoCAD would open with one of them lost. It happens
     // only when the drawing has used up its handles (the records then repeat the last one).
     let mut seen = std::collections::HashSet::with_capacity(objects.len());
@@ -511,11 +513,23 @@ pub fn write(tags: &[Tag], ver: V, info: &FileInfo<'_>) -> Result<(Vec<u8>, Unwr
         )));
     }
     let top = objects.iter().map(|o| o.0).max().unwrap_or(0);
-    let vars = header::values(cx);
-    let seed = match vars.get("HANDSEED") {
+    let mut vars = header::values(cx);
+    let mut seed = match vars.get("HANDSEED") {
         Some(draftcraft_dwg::file::HeaderValue::Handle(h)) => (*h).max(top.saturating_add(1)),
         _ => top.saturating_add(1),
     };
+    // A 2000 file names the viewport entity header table (VX) in its header; without one
+    // AutoCAD 2027 reports "Missing AcDbVXTable" and has the file recovered. DXF has no such
+    // table, so an empty one is added under the next handle; AutoCAD fills it as it needs.
+    if ver < V::R2004 && !matches!(vars.get("VX_CONTROL"), Some(draftcraft_dwg::file::HeaderValue::Handle(h)) if *h != 0) {
+        let mut w = ObjectWriter::new(ver, 0x46, seed, cx.codepage, TextEncoding { ansi });
+        w.xdata(&[]);
+        w.object(0, &[], 0);
+        w.bl(0);
+        objects.push((seed, w.finish()));
+        vars.insert("VX_CONTROL", draftcraft_dwg::file::HeaderValue::Handle(seed));
+        seed = seed.saturating_add(1);
+    }
     let real = |name: &str| match vars.get(name) {
         Some(draftcraft_dwg::file::HeaderValue::Real(r)) => *r,
         _ => 0.0,

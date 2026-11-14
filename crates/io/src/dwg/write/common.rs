@@ -18,6 +18,27 @@ pub(super) fn bytes_of(hex_text: &str) -> Vec<u8> {
     digits.as_chunks::<2>().0.iter().map(|[a, b]| a << 4 | b).collect()
 }
 
+/// AutoCAD's mark of the layout a visual style is stored in: in files of 2000 to 2013 every
+/// visual style carries `ACAD` / `AcDbSavedByObjectVersion` / 0 (none from 2018). AutoCAD 2027
+/// can't read a 2000 or 2004 visual style without it ("Error 67 (eDwgObjectImproperlyRead)",
+/// and the file must be recovered); a drawing read from a 2018 file has none, so it is added.
+pub(super) fn saved_by_object_version(cx: &Cx<'_>, r: &Rec<'_>, xdata: &mut Vec<XDataBlock>) {
+    const MARK: &str = "AcDbSavedByObjectVersion";
+    if r.kind != "VISUALSTYLE" || cx.ver >= V::R2018 {
+        return;
+    }
+    let Some(&acad) = cx.apps.get("ACAD") else { return };
+    let marked = |b: &XDataBlock| b.items.iter().any(|i| matches!(i, XDataItem::Text(t) if t == MARK));
+    if xdata.iter().any(marked) {
+        return;
+    }
+    let items = [XDataItem::Text(MARK.to_string()), XDataItem::Int16(0)];
+    match xdata.iter_mut().find(|b| b.app == acad) {
+        Some(b) => b.items.extend(items),
+        None => xdata.push(XDataBlock { app: acad, items: items.into() }),
+    }
+}
+
 /// A record's extended data as DWG stores it: one block per application, by the handle of its
 /// APPID record. Data of an application the drawing has no record for is left out.
 pub(super) fn xdata(cx: &Cx<'_>, tags: &[Tag]) -> Vec<XDataBlock> {
@@ -199,6 +220,7 @@ pub(super) fn structure(cx: &mut Cx<'_>) {
         o => o,
     });
     let every = || doc.blocks.iter().flat_map(|b| b.entities.iter()).chain(doc.entities.iter());
+    cx.kinds = every().map(|r| (r.handle, r.kind)).collect();
     for r in every().filter(|r| r.kind == "INSERT") {
         let name = r.sub("AcDbBlockReference").s(2);
         let name = if name.is_empty() { r.sub("AcDbMInsertBlock").s(2) } else { name };
@@ -207,7 +229,16 @@ pub(super) fn structure(cx: &mut Cx<'_>) {
         }
     }
     if cx.ver <= V::R2000 {
-        let lists: Vec<Vec<u64>> = cx.owned.values().cloned().collect();
+        // A SEQEND is no link of its owner's chain: AutoCAD's 2000 files end the chain at the last
+        // attribute or vertex (its next is null) and give the SEQEND no neighbours. Chained
+        // after the last attribute, AutoCAD 2027's AUDIT reports "AcDbBlockReference wrong
+        // subobject class" and has the file recovered.
+        let seqend = |h: &u64| cx.kinds.get(h) == Some(&"SEQEND");
+        let lists: Vec<Vec<u64>> = cx.owned.values().map(|l| l.iter().copied().filter(|h| !seqend(h)).collect()).collect();
+        let ends: Vec<u64> = cx.owned.values().flatten().copied().filter(seqend).collect();
+        for h in ends {
+            cx.links.insert(h, (0, 0));
+        }
         for list in lists {
             for (i, &h) in list.iter().enumerate() {
                 let prev = if i == 0 { 0 } else { list.get(i - 1).copied().unwrap_or(0) };
@@ -227,7 +258,6 @@ pub(super) fn structure(cx: &mut Cx<'_>) {
         cx.handles.extend(b.end.iter().map(|r| r.handle));
     }
     cx.handles.extend(every().map(|r| r.handle));
-    cx.kinds = every().map(|r| (r.handle, r.kind)).collect();
     cx.handles.extend(doc.objects.iter().map(|r| r.handle));
     cx.handles.remove(&0);
     // The named-object dictionary is the first dictionary without an owner.
@@ -249,34 +279,25 @@ pub(super) fn structure(cx: &mut Cx<'_>) {
 }
 
 /// The names anonymous blocks are stored under. DWG stores them unnumbered (`*D` for `*D0`) and
-/// a reader numbers them again, per prefix, in table order. So the number is left out only for a
-/// prefix whose blocks are numbered 0, 1, 2… in that order: reading gives each its name back.
+/// a reader numbers them again, per prefix, in table order. AutoCAD's AUDIT rejects a stored
+/// anonymous name with a number ("Invalid anonymous name "*D""), so every anonymous block (a
+/// name of `*`, letters and digits, like `*D1`, `*T2`, `*U3`) is stored by its letters alone; a
+/// drawing whose blocks were numbered from 1 reads back numbered from 0.
 fn anonymous_names(cx: &mut Cx<'_>) {
     let Some(table) = cx.doc.table("BLOCK_RECORD") else { return };
-    let anonymous: std::collections::HashSet<u64> =
-        cx.doc.blocks.iter().filter(|b| b.begin.sub("AcDbBlockBegin").i(70) & 1 != 0).map(|b| b.begin.owner).collect();
-    // Per prefix: the records and whether their numbers count up from 0.
-    let mut by_prefix: std::collections::HashMap<String, (Vec<u64>, bool)> = std::collections::HashMap::new();
     for r in &table.records {
-        let name = r.all().s(2);
-        let digits = name.len() - name.trim_end_matches(|c: char| c.is_ascii_digit()).len();
-        let prefix = name.get(..name.len() - digits).unwrap_or("");
-        let lettered = prefix.len() >= 2 && prefix.starts_with('*') && prefix.chars().skip(1).all(|c| c.is_ascii_alphabetic());
-        if !lettered || !anonymous.contains(&r.handle) {
-            continue;
-        }
-        let e = by_prefix.entry(prefix.to_ascii_uppercase()).or_insert((Vec::new(), true));
-        let number = name.get(name.len() - digits..).and_then(|d| d.parse::<usize>().ok());
-        e.1 &= digits > 0 && number == Some(e.0.len()) && !name.get(name.len() - digits..).is_some_and(|d| d.len() > 1 && d.starts_with('0'));
-        e.0.push(r.handle);
-    }
-    for r in &table.records {
-        let name = r.all().s(2);
-        let prefix = name.trim_end_matches(|c: char| c.is_ascii_digit());
-        if by_prefix.get(&prefix.to_ascii_uppercase()).is_some_and(|(list, counted)| *counted && list.contains(&r.handle)) {
+        if let Some(prefix) = anonymous_prefix(r.all().s(2)) {
             cx.block_names.insert(r.handle, prefix.to_string());
         }
     }
+}
+
+/// The letters an anonymous block's name is stored under (`*D` for `*D12`), or `None` for a
+/// named block (`*Model_Space` and `*Paper_Space0` hold an underscore, so they are named).
+pub(super) fn anonymous_prefix(name: &str) -> Option<&str> {
+    let prefix = name.trim_end_matches(|c: char| c.is_ascii_digit());
+    let lettered = prefix.len() >= 2 && prefix.starts_with('*') && prefix.chars().skip(1).all(|c| c.is_ascii_alphabetic());
+    lettered.then_some(prefix)
 }
 
 /// A dictionary's entries: (name, handle), from its groups 3 and 350 or 360.

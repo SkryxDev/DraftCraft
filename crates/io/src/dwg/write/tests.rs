@@ -23,12 +23,22 @@ const PAIRS: [(&str, &str, V); 6] = [
 type Tally = BTreeMap<String, (usize, usize, usize, Vec<u64>, usize)>;
 
 fn compare(dxf: &str, dwg: &str, ver: V) -> (Tally, Unwritten, Vec<String>) {
-    let tags = draftcraft_dxf::parse(&mi201(dxf)).expect("AutoCAD's DXF");
-    let doc = Doc::parse(&tags);
+    compare_tags(&draftcraft_dxf::parse(&mi201(dxf)).expect("AutoCAD's DXF"), dwg, ver)
+}
+
+/// [`compare`] for records already in hand: AutoCAD's DXF, or DraftCraft's records of a drawing.
+fn compare_tags(tags: &[draftcraft_dxf::Tag], dwg: &str, ver: V) -> (Tally, Unwritten, Vec<String>) {
+    let doc = Doc::parse(tags);
     let (dropped, counted) = left_out(&doc, ver);
     let pruned = if dropped.is_empty() { None } else { Some(doc.without(&dropped)) };
     let mut again = None;
     let ours = encode_pruned(pruned.as_ref().unwrap_or(&doc), ver, counted, &mut again);
+    // `DWG_PROBE_HANDLE=HEX` prints the bytes written for that handle.
+    if let Some(h) = std::env::var("DWG_PROBE_HANDLE").ok().and_then(|h| u64::from_str_radix(&h, 16).ok()) {
+        for o in ours.objects.iter().filter(|o| o.handle == h) {
+            println!("{} {h:X} ours {}", o.kind, hex_of(&o.bytes));
+        }
+    }
     let bytes = mi201(dwg);
     let file = DwgFile::open(&bytes).expect("AutoCAD's DWG");
     let theirs: HashMap<u64, Vec<u8>> = file.objects().filter_map(|o| Some((o.handle, file.object_bytes(&o)?.to_vec()))).collect();
@@ -126,6 +136,52 @@ fn probe() {
             continue;
         }
         let (tally, unwritten, details) = compare(dxf, dwg, ver);
+        println!("== {dwg}");
+        for (kind, (same, different, missing, _, near)) in &tally {
+            println!("  {kind:<22} same {same:>4}  last digits {near:>4}  different {different:>4}  not in file {missing:>3}");
+        }
+        println!("  unwritten: {unwritten:?}");
+        for d in details.iter().filter(|d| only.split(',').any(|k| !k.is_empty() && d.starts_with(&format!("{k} ")))) {
+            println!("{d}");
+        }
+    }
+}
+
+/// [`probe`] along the path a save takes: AutoCAD's 2018 DXF read into a drawing, the drawing's
+/// records for each version, compared with AutoCAD's DWG of that version. Records the drawing
+/// keeps as AutoCAD's 2018 groups (an object DraftCraft doesn't model) show here when the older
+/// version stores them otherwise.
+/// `cargo test -p draftcraft-io --lib dwg::write::tests::probe_drawing -- --ignored --nocapture`
+#[test]
+#[ignore]
+fn probe_drawing() {
+    let only = std::env::var("DWG_PROBE").unwrap_or_default();
+    let only_ver = std::env::var("DWG_PROBE_VER").unwrap_or_default();
+    let d = crate::read_dxf(&mi201("mi201-r2018.dxf")).expect("AutoCAD's DXF");
+    for (version, dwg, ver) in [
+        (crate::Version::R2000, "mi201-r2000.dwg", V::R2000),
+        (crate::Version::R2004, "mi201-r2004.dwg", V::R2004),
+        (crate::Version::R2007, "mi201-r2007.dwg", V::R2007),
+        (crate::Version::R2010, "mi201-r2010.dwg", V::R2010),
+        (crate::Version::R2013, "mi201-r2013.dwg", V::R2013),
+        (crate::Version::R2018, "mi201-r2018.dwg", V::R2018),
+    ] {
+        if !only_ver.is_empty() && !dwg.contains(&only_ver) {
+            continue;
+        }
+        let tags = crate::dxf_write::dwg_records(&d, version);
+        // `DWG_PROBE_DUMP=KIND` prints the first record of that type, as the drawing gives it.
+        if let Ok(kind) = std::env::var("DWG_PROBE_DUMP") {
+            let doc = Doc::parse(&tags);
+            if let Some(r) = doc.objects.iter().chain(&doc.entities).find(|r| r.kind == kind) {
+                println!(
+                    "{kind} {:X}: {}",
+                    r.handle,
+                    r.tags.iter().chain(r.xdata).map(|t| format!("{}={}", t.code, t.str())).collect::<Vec<_>>().join(" ")
+                );
+            }
+        }
+        let (tally, unwritten, details) = compare_tags(&tags, dwg, ver);
         println!("== {dwg}");
         for (kind, (same, different, missing, _, near)) in &tally {
             println!("  {kind:<22} same {same:>4}  last digits {near:>4}  different {different:>4}  not in file {missing:>3}");

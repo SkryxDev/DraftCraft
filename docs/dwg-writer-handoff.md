@@ -86,9 +86,15 @@ set; an AutoCAD 2018 MTEXT ends with a null reference.
 
 ## What is left, in order
 
-1. **Open the files in AutoCAD** (2007 above all, whose container is new): write them with
+1. **Keep opening the files in AutoCAD**: write them with
    `DWG_FIXTURES_OUT=dir cargo test -p draftcraft-io --test it write_dwg_fixtures -- --ignored`,
    open each in AutoCAD, run AUDIT, save, and read AutoCAD's save back with DraftCraft.
+   AutoCAD 2027 (November 2026) opens mi201, dimensions, tables, attributes and annotation with
+   no recovery and AUDIT reports 0 errors, in the versions checked (mi201 2000 and 2004,
+   dimensions 2000, tables 2010, attributes and annotation 2000), after four fixes: anonymous
+   blocks stored unnumbered (`*D`, `*T`), the `AcDbSavedByObjectVersion` extended data on visual
+   styles up to 2013, an empty VX table in 2000 files, and SEQENDs left out of the 2000 entity
+   chain. The image files were not checked.
 2. **Dynamic-block parameters and actions made in the Block Editor** are lost on a DWG save (those
    a file brought are written; `crates/engine/tests/dynblock_authoring.rs` saves only DXF).
 3. Text longer than 65,535 characters (UTF-16 units from 2007, bytes before) is cut to that
