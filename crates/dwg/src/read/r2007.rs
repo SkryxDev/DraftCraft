@@ -13,18 +13,18 @@ use crate::read::model::{Diagnostic, SectionInfo, Severity};
 use std::collections::HashMap;
 
 /// Where the pages start: every page offset of the file is counted from here.
-const PAGES_AT: u64 = 0x480;
+pub(crate) const PAGES_AT: u64 = 0x480;
 /// The file header's codewords: three of 255 bytes, interleaved, at 0x80.
-const HEADER_AT: usize = 0x80;
+pub(crate) const HEADER_AT: usize = 0x80;
 const HEADER_CODEWORDS: usize = 3;
 /// The header's fields once decompressed: 34 words of 64 bits.
-const HEADER_FIELDS: usize = 0x110;
+pub(crate) const HEADER_FIELDS: usize = 0x110;
 /// A codeword is 255 bytes: 239 of data in the header and the two maps, 251 in a data page.
 const CODEWORD: usize = 255;
 const SYSTEM_DATA: usize = 239;
 const PAGE_DATA: usize = 251;
 /// What a page map or a section map may decompress to.
-const MAX_SYSTEM_PAGE: u64 = 64 << 20;
+pub(crate) const MAX_SYSTEM_PAGE: u64 = 64 << 20;
 /// Refuse to allocate absurd section sizes from corrupt maps.
 const MAX_SECTION: u64 = 2 * 1024 * 1024 * 1024;
 /// What all of a file's sections together may declare, as a multiple of the file's size (the
@@ -32,13 +32,13 @@ const MAX_SECTION: u64 = 2 * 1024 * 1024 * 1024;
 const MAX_EXPANSION: u64 = 64;
 const MIN_BUDGET: u64 = 64 << 20;
 
-fn u64_at(d: &[u8], o: usize) -> Option<u64> {
+pub(crate) fn u64_at(d: &[u8], o: usize) -> Option<u64> {
     Some(u64::from_le_bytes(d.get(o..o.checked_add(8)?)?.try_into().ok()?))
 }
 
 /// The data bytes of `blocks` interleaved codewords: byte `j` of codeword `i` is at
 /// `i + j * blocks`. `data` bytes are taken from each, `len` in all.
-fn deinterleave(encoded: &[u8], blocks: usize, data: usize, len: usize) -> Vec<u8> {
+pub(crate) fn deinterleave(encoded: &[u8], blocks: usize, data: usize, len: usize) -> Vec<u8> {
     let mut out = Vec::with_capacity(len);
     for i in 0..blocks {
         for j in 0..data {
@@ -55,7 +55,7 @@ fn deinterleave(encoded: &[u8], blocks: usize, data: usize, len: usize) -> Vec<u
 /// The order a run of literal bytes is stored in (spec §5.2): a run is cut into pieces of at most
 /// 32 bytes, and each piece is stored as these parts of it, `(start, length)`, one after the
 /// other. A part of 2 or 3 bytes is stored back to front.
-const LITERAL_ORDER: [&[(u8, u8)]; 33] = [
+pub(crate) const LITERAL_ORDER: [&[(u8, u8)]; 33] = [
     &[],
     &[(0, 1)],
     &[(0, 2)],
@@ -224,7 +224,7 @@ pub(crate) fn decompress(src: &[u8], len: usize) -> Result<Vec<u8>> {
 
 /// A page stored as interleaved codewords at `offset` from the pages' start: `compressed` bytes
 /// that decompress to `uncompressed`, in codewords of `data` data bytes, `repeat` times over.
-fn page(file: &[u8], offset: u64, compressed: u64, uncompressed: u64, repeat: u64, data: usize, limit: u64) -> Result<Vec<u8>> {
+pub(crate) fn page(file: &[u8], offset: u64, compressed: u64, uncompressed: u64, repeat: u64, data: usize, limit: u64) -> Result<Vec<u8>> {
     if compressed == 0 || compressed > limit || uncompressed > limit {
         return Err(Error::format(format!("page of {compressed} bytes for {uncompressed} is implausible")));
     }
@@ -482,3 +482,4 @@ mod tests {
         assert!(read(&file, DwgVersion::R2007).is_err());
     }
 }
+

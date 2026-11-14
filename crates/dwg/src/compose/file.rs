@@ -303,7 +303,7 @@ pub fn compose(p: &Parts<'_>) -> Result<Vec<u8>> {
     match p.version {
         V::R2000 => flat(p),
         V::R2004 | V::R2010 | V::R2013 | V::R2018 => paged(p),
-        V::R2007 => super::r2007::compose(p),
+        V::R2007 => r2007(p),
         v => Err(Error::unsupported(format!("writing {} files", v.magic()))),
     }
 }
@@ -380,6 +380,31 @@ fn paged(p: &Parts<'_>) -> Result<Vec<u8>> {
         acad_maintenance: if ver >= V::R2018 { shared::ACAD_MAINTENANCE } else { 0 },
     };
     container::pack(&info, &stream, &MAP_ORDER)
+}
+
+/// AutoCAD 2007: named sections in pages of Reed-Solomon codewords.
+fn r2007(p: &Parts<'_>) -> Result<Vec<u8>> {
+    let (objects, handles) = object_stream(p, 0);
+    let sections = vec![
+        ("AcDb:SummaryInfo", summary_info(p)),
+        ("AcDb:AppInfo", shared::app_info(p.app_name, p.app_version)),
+        ("AcDb:AppInfoHistory", app_info_history(p)),
+        ("AcDb:XrefManifest", xref_manifest(p)),
+        ("AcDb:RevHistory", shared::rev_history()),
+        ("AcDb:AcDbObjects", objects),
+        ("AcDb:ObjFreeSpace", obj_free_space(p)),
+        ("AcDb:Template", template(p)),
+        ("AcDb:Handles", handles),
+        ("AcDb:Classes", classes_section(p.version, p.codepage, p.text, p.classes)),
+        ("AcDb:AuxHeader", aux_header(p)),
+        ("AcDb:Header", header(p)),
+    ];
+    // The random numbers come from the save's time: two saves of one drawing differ only there,
+    // as AutoCAD's do.
+    let seed = p.updated.to_bits() & 0x00FF_FFFF_FFFF_FFFF;
+    let preview = |at: u64| preview(p, at);
+    let input = super::r2007::Input { codepage: p.codepage, maintenance: maintenance(p.version), seed, sections, preview: &preview, map_order: &MAP_ORDER };
+    super::r2007::compose(&input)
 }
 
 const SECOND_HEADER_START: [u8; 16] = [0xD4, 0x7B, 0x21, 0xCE, 0x28, 0x93, 0x9F, 0xBF, 0x53, 0x24, 0x40, 0x09, 0x12, 0x3C, 0xAA, 0x01];

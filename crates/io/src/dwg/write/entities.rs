@@ -280,8 +280,9 @@ fn attribute(cx: &Cx<'_>, r: &Rec<'_>) -> Option<ObjectWriter> {
     w.bs(u16::try_from(a.i(73)).unwrap_or(0));
     w.rc(u8::try_from(a.i(70) & 0xFF).unwrap_or(0));
     if ver >= V::R2007 {
-        // The lock is the second group 280 of the subclass (the first is its version).
-        w.b(a.all(280).nth(1).is_some_and(|t| t.i64() != 0));
+        // The lock is the group 280 after the tag (the one before it, from 2010, is the
+        // subclass's version).
+        w.b(a.from(2).all(280).next().is_some_and(|t| t.i64() != 0));
     }
     if definition {
         if ver >= V::R2010 {
