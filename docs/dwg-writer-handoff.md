@@ -95,10 +95,13 @@ set; an AutoCAD 2018 MTEXT ends with a null reference.
    blocks stored unnumbered (`*D`, `*T`), the `AcDbSavedByObjectVersion` extended data on visual
    styles up to 2013, an empty VX table in 2000 files, and SEQENDs left out of the 2000 entity
    chain. The image files were not checked.
-2. **Dynamic-block parameters and actions made in the Block Editor** are lost on a DWG save (those
-   a file brought are written; `crates/engine/tests/dynblock_authoring.rs` saves only DXF).
+2. Dynamic-block parameters and actions made in the Block Editor are written to DWG: the Block
+   Editor keeps the evaluation graph's node list (`rebuild_graph` in
+   `crates/doc/src/dynblock/author.rs`), and `crates/engine/tests/dynblock_authoring.rs` saves
+   both DXF and DWG.
 3. Text longer than 65,535 characters (UTF-16 units from 2007, bytes before) is cut to that
-   length, the most a DWG text field holds; it is not reported.
+   length, the most a DWG text field holds; the save reports how many entities were cut
+   (`textsShortened`).
 4. Reader coverage that came from files acadrust wrote (edge hatch loops, curves, mirrored text,
    table cell styles) is now covered only by DraftCraft's own files; AutoCAD's files with them
    would make it independent again.

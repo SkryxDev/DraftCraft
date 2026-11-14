@@ -104,7 +104,7 @@ DraftCraft writes every version itself, and acadrust is gone. What remains:
 | 15–16 | DraftCraft's own DWG writer (objects, sections and container, a read-back check on every save) | done |
 | 17 | The other save versions: 2000, 2004, 2007, 2010, 2013 | done |
 | 18 | acadrust removed | done |
-| 19 | Dynamic-block parameters and actions made in the Block Editor written to DWG (those a file brought are) | Lost on a DWG save; kept in DXF |
+| 19 | Dynamic-block parameters and actions made in the Block Editor written to DWG | done |
 
 Decisions open:
 
