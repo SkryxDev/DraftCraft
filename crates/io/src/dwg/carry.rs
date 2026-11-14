@@ -409,7 +409,7 @@ fn decode(src: &Source, unread: &mut Unread) -> Decoded {
             "GROUP" => Some(group(&mut r)),
             "WIPEOUTVARIABLES" => Some(wipeout_variables(&mut r)),
             "SPATIAL_FILTER" => Some(spatial_filter(&mut r)),
-            _ => None,
+            kind => super::dynblock::read(&mut r, kind),
         };
         let decoded = match own {
             Some(res) => Some(res.map(|(g, refs)| (NonGraphic::Groups(g), refs))),

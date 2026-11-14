@@ -12,6 +12,7 @@
 
 mod annotation;
 mod common;
+mod dynblock;
 mod entities;
 mod header;
 mod mleader;
@@ -161,6 +162,8 @@ fn index<'a>(doc: &Doc<'a>, table: &str) -> HashMap<String, u64> {
 /// One encoded object.
 pub(super) struct Encoded {
     pub handle: u64,
+    /// Its DXF type, which the comparison with AutoCAD's files tallies by.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub kind: String,
     pub bytes: Vec<u8>,
 }
@@ -175,11 +178,53 @@ pub(super) struct Objects<'a> {
 /// AutoCAD's class definitions of the types the writer encodes that have no type number of their
 /// own: (DXF name, C++ name, application, proxy flags, entity).
 const STANDARD_CLASSES: &[(&str, &str, &str, u16, bool)] = &[
+    ("ACAD_EVALUATION_GRAPH", "AcDbEvalGraph", "ObjectDBX Classes", 0, false),
     ("ACAD_TABLE", "AcDbTable", "ObjectDBX Classes", 1025, true),
+    ("ACDBBLOCKPARAMDEPENDENCYBODY", "AcDbBlockParameterDependencyBody", "ObjectDBX Classes", 0, false),
     ("ACDBDETAILVIEWSTYLE", "AcDbDetailViewStyle", "ObjectDBX Classes", 1025, false),
     ("ACDBDICTIONARYWDFLT", "AcDbDictionaryWithDefault", "ObjectDBX Classes", 0, false),
     ("ACDBPLACEHOLDER", "AcDbPlaceHolder", "ObjectDBX Classes", 0, false),
     ("ACDBSECTIONVIEWSTYLE", "AcDbSectionViewStyle", "ObjectDBX Classes", 1025, false),
+    ("ACDB_BLOCKREPRESENTATION_DATA", "AcDbBlockRepresentationData", "ObjectDBX Classes", 0, false),
+    ("ACDB_DYNAMICBLOCKPROXYNODE", "AcDbDynamicBlockProxyNode", "ObjectDBX Classes", 0, false),
+    ("ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION", "AcDbDynamicBlockPurgePreventer", "ObjectDBX Classes", 0, false),
+    ("BLOCKALIGNEDCONSTRAINTPARAMETER", "AcDbBlockAlignedConstraintParameter", "ObjectDBX Classes", 0, false),
+    ("BLOCKALIGNMENTGRIP", "AcDbBlockAlignmentGrip", "ObjectDBX Classes", 0, false),
+    ("BLOCKALIGNMENTPARAMETER", "AcDbBlockAlignmentParameter", "ObjectDBX Classes", 0, false),
+    ("BLOCKANGULARCONSTRAINTPARAMETER", "AcDbBlockAngularConstraintParameter", "ObjectDBX Classes", 0, false),
+    ("BLOCKARRAYACTION", "AcDbBlockArrayAction", "ObjectDBX Classes", 0, false),
+    ("BLOCKBASEPOINTPARAMETER", "AcDbBlockBasepointParameter", "ObjectDBX Classes", 0, false),
+    ("BLOCKDIAMETRICCONSTRAINTPARAMETER", "AcDbBlockDiametricConstraintParameter", "ObjectDBX Classes", 0, false),
+    ("BLOCKFLIPACTION", "AcDbBlockFlipAction", "ObjectDBX Classes", 0, false),
+    ("BLOCKFLIPGRIP", "AcDbBlockFlipGrip", "ObjectDBX Classes", 0, false),
+    ("BLOCKFLIPPARAMETER", "AcDbBlockFlipParameter", "ObjectDBX Classes", 0, false),
+    ("BLOCKGRIPLOCATIONCOMPONENT", "AcDbBlockGripExpr", "ObjectDBX Classes", 0, false),
+    ("BLOCKHORIZONTALCONSTRAINTPARAMETER", "AcDbBlockHorizontalConstraintParameter", "ObjectDBX Classes", 0, false),
+    ("BLOCKLINEARCONSTRAINTPARAMETER", "AcDbBlockLinearConstraintParameter", "ObjectDBX Classes", 0, false),
+    ("BLOCKLINEARGRIP", "AcDbBlockLinearGrip", "ObjectDBX Classes", 0, false),
+    ("BLOCKLINEARPARAMETER", "AcDbBlockLinearParameter", "ObjectDBX Classes", 0, false),
+    ("BLOCKLOOKUPACTION", "AcDbBlockLookupAction", "ObjectDBX Classes", 0, false),
+    ("BLOCKLOOKUPGRIP", "AcDbBlockLookupGrip", "ObjectDBX Classes", 0, false),
+    ("BLOCKLOOKUPPARAMETER", "AcDbBlockLookupParameter", "ObjectDBX Classes", 0, false),
+    ("BLOCKMOVEACTION", "AcDbBlockMoveAction", "ObjectDBX Classes", 0, false),
+    ("BLOCKPARAMDEPENDENCYBODY", "AcDbBlockParameterDependencyBody", "ObjectDBX Classes", 0, false),
+    ("BLOCKPOINTPARAMETER", "AcDbBlockPointParameter", "ObjectDBX Classes", 0, false),
+    ("BLOCKPOLARGRIP", "AcDbBlockPolarGrip", "ObjectDBX Classes", 0, false),
+    ("BLOCKPOLARPARAMETER", "AcDbBlockPolarParameter", "ObjectDBX Classes", 0, false),
+    ("BLOCKPOLARSTRETCHACTION", "AcDbBlockPolarStretchAction", "ObjectDBX Classes", 0, false),
+    ("BLOCKPROPERTIESTABLEGRIP", "AcDbBlockPropertiesTableGrip", "ObjectDBX Classes", 0, false),
+    ("BLOCKRADIALCONSTRAINTPARAMETER", "AcDbBlockRadialConstraintParameter", "ObjectDBX Classes", 0, false),
+    ("BLOCKROTATEACTION", "AcDbBlockRotationAction", "ObjectDBX Classes", 0, false),
+    ("BLOCKROTATIONGRIP", "AcDbBlockRotationGrip", "ObjectDBX Classes", 0, false),
+    ("BLOCKROTATIONPARAMETER", "AcDbBlockRotationParameter", "ObjectDBX Classes", 0, false),
+    ("BLOCKSCALEACTION", "AcDbBlockScaleAction", "ObjectDBX Classes", 0, false),
+    ("BLOCKSTRETCHACTION", "AcDbBlockStretchAction", "ObjectDBX Classes", 0, false),
+    ("BLOCKUSERPARAMETER", "AcDbBlockUserParameter", "ObjectDBX Classes", 0, false),
+    ("BLOCKVERTICALCONSTRAINTPARAMETER", "AcDbBlockVerticalConstraintParameter", "ObjectDBX Classes", 0, false),
+    ("BLOCKVISIBILITYGRIP", "AcDbBlockVisibilityGrip", "ObjectDBX Classes", 0, false),
+    ("BLOCKVISIBILITYPARAMETER", "AcDbBlockVisibilityParameter", "ObjectDBX Classes", 0, false),
+    ("BLOCKXYGRIP", "AcDbBlockXYGrip", "ObjectDBX Classes", 0, false),
+    ("BLOCKXYPARAMETER", "AcDbBlockXYParameter", "ObjectDBX Classes", 0, false),
     ("CELLSTYLEMAP", "AcDbCellStyleMap", "ObjectDBX Classes", 1152, false),
     ("DICTIONARYVAR", "AcDbDictionaryVar", "ObjectDBX Classes", 0, false),
     ("DIMASSOC", "AcDbDimAssoc", "AcDbDimAssoc", 0, false),

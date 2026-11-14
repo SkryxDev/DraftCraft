@@ -26,6 +26,7 @@ mod dwg_native_read;
 mod dwg_roundtrip_losses;
 mod dwt_template;
 mod dxf_versions;
+mod dynblock_dwg;
 mod dynblock_read;
 mod entity_props_roundtrip;
 mod followups_626;

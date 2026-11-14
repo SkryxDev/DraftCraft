@@ -27,7 +27,7 @@ pub(super) fn hex(s: &str) -> u64 {
 
 /// Some groups of a record: a subclass's, or all of them.
 #[derive(Clone, Copy, Debug, Default)]
-pub(super) struct Groups<'a>(pub &'a [Tag]);
+pub(in crate::dwg) struct Groups<'a>(pub &'a [Tag]);
 
 impl<'a> Groups<'a> {
     pub fn get(&self, code: i32) -> Option<&'a Tag> {
@@ -75,15 +75,11 @@ impl<'a> Groups<'a> {
         let at = self.0.iter().position(|t| t.code == code).unwrap_or(self.0.len());
         Groups(self.0.get(at..).unwrap_or(&[]))
     }
-    /// The groups after position `n`.
-    pub fn skip(&self, n: usize) -> Groups<'a> {
-        Groups(self.0.get(n..).unwrap_or(&[]))
-    }
 }
 
 /// One record.
 #[derive(Clone, Debug)]
-pub(super) struct Rec<'a> {
+pub(in crate::dwg) struct Rec<'a> {
     /// The record's type: `LINE`, `LAYER`, `DICTIONARY`.
     pub kind: &'a str,
     pub handle: u64,
@@ -156,7 +152,7 @@ impl<'a> Rec<'a> {
 
 /// A table: its head record and its records.
 #[derive(Clone, Debug)]
-pub(super) struct Table<'a> {
+pub(in crate::dwg) struct Table<'a> {
     pub name: &'a str,
     pub head: Rec<'a>,
     pub records: Vec<Rec<'a>>,
@@ -164,7 +160,7 @@ pub(super) struct Table<'a> {
 
 /// A block definition: its BLOCK, its entities and its ENDBLK.
 #[derive(Clone, Debug)]
-pub(super) struct BlockDef<'a> {
+pub(in crate::dwg) struct BlockDef<'a> {
     pub begin: Rec<'a>,
     pub entities: Vec<Rec<'a>>,
     pub end: Option<Rec<'a>>,
@@ -172,7 +168,7 @@ pub(super) struct BlockDef<'a> {
 
 /// A class of the CLASSES section.
 #[derive(Clone, Debug)]
-pub(super) struct ClassRec<'a> {
+pub(in crate::dwg) struct ClassRec<'a> {
     pub dxf_name: &'a str,
     pub cpp_name: &'a str,
     pub app_name: &'a str,
@@ -184,7 +180,7 @@ pub(super) struct ClassRec<'a> {
 
 /// The drawing's records.
 #[derive(Clone, Debug, Default)]
-pub(super) struct Doc<'a> {
+pub(in crate::dwg) struct Doc<'a> {
     /// Header variables by name without the `$`: the groups that follow each.
     pub header: HashMap<&'a str, &'a [Tag]>,
     pub classes: Vec<ClassRec<'a>>,
@@ -252,7 +248,7 @@ impl<'a> Doc<'a> {
             let mut bytes = Vec::new();
             for t in tags.get(at + 1..).unwrap_or(&[]).iter().take_while(|t| t.code != 2).filter(|t| t.code == 310) {
                 let hex = text(t).trim().as_bytes();
-                bytes.extend(hex.chunks_exact(2).filter_map(|p| u8::from_str_radix(std::str::from_utf8(p).ok()?, 16).ok()));
+                bytes.extend(hex.as_chunks::<2>().0.iter().filter_map(|p| u8::from_str_radix(std::str::from_utf8(p).ok()?, 16).ok()));
             }
             if owner != 0 && !bytes.is_empty() {
                 self.data_store.entry(owner).or_insert(bytes);

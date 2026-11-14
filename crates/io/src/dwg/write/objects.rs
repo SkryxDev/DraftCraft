@@ -29,10 +29,7 @@ pub(super) fn object(cx: &Cx<'_>, r: &Rec<'_>) -> Option<ObjectWriter> {
             w.bs(u16::try_from(g.i_or(280, 1)).unwrap_or(1));
             w
         }
-        "ACDBPLACEHOLDER" => {
-            let mut w = begin(cx, cx.type_code("ACDBPLACEHOLDER", 0x50), r);
-            w
-        }
+        "ACDBPLACEHOLDER" => begin(cx, cx.type_code("ACDBPLACEHOLDER", 0x50), r),
         "DICTIONARYVAR" => {
             let mut w = begin(cx, cx.class("DICTIONARYVAR")?, r);
             let g = r.sub("DictionaryVariables");
@@ -85,7 +82,7 @@ pub(super) fn object(cx: &Cx<'_>, r: &Rec<'_>) -> Option<ObjectWriter> {
             w.text(g.s(2));
             w
         }
-        _ => return None,
+        _ => return super::dynblock::object(cx, r),
     })
 }
 

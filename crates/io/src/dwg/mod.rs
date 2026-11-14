@@ -11,6 +11,7 @@
 
 mod blocks;
 mod carry;
+mod dynblock;
 mod entities;
 mod header;
 mod objects;
