@@ -93,8 +93,8 @@ fn dxf_keeps_the_data_store_and_drops_records_of_deleted_entities() {
 fn dwg_keeps_the_solids_geometry() {
     let d = draftcraft_io::read_dxf(dxf().as_bytes()).unwrap();
     let dwg = draftcraft_io::write(&d, "x.dwg").unwrap();
-    // The DWG read back (as the bridge's DXF) binds the same bytes to both solids.
-    let back = String::from_utf8(draftcraft_dwg::acadrust::dwg_to_dxf(&dwg).unwrap()).unwrap();
+    // The DWG read back binds the same bytes to both solids.
+    let back = crate::dwg_as_dxf(&dwg);
     let mut got = asm_data(&back);
     got.sort();
     assert_eq!(got, vec![("2A".to_string(), SAB_HEX.to_string()), ("2B".to_string(), SAB_HEX.to_string())]);

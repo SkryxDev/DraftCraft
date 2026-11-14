@@ -1,8 +1,8 @@
 //! A block made dynamic in the Block Editor (BPARAMETER, BACTION) keeps its parameters and
 //! actions through a DXF save, and its references stretch after reopening.
 //!
-//! A DWG save doesn't keep them yet: the DWG writer (acadrust) writes another program's objects
-//! only from their original DWG data, which objects made here don't have.
+//! A DWG save doesn't keep them yet: the DWG writer encodes the dynamic block objects a file
+//! brought, not yet the ones made here.
 
 use draftcraft_engine::Session;
 use draftcraft_engine::cmd::file::{IoHooks, set_io};

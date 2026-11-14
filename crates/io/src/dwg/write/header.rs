@@ -124,6 +124,9 @@ pub(super) fn values(cx: &Cx<'_>) -> HashMap<&'static str, HeaderValue> {
                 draftcraft_dxf::Value::Str(s) => HeaderValue::Int(s.chars().next().map_or(46, |c| i64::from(u32::from(c)))),
                 _ => HeaderValue::Int(t.i64()),
             }),
+            // A value the variable doesn't accept (a hostile file can hold any) is AutoCAD's default.
+            ("DIMASSOC", _) => first.map(|t| HeaderValue::Int(Some(t.i64()).filter(|v| (0..=2).contains(v)).unwrap_or(2))),
+            ("HIDETEXT", _) => first.map(|t| HeaderValue::Int(Some(t.i64()).filter(|v| (0..=1).contains(v)).unwrap_or(1))),
             // DXF writes these two angles in degrees.
             ("ANGBASE" | "SNAPANG", _) => first.map(|t| HeaderValue::Real(t.f64().to_radians())),
             (_, HeaderKind::Bool) => first.map(|t| HeaderValue::Bool(t.i64() != 0)),

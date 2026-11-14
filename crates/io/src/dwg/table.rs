@@ -227,7 +227,7 @@ pub(super) fn cell_style_data(r: &mut ObjectReader) -> DwgResult<Option<CellStyl
 /// words, background, layout, content format, margins and borders. Returns the text height it
 /// sets. AutoCAD's own files set the property bits in the first word (the rows of its sample
 /// tables: 0x80, the heights their cells have in AutoCAD's DXF; a cell's margins: 0x63C00);
-/// acadrust, DraftCraft's writer until it has its own, sets them in the second.
+/// other programs set them in the second.
 fn cell_style(r: &mut ObjectReader) -> DwgResult<OwnHeight> {
     let Some(s) = cell_style_data(r)? else { return Ok(None) };
     Ok(own_height(s.flags.0 | s.flags.1 | s.format.overrides, s.format.height))
@@ -692,4 +692,22 @@ pub(super) fn table_style(r: &mut ObjectReader, styles: &std::collections::HashM
     let (data, title, header) = (row("_DATA", 3), row("_TITLE", 1), row("_HEADER", 2));
     let suppressed = (flags & 1 != 0, flags & 2 != 0);
     Ok(style_tags(Some(version), description, flow, i64::from(flags), margins, suppressed, [&data, &title, &header]))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{TEXT_HEIGHT, own_height};
+
+    /// A format sets a text height only with its text height flag; a height it sets that can't
+    /// be used still sets one (so the style's default doesn't stand for it), as none.
+    #[test]
+    fn a_format_sets_its_height_only_with_the_flag() {
+        assert_eq!(own_height(TEXT_HEIGHT, 0.5), Some(Some(0.5)));
+        assert_eq!(own_height(TEXT_HEIGHT | 3, 0.3125), Some(Some(0.3125)));
+        assert_eq!(own_height(0, 0.18), None);
+        assert_eq!(own_height(!TEXT_HEIGHT, 0.18), None);
+        for bad in [0.0, -1.0, f64::NAN, f64::INFINITY, 1e12] {
+            assert_eq!(own_height(TEXT_HEIGHT, bad), Some(None), "{bad}");
+        }
+    }
 }

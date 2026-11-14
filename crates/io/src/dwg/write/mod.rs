@@ -484,14 +484,14 @@ fn merge(into: &mut Unwritten, from: Unwritten) {
     }
 }
 
-/// The drawing whose records are `tags`, as a DWG file of version `ver`, with the records the
-/// file leaves out.
 /// Add the drawing variables dictionary AutoCAD writes in every DWG, with the drawing's values,
 /// when the records have none (see `variables`).
 pub fn add_variable_dictionary(tags: &mut Vec<Tag>, d: &draftcraft_doc::Drawing) {
     variables::add(tags, &variables::values(d));
 }
 
+/// The drawing whose records are `tags`, as a DWG file of version `ver`, with the records the
+/// file leaves out.
 pub fn write(tags: &[Tag], ver: V, info: &FileInfo<'_>) -> Result<(Vec<u8>, Unwritten)> {
     let parsed = Doc::parse(tags);
     let (dropped, counted) = left_out(&parsed, ver);

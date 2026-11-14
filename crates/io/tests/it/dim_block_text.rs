@@ -106,9 +106,7 @@ fn dxf_angular_block_text_keeps_the_decimal_separator() {
 #[cfg(not(target_arch = "wasm32"))]
 #[test]
 fn dwg_angular_block_text_keeps_the_decimal_separator() {
-    use std::io::Cursor;
-
-    use acadrust::entities::EntityType;
+    use draftcraft_dwg::records::model::ObjectKind;
     use draftcraft_io::{SaveOptions, Version};
 
     for (separator_override, expected) in [(None, "39,4°"), (Some("."), "39.4°")] {
@@ -119,13 +117,14 @@ fn dwg_angular_block_text_keeps_the_decimal_separator() {
         )
         .unwrap();
         // DWG consumers use the stored *D geometry: read it directly, without DraftCraft rendering it.
-        let stored = acadrust::DwgReader::from_stream(Cursor::new(dwg)).read().unwrap();
+        let stored = draftcraft_dwg::read_bytes(&dwg).unwrap();
+        let in_dimension_block =
+            |owner| matches!(stored.objects.get(owner).map(|b| &b.kind), Some(ObjectKind::BlockHeader(b)) if b.name.starts_with("*D"));
         let texts: Vec<&str> = stored
-            .entities()
-            .filter_map(|e| match e {
-                EntityType::MText(t) if stored.block_records.iter().any(|b| b.handle == t.common.owner_handle && b.name.starts_with("*D")) => {
-                    Some(t.value.as_str())
-                }
+            .objects
+            .values()
+            .filter_map(|o| match &o.kind {
+                ObjectKind::MText(t) if in_dimension_block(&o.owner) => Some(t.contents.as_str()),
                 _ => None,
             })
             .collect();

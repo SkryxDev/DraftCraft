@@ -3,30 +3,6 @@
 version = 4
 
 [[package]]
-name = "acadrust"
-version = "0.6.8"
-source = "git+https://github.com/hakanaktt/acadrust?rev=008c6391bbb5deb7baf4bd44495b7b1cfc53eceb#008c6391bbb5deb7baf4bd44495b7b1cfc53eceb"
-dependencies = [
- "anyhow",
- "bitflags 2.13.2",
- "byteorder",
- "encoding_rs",
- "flate2",
- "foldhash 0.2.0",
- "indexmap",
- "itoa",
- "memchr",
- "memmap2",
- "nom 7.1.3",
- "oem_cp",
- "once_cell",
- "rayon",
- "ryu",
- "thiserror 2.0.21",
- "web-time",
-]
-
-[[package]]
 name = "accesskit"
 version = "0.25.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1296,9 +1272,7 @@ dependencies = [
 name = "draftcraft-dwg"
 version = "3.0.0"
 dependencies = [
- "acadrust",
  "chrono",
- "log",
 ]
 
 [[package]]
@@ -1356,7 +1330,6 @@ dependencies = [
 name = "draftcraft-io"
 version = "3.0.0"
 dependencies = [
- "acadrust",
  "chrono",
  "craft-pdf",
  "draftcraft-color",
@@ -3035,12 +3008,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "minimal-lexical"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
-
-[[package]]
 name = "miniz_oxide"
 version = "0.8.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3191,16 +3158,6 @@ name = "nohash-hasher"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2bf50223579dc7cdcfb3bfcacf7069ff68243f8c363f62ffa99cf000a6b9c451"
-
-[[package]]
-name = "nom"
-version = "7.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d273983c5a657a70a3e8f2a01329822f3b8c8172b73826411a55751e404a0a4a"
-dependencies = [
- "memchr",
- "minimal-lexical",
-]
 
 [[package]]
 name = "nom"
@@ -3561,15 +3518,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "oem_cp"
-version = "2.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c7959d3349f484aec36462f98226983578bf7d33f9b034c32967489c7000e1f"
-dependencies = [
- "phf 0.11.3",
-]
-
-[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3709,15 +3657,6 @@ dependencies = [
 
 [[package]]
 name = "phf"
-version = "0.11.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fd6780a80ae0c52cc120a26a1a42c1ae51b247a253e4e06113d23d2c2edd078"
-dependencies = [
- "phf_shared 0.11.3",
-]
-
-[[package]]
-name = "phf"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1562dc717473dbaa4c1f85a36410e03c047b2e7df7f45ee938fbef64ae7fadf"
@@ -3781,15 +3720,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
-]
-
-[[package]]
-name = "phf_shared"
-version = "0.11.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67eabc2ef2a60eb7faa00097bd1ffdb5bd28e62bf39990626a582201b7a754e5"
-dependencies = [
- "siphasher",
 ]
 
 [[package]]
@@ -5074,7 +5004,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b8765b90061cba6c22b5831f675da109ae5561588290f9fa2317adab2714d5a6"
 dependencies = [
  "memchr",
- "nom 8.0.0",
+ "nom",
  "petgraph",
 ]
 

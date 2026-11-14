@@ -1,22 +1,29 @@
 # DraftCraft's own DWG writer: handoff
 
 Continues `docs/dwg-handoff.md` (withshalom's PR #15: DraftCraft reads every DWG itself; saving
-still went through acadrust). This page is the state of the writer that replaces acadrust for
-saving, how to work on it, and what is left before acadrust can be removed.
+still went through acadrust). This page is the state of the writer that replaced acadrust for
+saving, how to work on it, and what is left.
 
 Branch `dwg-writer`, in the worktree `.claude/worktrees/dwg-writer` of the main checkout. It
-starts from the head of PR #15 (which contains `main` at f6f72215). Nothing is pushed.
+starts from the head of PR #15 (which contains `main` at f6f72215).
 
 ## State
 
-- **Saving DWG goes through DraftCraft's own writer** for AutoCAD 2000, 2004, 2010, 2013 and 2018.
-  acadrust still writes AutoCAD 2007 files, and every version when
-  `DRAFTCRAFT_DWG_WRITER=acadrust` is set (`crates/io/src/lib.rs`, `write_dwg`).
-- `cargo test -p draftcraft-io --no-fail-fast`: the `it` suite has 554 passing and 26 failing
-  (4 of them failed before this work, by design: `acis_data_store` × 2, `dynblock_read` × 2).
-  The failures are the types listed under "What is left". Not run yet: `cargo xtask ci`, the
-  other crates' tests, the wasm build.
-- Not verified in AutoCAD itself (no AutoCAD here). What stands in for it is below.
+- **Saving DWG goes through DraftCraft's own writer in every version AutoCAD saves**: 2000, 2004,
+  2007, 2010, 2013 and 2018. Every file written is read back before it is handed over
+  (`check_dwg` in `crates/io/src/lib.rs`): a file that doesn't read, or reads without the
+  entities it was given, is never saved.
+- **acadrust is gone**: no dependency, no worker process, no environment switch, no test that
+  compares with it. The tests that did now compare with DraftCraft's DXF reading of the same
+  drawing, and inspect the files with the object-records reader (`draftcraft_dwg::read_bytes`),
+  which is independent of the reader that opens files.
+- A file carries a preview (PNG from 2013, an 8-bit bitmap before), the drawing's save dates from
+  AutoCAD's universal-time variables, and AutoCAD's variable dictionary when the drawing has none.
+- `cargo test -p draftcraft-io --no-fail-fast`: all pass (the `it` suite 578, 21 ignored), and
+  `cargo test -p draftcraft-dwg` (101).
+- **Not verified in AutoCAD itself.** A nested session was set up to open the files in the
+  user's AutoCAD 2027 with computer use, and access to AutoCAD was refused twice; AutoCAD may be
+  blocked in the app's Computer use settings. What stands in for it is below.
 
 ## How it is built
 
@@ -29,15 +36,18 @@ holds what the DXF of the same drawing holds, and what a command adds to one is 
 | `crates/dwg/src/compose/object.rs` | `ObjectWriter`: one object, field by field, in every version (the mirror of `file::ObjectReader`) |
 | `crates/dwg/src/compose/sections.rs` | header variables, classes, object map |
 | `crates/dwg/src/compose/file.rs` | `compose(Parts)`: the file laid out for 2000 (flat) and 2004/2010/2013/2018 (paged, through `write::container::pack`) |
-| `crates/dwg/src/compose/r2007.rs` | AutoCAD 2007 container: **a stub that returns "unsupported"** |
+| `crates/dwg/src/compose/r2007/` | AutoCAD 2007 container: Reed-Solomon pages (`codes.rs`), its compression (`compress.rs`), CRC-64 checks, the page and section maps |
 | `crates/io/src/dwg/write/rec.rs` | the records: `Doc`, `Rec`, `Groups` |
 | `crates/io/src/dwg/write/mod.rs` | `Cx` (names to handles, classes, structure), `encode`, `write` |
 | `crates/io/src/dwg/write/common.rs` | extended data, an entity's common properties, who owns what, entity links (2000), anonymous block names |
 | `crates/io/src/dwg/write/tables.rs` | control objects and table records |
 | `crates/io/src/dwg/write/entities.rs` | BLOCK, ENDBLK, LINE, POINT, CIRCLE, ARC, ELLIPSE, SOLID, TRACE, 3DFACE, XLINE, RAY, TEXT, ATTRIB, ATTDEF (single line), LWPOLYLINE, INSERT, MINSERT, POLYLINE, VERTEX, SEQEND |
 | `crates/io/src/dwg/write/annotation.rs` | MTEXT, DIMENSION, SPLINE, HATCH, LEADER, TOLERANCE, VIEWPORT, MLINE, IMAGE, WIPEOUT |
-| `crates/io/src/dwg/write/objects.rs` | DICTIONARY, ACDBDICTIONARYWDFLT, XRECORD, ACDBPLACEHOLDER, DICTIONARYVAR, SCALE, GROUP, LAYOUT, MLINESTYLE, WIPEOUTVARIABLES, and (through withshalom's codec `read::styles`, AutoCAD 2013 and later only) TABLESTYLE, MLEADERSTYLE, MATERIAL, VISUALSTYLE, section and detail view styles, DIMASSOC, IMAGEDEF, IMAGEDEF_REACTOR, RASTERVARIABLES |
+| `crates/io/src/dwg/write/objects.rs` | DICTIONARY, ACDBDICTIONARYWDFLT, XRECORD, ACDBPLACEHOLDER, DICTIONARYVAR, SCALE, GROUP, LAYOUT, MLINESTYLE, WIPEOUTVARIABLES, TABLESTYLE, MLEADERSTYLE, MATERIAL, VISUALSTYLE, CELLSTYLEMAP, section and detail view styles, DIMASSOC, IMAGEDEF, IMAGEDEF_REACTOR, RASTERVARIABLES, SPATIAL_FILTER, PDFDEFINITION, in every version |
 | `crates/io/src/dwg/write/header.rs` | header variables from their DXF form to DWG's |
+| `crates/io/src/dwg/write/mleader.rs`, `table.rs`, `solid.rs`, `dynblock.rs` | multileaders, tables, ACIS solids up to 2010, dynamic block objects |
+| `crates/io/src/dwg/write/variables.rs` | AutoCAD's variable dictionary, added when the drawing has none |
+| `crates/io/src/dwg/write/preview.rs` | the picture file browsers and the open dialog show |
 
 A record with no encoding is counted by type (`Unwritten`) and reported, as before.
 
@@ -76,38 +86,16 @@ set; an AutoCAD 2018 MTEXT ends with a null reference.
 
 ## What is left, in order
 
-1. **acadrust can't read one of our files.** `crates/io/tests/dwg_required_dictionaries.rs`
-   (`an_ac1018_dwg_gets_the_variable_dictionary_autocad_always_writes`) reads our 2004 file with
-   acadrust's reader and gets "Truncated DWG stream at bit 3915". Find the object (most likely
-   one our own reader is lenient about) before anything else: a second reader disagreeing is
-   the best warning there is that AutoCAD may too.
-2. **Types with no encoding yet** (each has failing tests that name it):
-   ACAD_TABLE (`roundtrip::dwg::extended::tables`, `dwg_table_cell_height` × 7), MULTILEADER,
-   multiline ATTRIB and ATTDEF, HELIX, OLE2FRAME, REGION / 3DSOLID / BODY as text, underlays
-   (PDFUNDERLAY and its definition), SPATIAL_FILTER (block clips), SORTENTSTABLE, and TABLESTYLE,
-   MLEADERSTYLE and DIMASSOC before AutoCAD 2013 (mirror `crates/io/src/dwg/objects.rs`; the
-   codec in `read::styles` starts at 2013). Whatever the reader carries as raw groups
-   (`crates/io/src/dwg/carry.rs`) needs the reverse.
-3. **Fit-point splines** (`roundtrip::dwg::extended::fit_splines`): which form to store before
-   2013, and the knot spacing from 2013 (chord, square root, uniform), so the curve reads back
-   as drawn.
-4. Tests that looked at acadrust's behaviour: `types_the_dwg_writer_cannot_write_are_reported_lost`,
-   `dwg_roundtrip_keeps_extension_data`, `roundtrip::dwg::conformance` × 2,
-   `handle_limits::dwg_exhausted_handles_are_preserved_or_refused`, `dxf_versions::dwg_at_every_version_reads_back`
-   (2007). Decide for each whether the writer or the test changes.
-5. **The AutoCAD 2007 container** (`compose/r2007.rs`): Reed-Solomon codewords and its own
-   compression; the reader is `crates/dwg/src/read/r2007.rs`. The objects are already written
-   in the 2007 form and match AutoCAD's.
-6. The picture file browsers show (`FileInfo::preview_png` / `preview_bmp` are passed empty), the
-   drawing's properties and dates (`created_iso`, `updated_iso` through chrono), and the
-   read-back check on every save that `docs/dwg.md` plans.
-7. **acadrust removed**: the dependency (`crates/dwg/Cargo.toml`, `crates/io/Cargo.toml`),
-   `crates/dwg/src/acadrust`, the worker process (`dwg_worker` in `crates/io/src/lib.rs` and
-   where the apps call it), the tests that compare with it, `NOTICE`, `ATTRIBUTION.md`,
-   `Cargo.lock`, `docs/dwg.md`, `docs/dwg-handoff.md`, `docs/architecture.md`.
-8. `cargo xtask ci` (fmt, clippy, tests, assets, layers, wasm). The new code has not been
-   through clippy's `-D warnings` or `cargo fmt` yet. Then files for someone with AutoCAD to
-   open: `DWG_FIXTURES_OUT=dir cargo test -p draftcraft-io --test it write_dwg_fixtures -- --ignored`.
+1. **Open the files in AutoCAD** (2007 above all, whose container is new): write them with
+   `DWG_FIXTURES_OUT=dir cargo test -p draftcraft-io --test it write_dwg_fixtures -- --ignored`,
+   open each in AutoCAD, run AUDIT, save, and read AutoCAD's save back with DraftCraft.
+2. **Dynamic-block parameters and actions made in the Block Editor** are lost on a DWG save (those
+   a file brought are written; `crates/engine/tests/dynblock_authoring.rs` saves only DXF).
+3. Text longer than 65,535 characters (UTF-16 units from 2007, bytes before) is cut to that
+   length, the most a DWG text field holds; it is not reported.
+4. Reader coverage that came from files acadrust wrote (edge hatch loops, curves, mirrored text,
+   table cell styles) is now covered only by DraftCraft's own files; AutoCAD's files with them
+   would make it independent again.
 
 ## Known choices to revisit
 

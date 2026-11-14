@@ -104,30 +104,21 @@ fn the_block_draw_order_survives_dxf_and_dwg() {
     assert_eq!(block_kinds(&dwg), ["wipeout", "circle", "hline", "vline"], "DWG");
 }
 
-/// The table itself (not DraftCraft's reordered records) goes through the DWG bridge (#2410).
-#[test]
-fn a_partial_block_table_survives_the_dwg_bridge() {
-    let dwg = draftcraft_dwg::acadrust::dxf_to_dwg(block_dxf().as_bytes()).unwrap();
-    let dxf = draftcraft_dwg::acadrust::dwg_to_dxf(&dwg).unwrap();
-    let d = draftcraft_io::read_dxf(&dxf).unwrap();
-    assert_eq!(block_kinds(&d), ["wipeout", "circle", "hline", "vline"]);
-}
-
-/// A sort handle of 0 draws the entity last, in a DXF and across the DWG bridge (#2439).
+/// A sort handle of 0 draws the entity last, in a DXF and through DWG (#2439).
 #[test]
 fn a_zero_sort_handle_draws_last() {
     // The horizontal line is keyed 0 (last); the vertical line 25E; the wipeout 25B; the circle its own 25C.
     let dxf = block_dxf_with("331\n25B\n5\n0\n331\n25D\n5\n25E\n331\n25E\n5\n25B\n");
     let want = ["wipeout", "circle", "vline", "hline"];
     assert_eq!(block_kinds(&draftcraft_io::read_dxf(dxf.as_bytes()).unwrap()), want, "DXF");
-    let dwg = draftcraft_dwg::acadrust::dxf_to_dwg(dxf.as_bytes()).unwrap();
-    let back = draftcraft_io::read_dxf(&draftcraft_dwg::acadrust::dwg_to_dxf(&dwg).unwrap()).unwrap();
+    let dwg = draftcraft_io::write(&draftcraft_io::read_dxf(dxf.as_bytes()).unwrap(), "t.dwg").unwrap();
+    let back = draftcraft_io::read(&dwg, "t.dwg").unwrap();
     assert_eq!(block_kinds(&back), want, "DWG");
 }
 
 /// Two entities left out of the table each sort by their own handle, so they land between the
 /// listed ones (a single fallback key for every unlisted entity would put them side by side)
-/// in a DXF and across the DWG bridge (#2439).
+/// in a DXF and through DWG (#2439).
 #[test]
 fn two_unlisted_block_entities_each_sort_by_their_own_handle() {
     // Listed: the horizontal line 25B and the vertical line 25D, each under its own handle.
@@ -135,7 +126,7 @@ fn two_unlisted_block_entities_each_sort_by_their_own_handle() {
     let dxf = block_dxf_with("331\n25B\n5\n25B\n331\n25D\n5\n25D\n");
     let want = ["hline", "circle", "vline", "wipeout"];
     assert_eq!(block_kinds(&draftcraft_io::read_dxf(dxf.as_bytes()).unwrap()), want, "DXF");
-    let dwg = draftcraft_dwg::acadrust::dxf_to_dwg(dxf.as_bytes()).unwrap();
-    let back = draftcraft_io::read_dxf(&draftcraft_dwg::acadrust::dwg_to_dxf(&dwg).unwrap()).unwrap();
+    let dwg = draftcraft_io::write(&draftcraft_io::read_dxf(dxf.as_bytes()).unwrap(), "t.dwg").unwrap();
+    let back = draftcraft_io::read(&dwg, "t.dwg").unwrap();
     assert_eq!(block_kinds(&back), want, "DWG");
 }

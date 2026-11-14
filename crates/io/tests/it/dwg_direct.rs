@@ -543,6 +543,13 @@ fn attributes_drawing() -> draftcraft_doc::Drawing {
     d
 }
 
+/// `d` saved as a DXF of `version` and read again: what a DWG of the same version, read back, is
+/// compared with.
+fn via_dxf(d: &draftcraft_doc::Drawing, version: draftcraft_io::Version) -> draftcraft_doc::Drawing {
+    let opts = draftcraft_io::SaveOptions { version: Some(version), binary: false };
+    draftcraft_io::read(&draftcraft_io::write_with(d, "t.dxf", &opts).unwrap(), "t.dxf").unwrap()
+}
+
 /// The attribute definitions of every block and the attributes of every block reference, with
 /// their places, for comparing two readings.
 fn attributes_of(d: &draftcraft_doc::Drawing) -> Vec<(String, serde_json::Value)> {
@@ -560,13 +567,13 @@ fn attributes_of(d: &draftcraft_doc::Drawing) -> Vec<(String, serde_json::Value)
 }
 
 #[test]
-fn attributes_read_as_the_acadrust_reader_reads_them() {
-    use draftcraft_io::{DwgReader, SaveOptions, Version, read_dwg_with, write_with};
+fn attributes_read_as_their_dxf_reads_them() {
+    use draftcraft_io::{SaveOptions, Version, write_with};
     let source = attributes_drawing();
     for version in [Version::R2000, Version::R2004, Version::R2007, Version::R2010, Version::R2013, Version::R2018] {
         let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
         let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
-        let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
+        let reference = via_dxf(&source, version);
         let want = attributes_of(&reference);
         assert_eq!(want.len(), 7, "{version:?}: the reference has the five definitions and the two references: {want:#?}");
         let got = attributes_of(&d);
@@ -599,8 +606,8 @@ fn multiline_fixture() -> String {
 /// properties, then the MTEXT's fields (AutoCAD's own files show the layout: ACadSharp's samples,
 /// [`autocad_samples_entities_read_as_autocads_dxf`]). DraftCraft's saved ones read back as the
 /// drawing has them: the definition with its multiline text, the reference with its own. (The
-/// acadrust reader loses the reference's vertical alignment; the writer places an aligned text's
-/// insertion point itself, from its alignment point, so that is not compared.)
+/// writer places an aligned text's insertion point itself, from its alignment point, so that is
+/// not compared.)
 #[test]
 fn multiline_attributes_read_back_as_saved() {
     use draftcraft_io::{SaveOptions, Version, write_with};
@@ -637,157 +644,6 @@ fn multiline_attributes_read_back_as_saved() {
     for ((gp, g), (wp, w)) in got.iter().zip(&want) {
         assert_eq!(gp, wp);
         assert!(close(g, w, false), "{gp}\nread  {g}\nsaved {w}");
-    }
-}
-
-/// A DWG of `version` holding every kind of polyline and both kinds of spline, written with
-/// acadrust's own API: DraftCraft writes 2D polylines and polygon meshes in other forms, so its
-/// save path can't make them.
-fn curves_dwg(version: acadrust::types::DxfVersion) -> Vec<u8> {
-    use acadrust::entities::*;
-    use acadrust::types::Vector3;
-    let mut doc = acadrust::CadDocument::with_version(version);
-    // 2D polylines: open with bulges and widths at an elevation, closed, and mirrored.
-    for (normal_z, closed, y) in [(1.0, false, 0.0), (1.0, true, 20.0), (-1.0, false, 40.0)] {
-        let mut p = Polyline2D::new();
-        p.elevation = 1.5;
-        p.normal = Vector3::new(0.0, 0.0, normal_z);
-        p.start_width = 0.25;
-        p.end_width = 0.25;
-        p.add_vertex(Vertex2D::new(Vector3::new(0.0, y, 0.0)).with_bulge(0.5).with_width(0.1, 0.3));
-        p.add_vertex(Vertex2D::new(Vector3::new(10.0, y, 0.0)).with_width(0.3, 0.1));
-        p.add_vertex(Vertex2D::new(Vector3::new(10.0, y + 10.0, 0.0)).with_bulge(-1.0));
-        p.add_vertex(Vertex2D::new(Vector3::new(0.0, y + 10.0, 0.0)));
-        if closed {
-            p.close();
-        }
-        doc.add_entity(EntityType::Polyline2D(p)).unwrap();
-    }
-    // A closed 3D polyline.
-    let mut p3 = Polyline3D::from_points(vec![
-        Vector3::new(0.0, 0.0, 0.0),
-        Vector3::new(5.0, 0.0, 2.0),
-        Vector3::new(5.0, 5.0, 4.0),
-        Vector3::new(0.0, 5.0, 6.0),
-    ]);
-    p3.flags.closed = true;
-    doc.add_entity(EntityType::Polyline3D(p3)).unwrap();
-    // A polyface mesh: a quad and a triangle over five vertices.
-    let mut pf = PolyfaceMesh::new();
-    for (x, y, z) in [(0.0, 0.0, 0.0), (4.0, 0.0, 0.0), (4.0, 4.0, 1.0), (0.0, 4.0, 1.0), (2.0, 6.0, 2.0)] {
-        pf.add_vertex_xyz(x + 50.0, y, z);
-    }
-    pf.add_face(PolyfaceFace::quad(1, 2, 3, 4));
-    pf.add_face(PolyfaceFace::triangle(3, 5, 4));
-    doc.add_entity(EntityType::PolyfaceMesh(pf)).unwrap();
-    // A 3 × 4 polygon mesh, closed in N.
-    let mut pm = PolygonMeshEntity::new();
-    pm.m_vertex_count = 3;
-    pm.n_vertex_count = 4;
-    pm.flags = PolygonMeshFlags::POLYGON_MESH | PolygonMeshFlags::CLOSED_N;
-    for i in 0..3 {
-        for j in 0..4 {
-            pm.vertices.push(PolygonMeshVertex::at(Vector3::new(70.0 + f64::from(i) * 3.0, f64::from(j) * 2.0, f64::from(i * j))));
-        }
-    }
-    doc.add_entity(EntityType::PolygonMesh(pm)).unwrap();
-    // A rational spline by its control points, and a spline by its fit points with end tangents.
-    let control = vec![Vector3::new(0.0, 60.0, 0.0), Vector3::new(5.0, 70.0, 0.0), Vector3::new(10.0, 55.0, 0.0), Vector3::new(15.0, 65.0, 0.0)];
-    let mut sc = Spline::from_control_points(3, control);
-    sc.weights = vec![1.0, 2.0, 0.5, 1.0];
-    sc.flags.rational = true;
-    doc.add_entity(EntityType::Spline(sc)).unwrap();
-    let fit = vec![Vector3::new(30.0, 60.0, 0.0), Vector3::new(35.0, 66.0, 0.0), Vector3::new(42.0, 58.0, 0.0), Vector3::new(48.0, 64.0, 0.0)];
-    let mut sf = Spline::from_fit_points(fit);
-    sf.begin_tangent = Vector3::new(1.0, 1.0, 0.0);
-    sf.end_tangent = Vector3::new(1.0, -1.0, 0.0);
-    doc.add_entity(EntityType::Spline(sf)).unwrap();
-    acadrust::DwgWriter::write_to_vec(&doc).unwrap()
-}
-
-#[test]
-fn polylines_and_splines_read_as_the_acadrust_reader_reads_them() {
-    use acadrust::types::DxfVersion;
-    use draftcraft_doc::EntityKind;
-    use draftcraft_io::{DwgReader, read_dwg_with};
-    let curve = |k: &EntityKind| {
-        matches!(
-            k,
-            EntityKind::LwPolyline(_) | EntityKind::Polyline3d(_) | EntityKind::PolyfaceMesh(_) | EntityKind::Face3d(_) | EntityKind::Spline(_)
-        )
-    };
-    for version in [DxfVersion::AC1015, DxfVersion::AC1018, DxfVersion::AC1021, DxfVersion::AC1024, DxfVersion::AC1027, DxfVersion::AC1032] {
-        let bytes = curves_dwg(version);
-        let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
-        let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
-        let want: Vec<_> = reference.model.iter().filter(|e| curve(&e.kind)).collect();
-        // Three 2D polylines, a 3D one, a polyface mesh, the 3 × 4 mesh closed in N as 2 × 4 faces,
-        // two splines.
-        assert_eq!(want.len(), 15, "{version:?}: {:?}", want.iter().map(|e| e.kind.type_name()).collect::<Vec<_>>());
-        let got: Vec<_> = d.model.iter().filter(|e| curve(&e.kind)).collect();
-        assert_eq!(got.len(), want.len(), "{version:?}: unread {}", unread.summary());
-        for (g, w) in got.iter().zip(&want) {
-            // acadrust's DXF gives a vertex stored with no width the polyline's default width and
-            // leaves the default out, so 2D polylines are checked against what was written.
-            if matches!(g.kind, EntityKind::LwPolyline(_)) {
-                continue;
-            }
-            // From AutoCAD 2013 on a fit spline's tangents are its end derivatives, length included
-            // (AutoCAD's own file and DXF show it: SPLINE 434 of ACadSharp's samples), where the
-            // acadrust reader takes them as directions. The fit spline here stores (1, 1) and
-            // (1, -1): AutoCAD's curve, the same fit points.
-            if let (EntityKind::Spline(gs), EntityKind::Spline(ws)) = (&g.kind, &w.kind)
-                && !ws.fit.is_empty()
-                && matches!(version, DxfVersion::AC1027 | DxfVersion::AC1032)
-            {
-                use draftcraft_geom::{FitOptions, Spline, Vec2};
-                let opts = FitOptions { knots: ws.fit_opts.knots, tolerance: ws.fit_opts.tolerance, ..FitOptions::default() };
-                let autocad = Spline::fit_with_derivatives(&ws.fit, opts, Some(Vec2::new(1.0, 1.0)), Some(Vec2::new(1.0, -1.0)));
-                assert_eq!(gs.fit, ws.fit, "{version:?}");
-                assert_eq!(gs.control.len(), autocad.control.len(), "{version:?}");
-                for (a, b) in gs.control.iter().zip(&autocad.control) {
-                    assert!(a.near(*b, 1e-9), "{version:?}: control point {a:?}, AutoCAD's {b:?}");
-                }
-                continue;
-            }
-            let (g, w) = (serde_json::to_value(g.as_ref()).unwrap(), serde_json::to_value(w.as_ref()).unwrap());
-            assert!(close(&g["kind"], &w["kind"], false), "{version:?}\nread      {}\nreference {}", g["kind"], w["kind"]);
-            assert!(close(&g["common"], &w["common"], false), "{version:?}: properties\nread      {}\nreference {}", g["common"], w["common"]);
-        }
-        // The 2D polylines as they were written: the vertices with their own widths and bulges,
-        // the default width, the elevation, closed or not; the mirrored one with x and the bulges
-        // turned round and its extrusion kept.
-        let written = |closed: bool, y: f64, m: f64| {
-            let v = |x: f64, y: f64, bulge: f64, sw: f64, ew: f64| draftcraft_geom::PolyVertex {
-                p: draftcraft_geom::Vec2::new(m * x, y),
-                bulge: m * bulge,
-                start_width: sw,
-                end_width: ew,
-            };
-            draftcraft_doc::LwPolyline {
-                vertices: vec![
-                    v(0.0, y, 0.5, 0.1, 0.3),
-                    v(10.0, y, 0.0, 0.3, 0.1),
-                    v(10.0, y + 10.0, -1.0, 0.0, 0.0),
-                    v(0.0, y + 10.0, 0.0, 0.0, 0.0),
-                ],
-                closed,
-                const_width: 0.25,
-                elevation: 1.5,
-                plinegen: false,
-            }
-        };
-        let polylines: Vec<_> =
-            d.model.iter().filter_map(|e| if let EntityKind::LwPolyline(p) = &e.kind { Some((p, e.common.extrusion.z)) } else { None }).collect();
-        let expected = [(written(false, 0.0, 1.0), 1.0), (written(true, 20.0, 1.0), 1.0), (written(false, 40.0, -1.0), -1.0)];
-        assert_eq!(polylines.len(), 3, "{version:?}");
-        for ((got, z), (want, wz)) in polylines.iter().zip(&expected) {
-            assert_eq!(*got, want, "{version:?}");
-            assert_eq!(*z, *wz, "{version:?}: extrusion");
-        }
-        for t in ["POLYLINE", "VERTEX", "SEQEND", "SPLINE", "polyline", "vertex"] {
-            assert!(!unread.by_type.keys().any(|k| k.starts_with(t)), "{version:?}: {t} left unread: {}", unread.summary());
-        }
     }
 }
 
@@ -841,14 +697,14 @@ fn dimensions_drawing() -> draftcraft_doc::Drawing {
 }
 
 #[test]
-fn every_kind_of_dimension_reads_as_the_acadrust_reader_reads_it() {
+fn every_kind_of_dimension_reads_as_its_dxf_reads_it() {
     use draftcraft_doc::EntityKind;
-    use draftcraft_io::{DwgReader, SaveOptions, Version, read_dwg_with, write_with};
+    use draftcraft_io::{SaveOptions, Version, write_with};
     let source = dimensions_drawing();
     for version in [Version::R2000, Version::R2004, Version::R2007, Version::R2010, Version::R2013, Version::R2018] {
         let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
         let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
-        let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
+        let reference = via_dxf(&source, version);
         let dims = |d: &draftcraft_doc::Drawing| d.model.iter().filter(|e| matches!(e.kind, EntityKind::Dimension(_))).cloned().collect::<Vec<_>>();
         let (got, want) = (dims(&d), dims(&reference));
         assert_eq!(want.len(), 8, "{version:?}");
@@ -856,7 +712,7 @@ fn every_kind_of_dimension_reads_as_the_acadrust_reader_reads_it() {
         for (ge, we) in got.iter().zip(&want) {
             let (mut g, mut w) = (serde_json::to_value(ge.as_ref()).unwrap(), serde_json::to_value(we.as_ref()).unwrap());
             // DWG stores anonymous blocks unnumbered: this reader numbers them as AutoCAD does in a
-            // DXF (*D0 first), acadrust from *D1. The dimension's block must hold the same.
+            // DXF (*D0 first), which the DXF need not. The dimension's block must hold the same.
             let block = |d: &draftcraft_doc::Drawing, v: &serde_json::Value| {
                 let b = d.blocks.get(v["kind"]["block"].as_str().unwrap_or_default());
                 b.map(|b| b.entities.iter().map(|e| serde_json::to_value(&e.kind).unwrap()).collect::<Vec<_>>())
@@ -941,14 +797,14 @@ fn hatches_drawing() -> draftcraft_doc::Drawing {
 }
 
 #[test]
-fn hatches_read_as_the_acadrust_reader_reads_them() {
+fn hatches_read_as_their_dxf_reads_them() {
     use draftcraft_doc::EntityKind;
-    use draftcraft_io::{DwgReader, SaveOptions, Version, read_dwg_with, write_with};
+    use draftcraft_io::{SaveOptions, Version, write_with};
     let source = hatches_drawing();
     for version in [Version::R2000, Version::R2004, Version::R2007, Version::R2010, Version::R2013, Version::R2018] {
         let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
         let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
-        let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
+        let reference = via_dxf(&source, version);
         let hatches = |d: &draftcraft_doc::Drawing| d.model.iter().filter(|e| matches!(e.kind, EntityKind::Hatch(_))).cloned().collect::<Vec<_>>();
         let (got, want) = (hatches(&d), hatches(&reference));
         assert_eq!(want.len(), 6, "{version:?}");
@@ -958,102 +814,6 @@ fn hatches_read_as_the_acadrust_reader_reads_them() {
             assert!(close(&g["kind"], &w["kind"], false), "{version:?}\nread      {}\nreference {}", g["kind"], w["kind"]);
             assert!(close(&g["common"], &w["common"], false), "{version:?}: properties\nread      {}\nreference {}", g["common"], w["common"]);
         }
-        assert!(!unread.by_type.contains_key("HATCH"), "{version:?}: {}", unread.summary());
-    }
-}
-
-/// Hatches whose loops are edges, written through acadrust's own API (DraftCraft writes polyline
-/// loops): lines, a counter-clockwise and clockwise arcs, an elliptic arc ending on its axes, and
-/// a spline, with seed points, a derived loop (pixel size) and a pattern's own definition lines.
-fn hatch_edges_dwg(version: acadrust::types::DxfVersion) -> Vec<u8> {
-    use acadrust::entities::*;
-    use acadrust::types::Vector2;
-    use std::f64::consts::{FRAC_PI_2, PI};
-    let mut doc = acadrust::CadDocument::with_version(version);
-    let p = |x: f64, y: f64| Vector2::new(x, y);
-    let line = |a: Vector2, b: Vector2| BoundaryEdge::Line(LineEdge { start: a, end: b });
-    let arc = |c: Vector2, r: f64, s: f64, e: f64, ccw: bool| {
-        BoundaryEdge::CircularArc(CircularArcEdge { center: c, radius: r, start_angle: s, end_angle: e, counter_clockwise: ccw })
-    };
-    // Line, arc, line, half an ellipse (its major axis up, so it bows out to the left).
-    let mut a = BoundaryPath::with_flags(BoundaryPathFlags::EXTERNAL);
-    a.add_edge(line(p(100.0, 0.0), p(110.0, 0.0)));
-    a.add_edge(arc(p(110.0, 5.0), 5.0, -FRAC_PI_2, FRAC_PI_2, true));
-    a.add_edge(line(p(110.0, 10.0), p(100.0, 10.0)));
-    a.add_edge(BoundaryEdge::EllipticArc(EllipticArcEdge {
-        center: p(100.0, 5.0),
-        major_axis_endpoint: p(0.0, 5.0),
-        minor_axis_ratio: 0.4,
-        start_angle: 0.0,
-        end_angle: PI,
-        counter_clockwise: true,
-    }));
-    // A spline and the line that closes it.
-    let mut b = BoundaryPath::with_flags(BoundaryPathFlags::EXTERNAL);
-    b.add_edge(BoundaryEdge::Spline(SplineEdge {
-        degree: 3,
-        rational: false,
-        periodic: false,
-        knots: vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0],
-        control_points: vec![
-            acadrust::types::Vector3::new(120.0, 0.0, 1.0),
-            acadrust::types::Vector3::new(122.0, 5.0, 1.0),
-            acadrust::types::Vector3::new(128.0, 5.0, 1.0),
-            acadrust::types::Vector3::new(130.0, 0.0, 1.0),
-        ],
-        fit_points: Vec::new(),
-        start_tangent: Vector2::ZERO,
-        end_tangent: Vector2::ZERO,
-    }));
-    b.add_edge(line(p(130.0, 0.0), p(120.0, 0.0)));
-    // A circle as two clockwise arcs, derived (a pixel size follows the loops).
-    let mut c = BoundaryPath::with_flags(BoundaryPathFlags::from_bits(1 | 4));
-    c.add_edge(arc(p(140.0, 5.0), 5.0, 0.0, PI, false));
-    c.add_edge(arc(p(140.0, 5.0), 5.0, PI, 2.0 * PI, false));
-    let mut solid = Hatch::solid();
-    solid.add_path(a);
-    solid.add_seed_point(p(105.0, 5.0));
-    doc.add_entity(EntityType::Hatch(Box::new(solid))).unwrap();
-    let mut spline = Hatch::solid();
-    spline.add_path(b);
-    doc.add_entity(EntityType::Hatch(Box::new(spline))).unwrap();
-    let mut pattern = HatchPattern::new("STRIPES");
-    pattern.add_line(HatchPatternLine { angle: 0.3, base_point: p(140.0, 5.0), offset: p(-0.2, 0.6), dash_lengths: vec![0.5, -0.25] });
-    pattern.add_line(HatchPatternLine { angle: 0.3 + FRAC_PI_2, base_point: p(140.0, 5.0), offset: p(0.0, 1.0), dash_lengths: Vec::new() });
-    let mut patterned = Hatch::with_pattern(pattern);
-    patterned.is_solid = false;
-    patterned.pattern_type = HatchPatternType::Custom;
-    patterned.pattern_angle = 0.3;
-    patterned.pattern_scale = 2.0;
-    patterned.pixel_size = 0.05;
-    patterned.add_path(c);
-    patterned.add_seed_point(p(140.0, 5.0));
-    patterned.add_seed_point(p(141.0, 5.0));
-    doc.add_entity(EntityType::Hatch(Box::new(patterned))).unwrap();
-    acadrust::DwgWriter::write_to_vec(&doc).unwrap()
-}
-
-#[test]
-fn hatch_edges_read_as_the_acadrust_reader_reads_them() {
-    use acadrust::types::DxfVersion as A;
-    use draftcraft_doc::EntityKind;
-    use draftcraft_io::{DwgReader, read_dwg_with};
-    for version in [A::AC1015, A::AC1018, A::AC1021, A::AC1024, A::AC1027, A::AC1032] {
-        let bytes = hatch_edges_dwg(version);
-        let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
-        let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
-        let hatches = |d: &draftcraft_doc::Drawing| d.model.iter().filter(|e| matches!(e.kind, EntityKind::Hatch(_))).cloned().collect::<Vec<_>>();
-        let (got, want) = (hatches(&d), hatches(&reference));
-        assert_eq!(want.len(), 3, "{version:?}");
-        assert_eq!(got.len(), want.len(), "{version:?}: unread {}", unread.summary());
-        for (ge, we) in got.iter().zip(&want) {
-            let (g, w) = (serde_json::to_value(ge.as_ref()).unwrap(), serde_json::to_value(we.as_ref()).unwrap());
-            assert!(close(&g["kind"], &w["kind"], false), "{version:?}\nread      {}\nreference {}", g["kind"], w["kind"]);
-            let EntityKind::Hatch(h) = &ge.kind else { unreachable!() };
-            assert!(h.loops.iter().all(|l| l.vertices.len() >= 2), "{version:?}: every edge loop has its vertices");
-        }
-        let EntityKind::Hatch(patterned) = &got[2].kind else { unreachable!() };
-        assert_eq!(patterned.pattern_lines.len(), 2, "{version:?}");
         assert!(!unread.by_type.contains_key("HATCH"), "{version:?}: {}", unread.summary());
     }
 }
@@ -1154,14 +914,14 @@ fn annotation_drawing() -> draftcraft_doc::Drawing {
 }
 
 #[test]
-fn leaders_tolerances_and_multileaders_read_as_the_acadrust_reader_reads_them() {
+fn leaders_tolerances_and_multileaders_read_as_their_dxf_reads_them() {
     use draftcraft_doc::EntityKind;
-    use draftcraft_io::{DwgReader, SaveOptions, Version, read_dwg_with, write_with};
+    use draftcraft_io::{SaveOptions, Version, write_with};
     let source = annotation_drawing();
     for version in [Version::R2000, Version::R2004, Version::R2007, Version::R2010, Version::R2013, Version::R2018] {
         let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
         let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
-        let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
+        let reference = via_dxf(&source, version);
         // Up to 2004 a multileader is saved as a leader and its text or block reference: every
         // entity is compared. From 2007 it is a MULTILEADER.
         let (got, want) = (d.model.iter().cloned().collect::<Vec<_>>(), reference.model.iter().cloned().collect::<Vec<_>>());
@@ -1187,61 +947,6 @@ fn leaders_tolerances_and_multileaders_read_as_the_acadrust_reader_reads_them() 
         for t in ["LEADER", "TOLERANCE", "MULTILEADER"] {
             assert!(!unread.by_type.keys().any(|k| k.starts_with(t)), "{version:?}: {}", unread.summary());
         }
-    }
-}
-
-/// Mirrored text, written through acadrust's API (DraftCraft keeps text readable and never saves
-/// it mirrored): texts and paragraph texts whose plane faces down, left-aligned and aligned on a
-/// second point, rotated, beside their upright twins.
-fn mirrored_text_dwg(version: acadrust::types::DxfVersion) -> Vec<u8> {
-    use acadrust::entities::*;
-    use acadrust::types::Vector3;
-    let mut doc = acadrust::CadDocument::with_version(version);
-    for (z, y) in [(1.0, 0.0), (-1.0, 10.0)] {
-        let mut t = Text::with_value("MIRRORED", Vector3::new(5.0, y, 0.0));
-        t.height = 0.5;
-        t.rotation = 0.3;
-        t.normal = Vector3::new(0.0, 0.0, z);
-        doc.add_entity(EntityType::Text(t)).unwrap();
-        let mut c = Text::with_value("CENTRED", Vector3::new(5.0, y + 2.0, 0.0));
-        c.height = 0.5;
-        c.horizontal_alignment = TextHorizontalAlignment::Center;
-        c.alignment_point = Some(Vector3::new(8.0, y + 2.0, 0.0));
-        c.normal = Vector3::new(0.0, 0.0, z);
-        doc.add_entity(EntityType::Text(c)).unwrap();
-        let mut m = MText::with_value("PARAGRAPH\\PTWO LINES", Vector3::new(5.0, y + 5.0, 0.0));
-        m.height = 0.4;
-        m.rectangle_width = 6.0;
-        m.rotation = 0.2;
-        m.attachment_point = AttachmentPoint::TopLeft;
-        m.normal = Vector3::new(0.0, 0.0, z);
-        doc.add_entity(EntityType::MText(Box::new(m))).unwrap();
-    }
-    acadrust::DwgWriter::write_to_vec(&doc).unwrap()
-}
-
-#[test]
-fn mirrored_text_reads_as_the_acadrust_reader_reads_it() {
-    use acadrust::types::DxfVersion as A;
-    use draftcraft_doc::EntityKind;
-    use draftcraft_io::{DwgReader, read_dwg_with};
-    for version in [A::AC1015, A::AC1018, A::AC1021, A::AC1024, A::AC1027, A::AC1032] {
-        let bytes = mirrored_text_dwg(version);
-        let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
-        let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
-        let texts = |d: &draftcraft_doc::Drawing| {
-            d.model.iter().filter(|e| matches!(e.kind, EntityKind::Text(_) | EntityKind::MText(_))).cloned().collect::<Vec<_>>()
-        };
-        let (got, want) = (texts(&d), texts(&reference));
-        assert_eq!(want.len(), 6, "{version:?}");
-        assert_eq!(got.len(), want.len(), "{version:?}: unread {}", unread.summary());
-        for (ge, we) in got.iter().zip(&want) {
-            let (g, w) = (serde_json::to_value(ge.as_ref()).unwrap(), serde_json::to_value(we.as_ref()).unwrap());
-            assert!(close(&g["kind"], &w["kind"], false), "{version:?}\nread      {}\nreference {}", g["kind"], w["kind"]);
-            assert!(close(&g["common"], &w["common"], false), "{version:?}: properties\nread      {}\nreference {}", g["common"], w["common"]);
-        }
-        // The mirrored ones are not the upright ones read again.
-        assert_ne!(serde_json::to_value(&got[0].kind).unwrap(), serde_json::to_value(&got[3].kind).unwrap(), "{version:?}");
     }
 }
 
@@ -1302,20 +1007,22 @@ fn viewports_drawing() -> draftcraft_doc::Drawing {
         },
         Viewport { clip: Some(circle), ..vp(30.0, Vec2::new(40.0, 20.0)) },
     ];
-    for v in viewports {
-        d.add(&paper, Common::default(), EntityKind::Viewport(v)).expect("viewport");
+    // Numbered as AutoCAD numbers them, after the layout's own paper-space view (1): a DWG
+    // stores no number, so its reader numbers the viewports in their order.
+    for (id, v) in (2..).zip(viewports) {
+        d.add(&paper, Common::default(), EntityKind::Viewport(Viewport { id, ..v })).expect("viewport");
     }
     d
 }
 
 #[test]
-fn viewports_read_as_the_acadrust_reader_reads_them() {
-    use draftcraft_io::{DwgReader, SaveOptions, Version, read_dwg_with, write_with};
+fn viewports_read_as_their_dxf_reads_them() {
+    use draftcraft_io::{SaveOptions, Version, write_with};
     let source = viewports_drawing();
     for version in [Version::R2000, Version::R2004, Version::R2007, Version::R2010, Version::R2013, Version::R2018] {
         let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
         let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
-        let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
+        let reference = via_dxf(&source, version);
         let sheet =
             |d: &draftcraft_doc::Drawing| d.layouts.iter().flat_map(|l| l.entities.iter().cloned().map(|e| (l.name.clone(), e))).collect::<Vec<_>>();
         let (got, want) = (sheet(&d), sheet(&reference));
@@ -1390,14 +1097,14 @@ fn images_drawing() -> draftcraft_doc::Drawing {
 }
 
 #[test]
-fn images_wipeouts_and_underlays_read_as_the_acadrust_reader_reads_them() {
+fn images_wipeouts_and_underlays_read_as_their_dxf_reads_them() {
     use draftcraft_doc::EntityKind;
-    use draftcraft_io::{DwgReader, SaveOptions, Version, read_dwg_with, write_with};
+    use draftcraft_io::{SaveOptions, Version, write_with};
     let source = images_drawing();
     for version in [Version::R2000, Version::R2004, Version::R2007, Version::R2010, Version::R2013, Version::R2018] {
         let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
         let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
-        let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
+        let reference = via_dxf(&source, version);
         let (got, want) = (d.model.iter().cloned().collect::<Vec<_>>(), reference.model.iter().cloned().collect::<Vec<_>>());
         assert_eq!(want.iter().filter(|e| matches!(e.kind, EntityKind::Image(_) | EntityKind::Wipeout(_))).count(), 5, "{version:?}");
         assert_eq!(got.len(), want.len(), "{version:?}: unread {}", unread.summary());
@@ -1471,14 +1178,14 @@ fn mlines_drawing() -> draftcraft_doc::Drawing {
 }
 
 #[test]
-fn multilines_read_as_the_acadrust_reader_reads_them() {
+fn multilines_read_as_their_dxf_reads_them() {
     use draftcraft_doc::EntityKind;
-    use draftcraft_io::{DwgReader, SaveOptions, Version, read_dwg_with, write_with};
+    use draftcraft_io::{SaveOptions, Version, write_with};
     let source = mlines_drawing();
     for version in [Version::R2000, Version::R2004, Version::R2007, Version::R2010, Version::R2013, Version::R2018] {
         let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
         let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
-        let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
+        let reference = via_dxf(&source, version);
         let mlines = |d: &draftcraft_doc::Drawing| d.model.iter().filter(|e| matches!(e.kind, EntityKind::MLine(_))).cloned().collect::<Vec<_>>();
         let (got, want) = (mlines(&d), mlines(&reference));
         assert_eq!(want.len(), 4, "{version:?}");
@@ -1538,14 +1245,14 @@ fn tables_drawing() -> draftcraft_doc::Drawing {
 }
 
 #[test]
-fn tables_read_as_the_acadrust_reader_reads_them() {
+fn tables_read_as_their_dxf_reads_them() {
     use draftcraft_doc::EntityKind;
-    use draftcraft_io::{DwgReader, SaveOptions, Version, read_dwg_with, write_with};
+    use draftcraft_io::{SaveOptions, Version, write_with};
     let source = tables_drawing();
     for version in [Version::R2000, Version::R2004, Version::R2007, Version::R2010, Version::R2013, Version::R2018] {
         let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
         let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
-        let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
+        let reference = via_dxf(&source, version);
         let (got, want) = (d.model.iter().cloned().collect::<Vec<_>>(), reference.model.iter().cloned().collect::<Vec<_>>());
         assert_eq!(want.iter().filter(|e| matches!(e.kind, EntityKind::Table(_))).count(), 2, "{version:?}");
         assert_eq!(got.len(), want.len(), "{version:?}: unread {}", unread.summary());
@@ -1585,14 +1292,14 @@ fn regions_drawing() -> draftcraft_doc::Drawing {
 }
 
 #[test]
-fn regions_read_as_the_acadrust_reader_reads_them() {
+fn regions_read_as_their_dxf_reads_them() {
     use draftcraft_doc::EntityKind;
-    use draftcraft_io::{DwgReader, SaveOptions, Version, read_dwg_with, write_with};
+    use draftcraft_io::{SaveOptions, Version, write_with};
     let source = regions_drawing();
     for version in [Version::R2000, Version::R2004, Version::R2007, Version::R2010, Version::R2013, Version::R2018] {
         let bytes = write_with(&source, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
         let (d, unread) = dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
-        let reference = read_dwg_with(&bytes, DwgReader::Acadrust).unwrap();
+        let reference = via_dxf(&source, version);
         let (got, want) = (d.model.iter().cloned().collect::<Vec<_>>(), reference.model.iter().cloned().collect::<Vec<_>>());
         assert_eq!(want.iter().filter(|e| matches!(e.kind, EntityKind::Region(_))).count(), 3, "{version:?}");
         assert_eq!(got.len(), want.len(), "{version:?}: unread {}", unread.summary());
@@ -1605,7 +1312,7 @@ fn regions_read_as_the_acadrust_reader_reads_them() {
     }
 }
 
-/// DIMASSOC objects as DraftCraft's save path writes them (through acadrust) name subentities
+/// DIMASSOC objects as DraftCraft's save path writes them name subentities
 /// with values AutoCAD's own files have as zero: each is read, in every version.
 #[test]
 fn saved_dimension_associations_are_read() {
@@ -1643,22 +1350,6 @@ fn write_dwg_fixtures() {
         for version in [Version::R2000, Version::R2004, Version::R2007, Version::R2010, Version::R2013, Version::R2018] {
             let bytes = write_with(d, "t.dwg", &SaveOptions { version: Some(version), binary: false }).unwrap();
             std::fs::write(std::path::Path::new(&dir).join(format!("{name}-{version:?}.dwg")), bytes).unwrap();
-        }
-    }
-    let acad = [
-        ("curves", curves_dwg as fn(acadrust::types::DxfVersion) -> Vec<u8>),
-        ("hatch-edges", hatch_edges_dwg),
-        ("mirrored-text", mirrored_text_dwg),
-    ];
-    for (name, make) in acad {
-        for v in [
-            acadrust::types::DxfVersion::AC1015,
-            acadrust::types::DxfVersion::AC1018,
-            acadrust::types::DxfVersion::AC1024,
-            acadrust::types::DxfVersion::AC1027,
-            acadrust::types::DxfVersion::AC1032,
-        ] {
-            std::fs::write(std::path::Path::new(&dir).join(format!("{name}-{v:?}.dwg")), make(v)).unwrap();
         }
     }
 }

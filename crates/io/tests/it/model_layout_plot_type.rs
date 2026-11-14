@@ -56,11 +56,19 @@ fn model_layout_plots_extents_fitted_and_layouts_their_sheet() {
 }
 
 #[test]
-fn model_layout_plot_type_survives_the_dwg_bridge() {
+fn model_layout_plot_type_survives_dwg() {
+    use draftcraft_dwg::records::model::{NonGraphic, ObjectKind};
     let dwg = draftcraft_io::write(&drawing(), "x.dwg").unwrap();
-    // What the DWG holds, as the bridge's own DXF.
-    let dxf = String::from_utf8_lossy(&draftcraft_dwg::acadrust::dwg_to_dxf(&dwg).unwrap()).to_string();
-    let p = plots(&dxf);
+    // What the DWG holds: each layout's name and plot type, as its object records give them.
+    let file = draftcraft_dwg::read_bytes(&dwg).unwrap();
+    let p: Vec<(String, Option<i64>, Option<i64>)> = file
+        .objects
+        .values()
+        .filter_map(|o| match &o.kind {
+            ObjectKind::NonGraphic(NonGraphic::Layout(l)) => Some((l.name.clone(), Some(i64::from(l.plot.plot_type)), None)),
+            _ => None,
+        })
+        .collect();
     let model = p.iter().find(|(n, _, _)| n.eq_ignore_ascii_case("Model")).unwrap();
     assert_eq!(model.1, Some(1), "{p:?}");
     assert_ne!(p.iter().find(|(n, _, _)| !n.eq_ignore_ascii_case("Model")).and_then(|l| l.1), None);

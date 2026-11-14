@@ -242,13 +242,14 @@ fn hostile_multibyte_never_panics() {
     }
 }
 
-/// A pre-2007 DWG keeps its code page through the acadrust bridge: a Cyrillic R2000 DXF saved as
-/// DWG (acadrust writes 2004, text in ANSI_1251) opens with its text.
+/// A pre-2007 DWG keeps its code page: a Cyrillic R2000 DXF saved as a 2004 DWG (text in
+/// ANSI_1251) opens with its text.
 #[cfg(not(target_arch = "wasm32"))]
 #[test]
-fn pre_2007_dwg_text_decodes_through_the_bridge() {
+fn pre_2007_dwg_text_keeps_its_code_page() {
     let dxf = ascii_dxf("AC1015", "ANSI_1251", b"\xD1\xEB\xEE\xE9", b"\xC1\xEB\xEE\xEA", b"\xCF\xF0\xE8\xE2\xE5\xF2");
-    let dwg = draftcraft_dwg::acadrust::dxf_to_dwg(&dxf).unwrap();
+    let opts = draftcraft_io::SaveOptions { version: Some(draftcraft_io::Version::R2004), binary: false };
+    let dwg = draftcraft_io::write_with(&draftcraft_io::read_dxf(&dxf).unwrap(), "x.dwg", &opts).unwrap();
     let d = draftcraft_io::read(&dwg, "x.dwg").unwrap();
     assert_eq!(names(&d), ("Слой".into(), "Блок".into(), "Привет".into()));
 }

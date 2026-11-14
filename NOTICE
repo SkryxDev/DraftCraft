@@ -14,11 +14,9 @@ version should not be presented as DraftCraft. Their terms are in docs/brand/LIC
 
 Third-party material
 
-Software dependencies are listed in Cargo.lock. One is under a weak-copyleft licence: the acadrust
-crate (DWG reading and writing, https://github.com/hakanaktt/acadrust) is licensed under the
-Mozilla Public License 2.0 and is used unmodified as a separate library (crates/dwg). Its source
-is available from crates.io and the repository above. DraftCraft's own DWG reader and writer don't
-use it; it is the fallback for files they don't cover yet (crates/dwg/src/acadrust).
+Software dependencies are listed in Cargo.lock. DWG files are read and written by DraftCraft's own
+code (crates/dwg, crates/io), from the Open Design Alliance's public DWG specification and our own
+tests.
 
 
 DraftCraft's icons, drafting font, hatch patterns and linetypes are drawn or defined in code.

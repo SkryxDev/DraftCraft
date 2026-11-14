@@ -66,48 +66,26 @@ pub enum IoError {
 
 pub type Result<T> = std::result::Result<T, IoError>;
 
-/// How a program runs the DWG reader and writer in a child process (`draftcraft_dwg::acadrust::worker`).
-pub mod dwg_worker {
-    pub use draftcraft_dwg::acadrust::{WORKER_ARG, serve_if_asked, use_own_worker};
-    #[cfg(all(not(target_arch = "wasm32"), not(all(target_os = "freebsd", target_arch = "aarch64"))))]
-    pub use draftcraft_dwg::acadrust::{crash_worker_for_test, use_worker};
-}
-
 fn ext(name: impl AsRef<Path>) -> String {
     name.as_ref().extension().map(|e| e.to_string_lossy().to_ascii_lowercase()).unwrap_or_default()
 }
 
-/// Read a drawing; the format comes from the content (DXF ASCII/binary, DWG) or the name
-/// (SVG and gzip-compressed SVGZ).
-pub fn read(bytes: &[u8], name: impl AsRef<Path>) -> Result<Drawing> {
-    read_source(bytes, name.as_ref()).map(|(d, _)| d)
-}
-
-/// [`read`], also returning the DXF rendition a DWG was read through (`None` for other files),
 /// Which reader opens DWG files.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DwgReader {
     /// DraftCraft's direct reader ([`dwg::read`]): each object decoded field by field into the
-    /// drawing. The default: acadrust is not used to open files. What it leaves out is listed
-    /// in the drawing's read notes.
+    /// drawing. The default. What it leaves out is listed in the drawing's read notes.
     Direct,
-    /// acadrust, through DXF (`draftcraft_dwg::acadrust`): kept for comparison until it is
-    /// removed, used only when asked for.
-    Acadrust,
-    /// The first native mapping ([`dwg_read`]), over BlackCAD's records.
+    /// The first native mapping ([`dwg_read`]), over BlackCAD's records: kept to compare.
     Native,
-    /// The first native mapping when it carries the whole file over, acadrust otherwise.
-    Auto,
 }
 
 impl DwgReader {
-    /// `DRAFTCRAFT_DWG_READER=acadrust`, `native` or `auto` to compare; anything else, or nothing,
-    /// is the direct reader. (A browser has no environment: it always reads directly.)
+    /// `DRAFTCRAFT_DWG_READER=native` to compare; anything else, or nothing, is the direct reader.
+    /// (A browser has no environment: it always reads directly.)
     pub fn from_env() -> DwgReader {
         match std::env::var("DRAFTCRAFT_DWG_READER").unwrap_or_default().to_ascii_lowercase().as_str() {
-            "acadrust" => DwgReader::Acadrust,
             "native" => DwgReader::Native,
-            "auto" => DwgReader::Auto,
             _ => DwgReader::Direct,
         }
     }
@@ -115,48 +93,39 @@ impl DwgReader {
 
 /// Read a DWG file with the reader named.
 pub fn read_dwg_with(bytes: &[u8], reader: DwgReader) -> Result<Drawing> {
-    read_dwg_source(bytes, reader).map(|(d, _)| d)
-}
-
-/// A DWG file, and the DXF acadrust converted it to when it was that reader (which the
-/// round-trip harness counts against).
-fn read_dwg_source(bytes: &[u8], reader: DwgReader) -> Result<(Drawing, Option<Vec<u8>>)> {
-    let limits = draftcraft_dwg::Limits::DEFAULT;
-    if reader == DwgReader::Direct {
-        let (mut d, unread) = dwg::read(bytes)?;
-        d.read_notes.extend(unread.note());
-        return Ok((d, None));
-    }
-    if reader != DwgReader::Acadrust {
-        if bytes.len() > limits.max_dwg_bytes {
-            return Err(IoError::Format(format!("DWG: the file is larger than the {} MB DraftCraft opens", limits.max_dwg_bytes >> 20)));
+    match reader {
+        DwgReader::Direct => {
+            let (mut d, unread) = dwg::read(bytes)?;
+            d.read_notes.extend(unread.note());
+            Ok(d)
         }
-        let (mut d, cov) = dwg_read::read(bytes)?;
-        if reader == DwgReader::Native || cov.is_whole() {
+        DwgReader::Native => {
+            let limit = draftcraft_dwg::Limits::DEFAULT.max_dwg_bytes;
+            if bytes.len() > limit {
+                return Err(IoError::Format(format!("DWG: the file is larger than the {} MB DraftCraft opens", limit >> 20)));
+            }
+            let (mut d, cov) = dwg_read::read(bytes)?;
             if !cov.is_whole() {
                 d.read_notes.push(format!("DWG: left out of the drawing: {}", cov.summary()));
             }
-            return Ok((d, None));
+            Ok(d)
         }
     }
-    let (dxf, notes) = draftcraft_dwg::acadrust::decode(bytes, limits).map_err(IoError::Format)?;
-    let mut d = dxf_read::read(&dxf).map_err(|e| IoError::Format(format!("{e} (in the DXF converted from this DWG)")))?;
-    d.read_notes = notes;
-    Ok((d, Some(dxf)))
 }
 
-/// which the round-trip harness counts.
-pub(crate) fn read_source(bytes: &[u8], name: &Path) -> Result<(Drawing, Option<Vec<u8>>)> {
+/// Read a drawing; the format comes from the content (DXF ASCII/binary, DWG) or the name
+/// (SVG and gzip-compressed SVGZ).
+pub fn read(bytes: &[u8], name: impl AsRef<Path>) -> Result<Drawing> {
     if draftcraft_dwg::is_dwg(bytes) {
-        return read_dwg_source(bytes, DwgReader::from_env());
+        return read_dwg_with(bytes, DwgReader::from_env());
     }
-    let d = match (Format::from_path(name), ext(name).as_str()) {
+    let name = name.as_ref();
+    match (Format::from_path(name), ext(name).as_str()) {
         (Some(Format::Svg | Format::Svgz), _) => svg_read::read(bytes),
         (Some(Format::Dxf), _) => dxf_read::read(bytes),
         (_, e) if bytes.len() > 4 => dxf_read::read(bytes).map_err(|_| IoError::Unsupported(e.to_string())),
         (_, e) => Err(IoError::Unsupported(e.to_string())),
-    }?;
-    Ok((d, None))
+    }
 }
 
 /// Write a drawing in the format chosen by the name's extension. Images (PNG, SVG, PDF) show
@@ -183,10 +152,10 @@ pub fn write_with(d: &Drawing, name: impl AsRef<Path>, opts: &SaveOptions) -> Re
                 (false, false) => draftcraft_dxf::write_ascii_in(&tags, &code_page),
             })
         }
-        // The DWG bridge reads our R2000 DXF and writes the DWG at the version asked for. Without
-        // one, at least 2004: R2000 DWG has no true colours, transparency, table styles or
-        // gradients, so a drawing from an R2000 DXF doesn't lose them by default.
-        Some(Format::Dwg) if !opts.binary => write_dwg(d, opts.version.unwrap_or_else(|| version.max(Version::R2004))).map(|(dwg, _)| dwg),
+        // Without a version asked for, at least 2004: R2000 DWG has no true colours,
+        // transparency, table styles or gradients, so a drawing from an R2000 DXF doesn't lose
+        // them by default.
+        Some(Format::Dwg) if !opts.binary => write_dwg_own(d, opts.version.unwrap_or_else(|| version.max(Version::R2004))).map(|(dwg, _)| dwg),
         _ if opts.binary => Err(IoError::Format(format!("binary output is for DXF files, not `{}`", ext(name)))),
         _ => write_framed(d, name, None),
     }
@@ -195,18 +164,19 @@ pub fn write_with(d: &Drawing, name: impl AsRef<Path>, opts: &SaveOptions) -> Re
 /// [`write_with`], also returning what the file leaves out of the drawing: for a DWG, how many
 /// records of each DXF type the DWG writer can't write (other programs' custom entities and
 /// objects); for other formats, nothing.
-pub fn write_noted(d: &Drawing, name: impl AsRef<Path>, opts: &SaveOptions) -> Result<(Vec<u8>, draftcraft_dwg::acadrust::Unwritten)> {
+pub fn write_noted(d: &Drawing, name: impl AsRef<Path>, opts: &SaveOptions) -> Result<(Vec<u8>, dwg::write::Unwritten)> {
     let name = name.as_ref();
     if matches!(Format::from_path(name), Some(Format::Dwg)) && !opts.binary {
-        return write_dwg(d, opts.version.unwrap_or_else(|| save_version(d).max(Version::R2004)));
+        return write_dwg_own(d, opts.version.unwrap_or_else(|| save_version(d).max(Version::R2004)));
     }
-    write_with(d, name, opts).map(|b| (b, draftcraft_dwg::acadrust::Unwritten::new()))
+    write_with(d, name, opts).map(|b| (b, dwg::write::Unwritten::new()))
 }
 
 /// The drawing as a DWG file of `version` by DraftCraft's own writer ([`dwg::write`]), with the
 /// records the file leaves out, by type.
 pub fn write_dwg_own(d: &Drawing, version: Version) -> Result<(Vec<u8>, dwg::write::Unwritten)> {
     let ver = dwg::write::version_of(version.code()).ok_or_else(|| IoError::Format(format!("DWG: no writer for {}", version.code())))?;
+    let d = &*with_handles(d);
     let mut tags = dxf_write::dwg_records(d, version);
     dwg::write::add_variable_dictionary(&mut tags, d);
     let preview = dwg::write::preview(d);
@@ -221,6 +191,48 @@ pub fn write_dwg_own(d: &Drawing, version: Version) -> Result<(Vec<u8>, dwg::wri
     Ok((bytes, unwritten))
 }
 
+/// `d` with a handle of its own for every entity that has none (handle 0, as a program that
+/// builds a drawing directly may leave a block's entities): a DWG object can't be written without
+/// one. The drawing itself when every entity has a handle.
+fn with_handles(d: &Drawing) -> std::borrow::Cow<'_, Drawing> {
+    let unnumbered = |s: &draftcraft_doc::EntityStore| s.iter().any(|e| e.handle.0 == 0);
+    if !unnumbered(&d.model) && !d.layouts.iter().any(|l| unnumbered(&l.entities)) && !d.blocks.values().any(|b| unnumbered(&b.entities)) {
+        return std::borrow::Cow::Borrowed(d);
+    }
+    let mut d = d.clone();
+    fn renumbered(d: &mut Drawing, s: &draftcraft_doc::EntityStore) -> draftcraft_doc::EntityStore {
+        let mut out = draftcraft_doc::EntityStore::new();
+        for e in s.iter() {
+            let mut e = draftcraft_doc::Entity::clone(e);
+            if e.handle.0 == 0 {
+                e.handle = d.new_handle();
+            }
+            out.push(e);
+        }
+        out
+    }
+    if unnumbered(&d.model) {
+        let model = d.model.clone();
+        d.model = renumbered(&mut d, &model);
+    }
+    for i in 0..d.layouts.len() {
+        let Some(store) = d.layouts.get(i).filter(|l| unnumbered(&l.entities)).map(|l| l.entities.clone()) else { continue };
+        let store = renumbered(&mut d, &store);
+        if let Some(l) = d.layouts.get_mut(i) {
+            l.entities = store;
+        }
+    }
+    let names: Vec<String> = d.blocks.iter().filter(|(_, b)| unnumbered(&b.entities)).map(|(n, _)| n.clone()).collect();
+    for name in names {
+        let Some(store) = d.blocks.get(&name).map(|b| b.entities.clone()) else { continue };
+        let store = renumbered(&mut d, &store);
+        if let Some(b) = d.blocks.get_mut(&name) {
+            std::sync::Arc::make_mut(b).entities = store;
+        }
+    }
+    std::borrow::Cow::Owned(d)
+}
+
 /// A DWG file just written, read back before it is handed over: a file this program can't read
 /// again, or that reads as an empty drawing when it was given entities (more than the `left_out`
 /// the version can't hold), is never saved.
@@ -231,16 +243,6 @@ fn check_dwg(bytes: &[u8], d: &Drawing, left_out: usize) -> Result<()> {
         return Err(IoError::Format("DWG: the file written reads back without its entities, so it was not saved".into()));
     }
     Ok(())
-}
-
-/// The drawing as a DWG file of `version`: by DraftCraft's own writer, or by acadrust when
-/// `DRAFTCRAFT_DWG_WRITER=acadrust` asks for it (to compare, until it is removed).
-fn write_dwg(d: &Drawing, version: Version) -> Result<(Vec<u8>, draftcraft_dwg::acadrust::Unwritten)> {
-    let acadrust = std::env::var("DRAFTCRAFT_DWG_WRITER").is_ok_and(|v| v.eq_ignore_ascii_case("acadrust"));
-    if acadrust {
-        return draftcraft_dwg::acadrust::encode_noted(dxf_write::dwg_bridge(d, version).as_bytes(), version.code()).map_err(IoError::Format);
-    }
-    write_dwg_own(d, version)
 }
 
 /// Like [`write`], but image formats (PNG, SVG, PDF) show `window` (a model-space rectangle in

@@ -41,133 +41,20 @@ fn check(d: &Drawing) {
     assert_eq!(t.cells[0][2].text_height, Some(0.125));
 }
 
+/// Through DWG, in the versions of both table layouts (the cells' own fields up to 2007, the
+/// table content from 2010): a cell's own height stays its own, the others inherit.
 #[test]
 fn table_cell_heights_keep_inheritance_through_dwg() {
-    let bytes = draftcraft_io::write(&drawing(), "height.dwg").unwrap();
-    // A style record can be present for metadata without overriding its text height.
-    // Write that synthetic representation directly so no earlier DXF conversion can
-    // turn the unused default into an explicit override before this import.
-    let mut doc = acadrust::DwgReader::from_stream(std::io::Cursor::new(bytes)).read().unwrap();
-    let table = doc
-        .entities_mut()
-        .find_map(|e| match e {
-            acadrust::entities::EntityType::Table(t) => Some(t),
-            _ => None,
-        })
-        .unwrap();
-    table.rows[0].cells[0].style = Some(acadrust::entities::table::CellStyle::new());
-    let bytes = acadrust::DwgWriter::write_to_vec(&doc).unwrap();
-    check(&draftcraft_io::read(&bytes, "height.dwg").unwrap());
+    use draftcraft_io::{SaveOptions, Version};
+    for version in [Version::R2000, Version::R2007, Version::R2010, Version::R2018] {
+        let opts = SaveOptions { version: Some(version), binary: false };
+        let bytes = draftcraft_io::write_with(&drawing(), "height.dwg", &opts).unwrap();
+        check(&draftcraft_io::read(&bytes, "height.dwg").unwrap());
+    }
 }
 
 #[test]
 fn table_cell_heights_keep_inheritance_through_dxf() {
     let bytes = draftcraft_io::write(&drawing(), "height.dxf").unwrap();
     check(&draftcraft_io::read(&bytes, "height.dxf").unwrap());
-}
-
-// ---- cells with their own style record (review on #2588) ----
-
-use acadrust::entities::table::{CellContent, CellStyle, CellStylePropertyFlags};
-
-/// Write the drawing as a DWG, edit its first cell through acadrust (`edit`), write it again as a
-/// DWG (or, with `as_dxf`, as a DXF by acadrust's writer) and read it with DraftCraft. Returns the first cell's
-/// text height override.
-fn first_cell_height(as_dxf: bool, edit: impl FnOnce(&mut acadrust::entities::table::TableCell)) -> Option<f64> {
-    let bytes = draftcraft_io::write(&drawing(), "height.dwg").unwrap();
-    let mut doc = acadrust::DwgReader::from_stream(std::io::Cursor::new(bytes)).read().unwrap();
-    let table = doc
-        .entities_mut()
-        .find_map(|e| match e {
-            acadrust::entities::EntityType::Table(t) => Some(t),
-            _ => None,
-        })
-        .unwrap();
-    edit(&mut table.rows[0].cells[0]);
-    let d = if as_dxf {
-        let bytes = acadrust::DxfWriter::new(&doc).write_to_vec().unwrap();
-        draftcraft_io::read(&bytes, "height.dxf").unwrap()
-    } else {
-        let bytes = acadrust::DwgWriter::write_to_vec(&doc).unwrap();
-        draftcraft_io::read(&bytes, "height.dwg").unwrap()
-    };
-    d.model
-        .iter()
-        .find_map(|e| match &e.kind {
-            EntityKind::Table(t) => Some(t.cells[0][0].text_height),
-            _ => None,
-        })
-        .unwrap()
-}
-
-fn styled(height: f64, flags: CellStylePropertyFlags) -> CellStyle {
-    let mut s = CellStyle::new();
-    s.text_height = height;
-    s.property_flags = flags;
-    s
-}
-
-#[test]
-fn a_cell_style_with_the_text_height_flag_keeps_its_height() {
-    let h = first_cell_height(false, |c| c.style = Some(styled(0.5, CellStylePropertyFlags::TEXT_HEIGHT)));
-    assert_eq!(h, Some(0.5));
-}
-
-#[test]
-fn content_with_format_override_bit_128_keeps_its_own_height() {
-    // acadrust writes the content's height as group 144 and the style's as 140; they differ here
-    // so the result shows which one DraftCraft honoured.
-    let h = first_cell_height(false, |c| {
-        c.style = Some(styled(0.5, CellStylePropertyFlags::NONE));
-        if c.contents.is_empty() {
-            c.contents.push(CellContent::new());
-        }
-        c.contents[0].format_override_flags |= 128;
-        c.contents[0].text_height = 0.3125;
-    });
-    assert_eq!(h, Some(0.3125));
-}
-
-/// Only the first content's override stands for the cell: a later content's height must not
-/// replace the first content's inherited one (review on #2588).
-#[test]
-fn a_later_contents_height_does_not_replace_the_first_contents() {
-    let h = first_cell_height(false, |c| {
-        c.style = Some(styled(0.18, CellStylePropertyFlags::NONE));
-        c.contents.clear();
-        c.contents.push(CellContent::new());
-        let mut later = CellContent::new();
-        later.format_override_flags |= 128;
-        later.text_height = 0.3125;
-        c.contents.push(later);
-    });
-    assert_eq!(h, None);
-}
-
-/// Bit 128 with an unusable content height copies nothing, so the writer's default style height
-/// is still cleared (review on #2588).
-#[test]
-fn bit_128_with_an_invalid_height_still_clears_the_default() {
-    for bad in [0.0, -1.0, f64::NAN] {
-        let h = first_cell_height(false, |c| {
-            c.style = Some(styled(0.18, CellStylePropertyFlags::NONE));
-            if c.contents.is_empty() {
-                c.contents.push(CellContent::new());
-            }
-            c.contents[0].format_override_flags |= 128;
-            c.contents[0].text_height = bad;
-        });
-        assert_eq!(h, None, "content height {bad}");
-    }
-}
-
-#[test]
-fn a_cell_with_no_style_record_inherits_the_table_style() {
-    assert_eq!(first_cell_height(false, |c| c.style = None), None);
-}
-
-/// A style record with a height and neither override is not an override, through DWG.
-#[test]
-fn a_style_height_without_an_override_is_cleared() {
-    assert_eq!(first_cell_height(false, |c| c.style = Some(styled(0.18, CellStylePropertyFlags::NONE))), None);
 }

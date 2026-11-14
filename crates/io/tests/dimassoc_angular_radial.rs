@@ -4,7 +4,7 @@
 
 use draftcraft_doc::{AssocSnap, Circle, Common, DimAssoc, DimKind, Dimension, Drawing, EntityKind, Handle, Line, Space};
 use draftcraft_geom::Vec3;
-use draftcraft_io::{Version, read, read_dxf, write_dxf};
+use draftcraft_io::{SaveOptions, Version, read, read_dxf, write_dxf, write_with};
 
 /// A dimension entity of the given kind with all its definition points and associations, for
 /// adding straight to a drawing; the style and text are left at defaults since only the
@@ -275,7 +275,7 @@ fn angular_diameter_and_radius_dimensions_are_saved_with_dimassoc() {
 
 /// The reader half of #1651, and the one that matters for interchange: with DraftCraft's xdata
 /// stripped, the standard DIMASSOC objects alone must rebuild the same associations, both from
-/// DXF and through the DWG bridge. Guards the dimension-kind slot table and the radial centre
+/// DXF and through DWG. Guards the dimension-kind slot table and the radial centre
 /// reference in `dxf_read::dimassoc`, plus the curve start/end osnap semantics in `infer_snap`.
 #[test]
 fn standard_dimassoc_associates_in_dxf_and_dwg() {
@@ -285,7 +285,8 @@ fn standard_dimassoc_associates_in_dxf_and_dwg() {
     let back = read_dxf(plain.as_bytes()).unwrap();
     assert_standard_assoc(&c, &back, "DXF");
 
-    let dwg = draftcraft_dwg::acadrust::dxf_to_dwg_as(plain.as_bytes(), Version::R2018.code()).unwrap();
+    let opts = SaveOptions { version: Some(Version::R2018), binary: false };
+    let dwg = write_with(&read_dxf(plain.as_bytes()).unwrap(), "case.dwg", &opts).unwrap();
     let back = read(&dwg, "case.dwg").unwrap();
     assert_standard_assoc(&c, &back, "DWG");
 }

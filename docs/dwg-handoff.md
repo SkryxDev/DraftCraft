@@ -7,12 +7,10 @@ what is left.
 ## State
 
 - **Reading DWG**: DraftCraft's own reader (`draftcraft_io::dwg`), every version from R13 to
-  AutoCAD 2018 and later, 2007 included. It is the default. acadrust is not used to open a file
-  unless `DRAFTCRAFT_DWG_READER=acadrust` is set.
-- **Writing DWG**: still through acadrust (`crates/dwg/src/acadrust`), from DraftCraft's DXF.
-  DraftCraft's own writer (`crates/dwg/src/write`, AutoCAD 2018 only) exists but is not used for
-  saving. **acadrust can't be switched off for saving until that writer is finished**: with it
-  off there is no DWG save at all.
+  AutoCAD 2018 and later, 2007 included. It is the default.
+- **Writing DWG**: DraftCraft's own writer (`draftcraft_io::dwg::write`, over
+  `draftcraft_dwg::compose`), in 2000, 2004, 2007, 2010, 2013 and 2018. Its state is in
+  [`dwg-writer-handoff.md`](dwg-writer-handoff.md). acadrust is no longer a dependency.
 - **DXF**: linetype element rotations are degrees, as AutoCAD writes them (older DraftCraft files
   are still read as radians); typed table cells show AutoCAD's formatted text.
 
@@ -69,8 +67,8 @@ Every difference between a DWG reading and AutoCAD's DXF, one per line:
 cargo run -p draftcraft-io --example direct_sweep -- --deep sample_AC1032.dwg sample_AC1032_ascii.dxf
 ```
 
-To compare readers on one file, set `DRAFTCRAFT_DWG_READER` to `acadrust` (through DXF) or
-`native` (the first mapping), and open the file again.
+To compare readers on one file, set `DRAFTCRAFT_DWG_READER` to `native` (the first mapping) and
+open the file again.
 
 ## What fails today
 
@@ -135,9 +133,8 @@ order, an OLE object's wrapper. A drawing from AutoCAD with each would settle it
 
 1. The four failing tests: the data store, then the dynamic-block objects (step 12c).
 2. The other types in the read note (step 12c).
-3. DraftCraft's own DWG writer: objects as 2018, sections and container, a read-back check on
-   every save (steps 15 and 16); then the other save versions (17).
-4. acadrust off for saving, then removed (18).
+3. ~~DraftCraft's own DWG writer and the other save versions (15–17); acadrust removed (18).~~
+   Done: see [`dwg-writer-handoff.md`](dwg-writer-handoff.md).
 
 ## Where things are
 

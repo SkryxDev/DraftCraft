@@ -198,25 +198,3 @@ fn map_pages_are_sized_as_autocads() {
     assert_eq!(page.repeat, 4 * 239 / (page.stored.len().div_ceil(8) * 8));
     assert_eq!(decompress(&stored(&page.page, 0, 4, Code::System, page.stored.len()), raw.len()).unwrap(), raw);
 }
-
-#[test]
-#[ignore = "scratch"]
-fn scratch_ours() {
-    let Ok(path) = std::env::var("DWG_FILE") else { return };
-    let file = std::fs::read(path).unwrap();
-    let (_, f) = header(&file);
-    let at = PAGES_AT as usize + field(&f, 7) as usize;
-    let blocks = (field(&f, 10) as usize).div_ceil(8) * 8 * field(&f, 3) as usize;
-    let comp = stored(&file, at, blocks.div_ceil(239), Code::System, field(&f, 10) as usize);
-    let pm = decompress(&comp, field(&f, 11) as usize).unwrap();
-    let mut off = 0u64;
-    for c in pm.chunks(16) {
-        let (s, id) = (u64_at(c, 0).unwrap(), u64_at(c, 8).unwrap() as i64);
-        println!("page id {id} at {:#x} size {s:#x}", off + PAGES_AT);
-        off += s;
-    }
-    let c = crate::read::r2007::read(&file, crate::read::version::DwgVersion::R2007).unwrap();
-    for s in &c.sections {
-        println!("{} {:#x}", s.name, s.size);
-    }
-}

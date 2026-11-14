@@ -1,7 +1,7 @@
-//! Sweep: every DWG the reader can be given here, read with acadrust disabled (the direct reader),
-//! compared with what the drawing should hold.
+//! Sweep: every DWG the reader can be given here, read by the direct reader, compared with what
+//! the drawing should hold.
 //!
-//! 1. The AutoCAD files (MI-201, every version): direct vs acadrust, per entity type, layers,
+//! 1. The AutoCAD files (MI-201, every version): direct vs native, per entity type, layers,
 //!    blocks, layouts, and what the direct reader left unread.
 //! 2. DraftCraft's own drawings (the sample, examples/apartment.dxf): saved as DWG in every
 //!    version, read back directly, compared with the drawing saved.
@@ -307,9 +307,9 @@ fn stress(case: &str, n: usize, version: Version) {
     let read = t.elapsed();
     match back {
         Err(e) => {
-            let other = match read_dwg_with(&dwg, DwgReader::Acadrust) {
-                Ok(a) => format!("acadrust reads the same file ({} entities in model space)", a.model.len()),
-                Err(e) => format!("acadrust can't read it either: {e}"),
+            let other = match read_dwg_with(&dwg, DwgReader::Native) {
+                Ok(a) => format!("the native reader reads the same file ({} entities in model space)", a.model.len()),
+                Err(e) => format!("the native reader can't read it either: {e}"),
             };
             println!("STRESS {case} n={n} {version:?}: {} MB, save {save:?}; DIRECT READ FAILED after {read:?}: {e}\n  {other}", dwg.len() >> 20);
             if let Ok(dir) = std::env::var("SWEEP_KEEP") {
@@ -322,17 +322,17 @@ fn stress(case: &str, n: usize, version: Version) {
             let same = compare("read back vs saved", &back, &saved, &mut report);
             let content = same && content_same(&back, &saved, &mut report);
             if !content {
-                // Whose loss: does acadrust's reader get it from the same file?
-                match read_dwg_with(&dwg, DwgReader::Acadrust) {
+                // Whose loss: does the native reader get it from the same file?
+                match read_dwg_with(&dwg, DwgReader::Native) {
                     Ok(a) => {
                         let mut r = Vec::new();
-                        let a_same = compare("acadrust vs saved", &a, &saved, &mut r) && content_same(&a, &saved, &mut r);
+                        let a_same = compare("native vs saved", &a, &saved, &mut r) && content_same(&a, &saved, &mut r);
                         report.push(format!(
-                            "  acadrust reading the same file: {}",
+                            "  the native reader reading the same file: {}",
                             if a_same { "everything came back (the direct reader's loss)" } else { "differs too (the file's)" }
                         ));
                     }
-                    Err(e) => report.push(format!("  acadrust can't read it either: {e}")),
+                    Err(e) => report.push(format!("  the native reader can't read it either: {e}")),
                 }
             }
             println!(
@@ -476,7 +476,7 @@ fn main() {
                 continue;
             };
             let t = std::time::Instant::now();
-            let reader = if std::env::var("SWEEP_READER").is_ok_and(|r| r == "acadrust") { DwgReader::Acadrust } else { DwgReader::Direct };
+            let reader = if std::env::var("SWEEP_READER").is_ok_and(|r| r == "native") { DwgReader::Native } else { DwgReader::Direct };
             match read_dwg_with(&bytes, reader) {
                 Ok(d) => {
                     let n: usize = kinds(&d).values().sum();
@@ -531,11 +531,11 @@ fn main() {
             let t = std::time::Instant::now();
             let direct = read_dwg_with(&bytes, DwgReader::Direct);
             let ms = t.elapsed().as_millis();
-            let reference = read_dwg_with(&bytes, DwgReader::Acadrust);
+            let reference = read_dwg_with(&bytes, DwgReader::Native);
             match (&direct, &reference) {
                 (Ok(d), Ok(r)) => {
                     report.push(format!("  direct read in {ms} ms; notes: {}", d.read_notes.join(" | ")));
-                    if !compare("direct vs acadrust", d, r, &mut report) {
+                    if !compare("direct vs native", d, r, &mut report) {
                         failures += 1;
                     }
                     // Stability: direct → DXF → read.
@@ -554,14 +554,14 @@ fn main() {
                         std::fs::write(Path::new(out).join(format!("{name}.direct.png")), png).ok();
                     }
                     if let Ok(png) = draftcraft_io::write(r, "x.png") {
-                        std::fs::write(Path::new(out).join(format!("{name}.acadrust.png")), png).ok();
+                        std::fs::write(Path::new(out).join(format!("{name}.native.png")), png).ok();
                     }
                 }
                 (Err(e), _) => {
                     failures += 1;
                     report.push(format!("  direct read failed: {e}"));
                 }
-                (Ok(_), Err(e)) => report.push(format!("  (acadrust failed: {e}; nothing to compare)")),
+                (Ok(_), Err(e)) => report.push(format!("  (the native reader failed: {e}; nothing to compare)")),
             }
         } else {
             match draftcraft_io::read(&bytes, &name) {

@@ -2,9 +2,10 @@
 
 DraftCraft reads DWG files with its own **direct reader** (`draftcraft_io::dwg`): every object of
 the file is decoded field by field, in the order the format stores it, straight into
-`draftcraft-doc`'s `Drawing`. There is no DXF in between and no second model. acadrust (through
-DXF) is still in the code, for comparison, and is used only when asked for. Saving DWG still goes
-through acadrust until DraftCraft's own writer is done (see [the plan](#the-plan-to-full-fidelity)).
+`draftcraft-doc`'s `Drawing`. There is no DXF in between and no second model. It saves DWG with
+its own **writer** (`draftcraft_io::dwg::write`), in every version AutoCAD saves from 2000 to 2018
+(2000, 2004, 2007, 2010, 2013, 2018); every file written is read back before it is handed over.
+No third-party DWG library is used.
 
 ## Layout
 
@@ -13,10 +14,12 @@ crates/dwg  (draftcraft-dwg: layer 0, depends on no other workspace crate)
   file.rs     DwgFile and ObjectReader: the container, the object map and each object's fields,
               read in format order (bits, handles, text, colours, extended data)
   read/       DWG R13 to 2018 and later: container (r2000, r2004, r2007), sections, classes, objects
-  write/      AutoCAD 2018 (AC1032) DWG from records (not used for saving yet)
-  records/    BlackCAD's records, for the first mapping (dwg_read) and the writer
+  compose/    a DWG file laid out from its objects, header and classes, as each version
+              stores it (r2000 sections, the 2004 pages, the 2007 Reed-Solomon pages in r2007/)
+  write/      BlackCAD's writer from records (its object encoding and read-back check)
+  records/    BlackCAD's records, for the first mapping (dwg_read) and as an independent
+              reading of the files the writer makes, in tests
   bits.rs, crc.rs, lz77.rs   the format's primitives, shared by reading and writing
-  acadrust/   DWG ⇄ DXF bytes through the acadrust crate (MPL-2.0, used unmodified)
 crates/io
   dwg/        the direct reader: DWG → Drawing
     mod.rs      the order of reading, and Unread: what was left out, by type
@@ -27,6 +30,8 @@ crates/io
     entities.rs every entity type, placed in its space or block in the file's order
     table.rs    ACAD_TABLE (both forms: before 2010, and the 2010 table content)
     objects.rs  dictionaries (for names), DIMASSOC, MLINESTYLE, IMAGEDEF, PDFDEFINITION
+    write/      the writer: each record of `dxf_write::dwg_records` encoded as the DWG object of
+                the same meaning (header, tables, entities, objects, dynamic blocks, the preview)
   dxf_read, dxf_write   DXF ⇄ Drawing
   dwg_read              the first native mapping, over BlackCAD's records (kept for comparison)
 ```
@@ -58,17 +63,16 @@ Rules the direct reader keeps:
 | Value | Reader |
 |---|---|
 | (unset, or anything else) | `Direct`: the direct reader; what it left out is in the read notes |
-| `acadrust` | acadrust through DXF, for comparison |
-| `native` | the first mapping (`dwg_read`), over BlackCAD's records |
-| `auto` | the first mapping when it left nothing out, acadrust otherwise |
+| `native` | the first mapping (`dwg_read`), over BlackCAD's records, for comparison |
 
 A browser has no environment: the web build always reads directly.
 
 ## What the direct reader reads
 
 Built one step at a time; each step's tests compare it with AutoCAD's own DXF where AutoCAD's
-files hold the type, otherwise with the acadrust reader on files DraftCraft (or acadrust's API)
-wrote in every version.
+files hold the type, otherwise with DraftCraft's DXF reading of the same drawing, saved as DWG in
+every version. (Until the writer was finished they compared with acadrust's reading, MPL-2.0,
+since removed.)
 
 | Step | What |
 |---|---|
@@ -90,15 +94,17 @@ wrote in every version.
 ## The plan to full fidelity
 
 DWG fidelity is complete when every object of a real file is in the drawing (nothing in
-`Unread`), DraftCraft writes DWG itself, and acadrust is gone. What remains:
+`Unread`) and DraftCraft writes it back. Steps 14–18 are done: the direct reader is the default,
+DraftCraft writes every version itself, and acadrust is gone. What remains:
 
 | Step | What | Shows today as |
 |---|---|---|
 | 12c | What a real file still leaves in the read note: the solid modeler's binary description (2004 and later) and the 2013-and-later data store (ACDSDATA) of 3DSOLID, REGION and BODY; dynamic-block objects (the evaluation graph, parameters, actions and grips); MESH and SHAPE; draw order (SORTENTSTABLE); MATERIAL, VISUALSTYLE and the section and detail view styles before 2013; CELLSTYLEMAP, TABLECONTENT and TABLEGEOMETRY; an entity's plot style | Named in the read note of the file, by type; four io tests fail on them (`acis_data_store` × 2, `dynblock_read` × 2) |
-| 14 | The switch-over: the direct reader as the default (done on `dwg-direct-reader-on`), the old paths removed | |
-| 15–16 | DraftCraft's own DWG writer (objects as 2018, sections and container, a read-back check on every save) | |
-| 17 | The other save versions | |
-| 18 | acadrust removed | |
+| 14 | The switch-over: the direct reader as the default, the old paths removed | done |
+| 15–16 | DraftCraft's own DWG writer (objects, sections and container, a read-back check on every save) | done |
+| 17 | The other save versions: 2000, 2004, 2007, 2010, 2013 | done |
+| 18 | acadrust removed | done |
+| 19 | Dynamic-block parameters and actions made in the Block Editor written to DWG (those a file brought are) | Lost on a DWG save; kept in DXF |
 
 Decisions open:
 
@@ -130,9 +136,9 @@ cargo test -p draftcraft-io --test it dwg_direct      # the direct reader
   every entity and dimension associativity are compared with AutoCAD's DXF, and every object of
   every version must be in the drawing or counted.
 - **Every type in every version**: drawings with every kind of each type are saved by DraftCraft
-  (or acadrust's API, for what DraftCraft never writes: edge hatch loops, curves, mirrored text) as
-  DWG 2000, 2004, 2010, 2013 and 2018 and read both ways; every entity must match the acadrust
-  reading.
+  as DWG 2000, 2004, 2007, 2010, 2013 and 2018 and read back; every entity must match DraftCraft's
+  DXF reading of the same drawing, and the object records (`draftcraft_dwg::read_bytes`, a second,
+  independent reader) must hold what was written.
 - **Damaged files**: byte-flipped and cut copies of AutoCAD's files and of every test drawing
   return an error or a drawing, never a panic.
 - `write_dwg_fixtures` (ignored) writes every test drawing as DWG in every version, for other
@@ -149,13 +155,13 @@ cargo run --release -p draftcraft-io --example direct_sweep -- --read file.dwg  
 cargo run --release -p draftcraft-io --example direct_sweep -- --vs-dxf f.dwg f.dxf  # vs another program
 ```
 
-- **Sweep**: AutoCAD's DWGs read directly and with acadrust (entities per type and space, layers,
+- **Sweep**: AutoCAD's DWGs read directly and with the first mapping (entities per type and space, layers,
   blocks, layouts), then direct → DXF → read again; DraftCraft's drawings (DXF given) saved as DWG
   in every version and read back, every entity compared with the drawing saved.
 - **Stress**: drawings built to break the reader: `mixed` (n entities of nine kinds), `polyline`
   (one of n vertices), `hatch` (n loops), `layers`, `blocks` (each with an attribute), `mtext`
   (n characters), `table` (n rows), `nested` (blocks n deep). Each is saved, read back directly,
-  timed and compared; on a difference it says whether acadrust reads the same file right.
+  timed and compared; on a difference it says whether the first mapping reads the same file right.
 - **Against another program's DXF** (`--vs-dxf`): the direct reading against BlackCAD's `cad dxf`
   (or AutoCAD's SAVEAS) of the same file, entity by entity (numbers within 1e-9).
 
@@ -188,7 +194,7 @@ Each was found by these tests, fixed, and has a test of its own:
 
 | Found by | What was wrong | Fix |
 |---|---|---|
-| io tests with acadrust disabled | A hatch gradient colour ByLayer or ByBlock read as black | The colour word's 0xC0/0xC1/0xC8 forms |
+| io tests with the DXF bridge disabled | A hatch gradient colour ByLayer or ByBlock read as black | The colour word's 0xC0/0xC1/0xC8 forms |
 | The sweep (DraftCraft's apartment) | Every DIMASSOC DraftCraft's save path writes was refused: associativity lost | A point reference's subentity is 32-bit and only there when the snap names objects; intersection snaps name a second list; a point may have several references |
 | Stress, `mixed` | Reading grew with the square of the entities: 100,000 in 21 s (now 0.8 s) | The style, block and linetype tables by handle made once, not per dimension; entities gathered by block record once |
 | Stress, `mixed` 600,000 in 2018 | Refused: "copy of 4 bytes overflows page size" | LZ77 far copies `0001HLLL`: H adds 0x4000 to the distance, LLL is the length (the codec read four length bits and no H); only a system page over ~48 KB uses them |
@@ -219,8 +225,8 @@ Found outside the reader:
 - Opening a file that can't be read reports "invalid parameters for `open`: …" before the reason
   (the engine wraps every reading error as bad parameters).
 
-Found in DraftCraft's current save path (acadrust's writer), for the writer steps: text longer
-than 65,535 characters is cut to its length modulo 65,536 (a 16-bit length). The drawing model
+Found in the save path DraftCraft used before its own writer (acadrust's): text longer than
+65,535 characters was cut to its length modulo 65,536 (a 16-bit length). The drawing model
 itself grows with the square of the layers when entities are added one by one
 (`Drawing::ensure_layer` searches the list: building a drawing of 100,000 layers takes 74 s, saving
 it 144 s), which the DXF reader and the editor share. The DXF reader keeps at most 100,000 hatch
@@ -229,7 +235,7 @@ loops, the DWG reader more.
 ## Speed
 
 Measured 2026-11-13 on a 4-core cloud machine (release build, single runs), the direct reader
-against acadrust on the same files:
+against acadrust (the DWG library DraftCraft used then) on the same files:
 
 | Drawing | File | Direct | acadrust |
 |---|---|---|---|
@@ -242,5 +248,5 @@ against acadrust on the same files:
 | 10,000 layers | 0.3 MB | 0.06 s | |
 | 100,000 layers (one line on each) | 2.9 MB | 0.65 s, 255 MB | |
 
-The older `dwg_bench` example compares the first mapping (`native`) with acadrust:
+The older `dwg_bench` example compares the first mapping (`native`) with the direct reader:
 `cargo run --release -p draftcraft-io --example dwg_bench -- [entities] [--keep out.dwg]`.

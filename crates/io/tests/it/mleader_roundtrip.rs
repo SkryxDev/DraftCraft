@@ -251,7 +251,7 @@ fn hostile_multileaders_do_not_panic() {
     }
 }
 
-/// Through the DWG bridge (acadrust converts our DXF to DWG and back).
+/// Through DWG.
 #[cfg(not(target_arch = "wasm32"))]
 #[test]
 fn multileader_through_dwg() {

@@ -1,7 +1,6 @@
 //! Every kind of dynamic block object DraftCraft's DWG writer encodes goes through a DWG save in
 //! each version it writes and reads back, by DraftCraft's DWG reader, as the DXF groups it was
-//! read from. acadrust's reader, whose layouts AutoCAD's files follow, reads each one too, to its
-//! last field.
+//! read from.
 //!
 //! The objects are synthetic, written for this test, in the order AutoCAD's DXF puts their
 //! groups, added to the DOOR fixture's dynamic block. A value set's description, which DWG
@@ -51,7 +50,7 @@ fn value_set(description: i32, flags: i32, real: i32, count: i32) -> String {
     format!("{description}\n{flags} 2\n{real} 1\n{} 9\n{} 0.5\n{count} 2\n{} 3.25\n{} 4.75\n", real + 1, real + 2, real + 3, real + 3)
 }
 
-/// The objects: (handle, type, groups after the owner, a value acadrust's reading must hold).
+/// The objects: (handle, type, groups after the owner, the value of their last field).
 fn objects() -> Vec<(&'static str, &'static str, String, &'static str)> {
     vec![
         ("80", "BLOCKALIGNMENTGRIP", format!("{}100 AcDbBlockAlignmentGrip\n140 0.25\n141 0.5\n142 0.875\n", grip("AlignGrip", 10)), "0.875"),
@@ -270,31 +269,6 @@ fn every_dynamic_block_object_survives_each_dwg_version() {
             assert!(a.0 == b.0 && a.1.starts_with(&b.1), "{version:?}:\n{a:?}\n{b:?}");
         }
         assert_eq!(after.len(), before.len(), "{version:?}: {:?}", after.iter().map(|a| &a.0).collect::<Vec<_>>());
-    }
-}
-
-/// acadrust reads each object to its end: a field out of place shows as a wrong last value.
-#[cfg(not(target_arch = "wasm32"))]
-#[test]
-fn acadrust_reads_each_dynamic_block_object_to_its_last_field() {
-    use acadrust::objects::{DynamicBlockData, DynamicBlockObject, ObjectType};
-    let d = drawing();
-    for version in [Version::R2000, Version::R2010, Version::R2018] {
-        let (dwg, _) = draftcraft_io::write_dwg_own(&d, version).unwrap();
-        let doc = acadrust::DwgReader::from_stream(std::io::Cursor::new(&dwg)).read().unwrap();
-        let read: Vec<(&str, &DynamicBlockData)> = doc
-            .objects
-            .values()
-            .filter_map(|o| match o {
-                ObjectType::DynamicBlock(DynamicBlockObject { dxf_name, data, .. }) => Some((dxf_name.as_str(), data)),
-                _ => None,
-            })
-            .collect();
-        for (_, kind, _, last) in objects() {
-            let of_kind: Vec<String> = read.iter().filter(|(k, _)| k.eq_ignore_ascii_case(kind)).map(|(_, data)| format!("{data:?}")).collect();
-            assert!(!of_kind.is_empty(), "{version:?}: no {kind} read");
-            assert!(of_kind.iter().any(|t| t.contains(last) && !t.starts_with("Unknown")), "{version:?}: {kind} lacks {last}: {of_kind:?}");
-        }
     }
 }
 

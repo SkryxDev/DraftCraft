@@ -1324,7 +1324,7 @@ fn spline_with(r: &mut ObjectReader, last: &mut Option<[f64; 3]>) -> DwgResult<S
             // From AutoCAD 2013 on the file says how the knots are spaced, and AutoCAD's tangents
             // are the curve's end derivatives, length included: the control points are AutoCAD's
             // (its DXF lists them). Tangents of unit length are directions, as DraftCraft's writer
-            // (acadrust) stores them and the drawing holds them: the drawing's own fit.
+            // stores them and the drawing holds them: the drawing's own fit.
             if let Some(knots) = knot_param.filter(|_| !closed && fit.len() >= 2) {
                 let opts = draftcraft_geom::FitOptions { knots, start_tangent, end_tangent, tolerance: tolerance.max(0.0) };
                 let unit = |t: Option<Vec2>| t.is_none_or(|v| (v.len() - 1.0).abs() <= 1e-9);
@@ -2857,6 +2857,7 @@ pub(super) fn read(
         }
     }
     number_viewports(d, &paper_views);
+    drop_generated_arrows(d);
     finish_tables(d, tables);
     keep_color_books(d, color_books, &read);
     add_hook_lines(d, &hooks);
@@ -2865,6 +2866,34 @@ pub(super) fn read(
     crate::dxf_mleader::apply(d, &mleader_attribs, &HashMap::new());
     // An entity no block owns (a sub-entity of a type not read yet) stays unread.
     (read, links)
+}
+
+/// The standard arrowhead blocks nothing inserts whose content is the one DraftCraft writes are
+/// dropped, as the DXF reader drops them: they are generated geometry, rebuilt on save. An
+/// arrowhead block with other content (AutoCAD's `_Dot`, a user's redefinition) is kept, so
+/// dimensions keep it.
+fn drop_generated_arrows(d: &mut Drawing) {
+    let mut inserted = std::collections::HashSet::new();
+    let mut note = |e: &Entity| match &e.kind {
+        EntityKind::Insert(ins) => {
+            inserted.insert(ins.block.to_ascii_uppercase());
+        }
+        EntityKind::MLeader(m) => {
+            if let Some(b) = &m.block {
+                inserted.insert(b.block.to_ascii_uppercase());
+            }
+        }
+        _ => {}
+    };
+    d.model.iter().for_each(|e| note(e));
+    d.layouts.iter().flat_map(|l| l.entities.iter()).for_each(|e| note(e));
+    d.blocks.values().flat_map(|b| b.entities.iter()).for_each(|e| note(e));
+    d.blocks.retain(|name, b| {
+        let own: Vec<&Entity> = b.entities.iter().map(|e| &**e).collect();
+        !(crate::dxf_ext::is_standard_arrow(name)
+            && !inserted.contains(&name.to_ascii_uppercase())
+            && crate::dxf_write::is_generated_arrow(name, &own))
+    });
 }
 
 #[cfg(test)]

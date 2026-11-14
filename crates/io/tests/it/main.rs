@@ -86,3 +86,22 @@ mod view_target;
 mod viewport_clip_roundtrip;
 mod xclip_roundtrip;
 mod xref_roundtrip;
+
+/// A DWG file as DraftCraft reads it, saved as DXF: what the DWG holds, in groups.
+pub(crate) fn dwg_as_dxf(dwg: &[u8]) -> String {
+    String::from_utf8(draftcraft_io::write(&draftcraft_io::read(dwg, "t.dwg").unwrap(), "t.dxf").unwrap()).unwrap()
+}
+
+/// The measurement each dimension of a DWG file stores, as its object records give them.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn dwg_dimension_measurements(dwg: &[u8]) -> Vec<f64> {
+    use draftcraft_dwg::records::model::ObjectKind;
+    let file = draftcraft_dwg::read_bytes(dwg).unwrap();
+    file.objects
+        .values()
+        .filter_map(|o| match &o.kind {
+            ObjectKind::Dimension(d) => Some(d.measurement),
+            _ => None,
+        })
+        .collect()
+}
