@@ -311,3 +311,57 @@ fn probe_header_tails() {
         println!("   tail {} bits {tail}", tail.len());
     }
 }
+
+/// Writes the named section of each file in `DWG_SECTION_FILES` (separated by `:`) next to it,
+/// as `<file>.<section>.bin`: `DWG_SECTION=AcDb:AcDsPrototype_1b`.
+#[test]
+#[ignore]
+fn probe_dump_section() {
+    let name = std::env::var("DWG_SECTION").unwrap_or_else(|_| "AcDb:AcDsPrototype_1b".into());
+    for f in std::env::var("DWG_SECTION_FILES").unwrap_or_default().split(':').filter(|f| !f.is_empty()) {
+        let bytes = std::fs::read(f).unwrap();
+        if std::env::var_os("DWG_DESCRIBE").is_some() {
+            println!("{}", r2004::describe(&bytes));
+        }
+        let file = crate::file::DwgFile::open(&bytes).unwrap();
+        match file.section(&name) {
+            Some(s) => {
+                let out = format!("{f}.{}.bin", name.replace(':', "_"));
+                std::fs::write(&out, s).unwrap();
+                println!("{f}: {} bytes -> {out}", s.len());
+            }
+            None => println!("{f}: no {name}"),
+        }
+    }
+}
+
+/// The data bits of each object of `DWG_OBJ_HANDLES` (hex, `,`) in `DWG_OBJ_FILE`, after the
+/// common entity data, then its references.
+#[test]
+#[ignore]
+fn probe_object_bits() {
+    let Ok(f) = std::env::var("DWG_OBJ_FILE") else { return };
+    let bytes = std::fs::read(f).unwrap();
+    let file = crate::file::DwgFile::open(&bytes).unwrap();
+    let want: Vec<u64> = std::env::var("DWG_OBJ_HANDLES").unwrap_or_default().split(',').filter_map(|h| u64::from_str_radix(h, 16).ok()).collect();
+    for o in file.objects().filter(|o| want.contains(&o.handle)) {
+        let mut r = file.read_object(&o).unwrap();
+        let mut bits = String::new();
+        let n = r.remaining_bits();
+        for _ in 0..n.min(20000) {
+            bits.push(if r.b().unwrap() { '1' } else { '0' });
+        }
+        println!("{:X}: {n} data bits\n{bits}", o.handle);
+        let mut r = file.read_object(&o).unwrap();
+        let refs = r.entity_refs();
+        println!("  refs {refs:?}");
+        let mut more = Vec::new();
+        while let Ok(h) = r.reference() {
+            more.push(format!("{h:X}"));
+            if more.len() > 8 {
+                break;
+            }
+        }
+        println!("  then {more:?}");
+    }
+}

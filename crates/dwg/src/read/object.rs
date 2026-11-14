@@ -201,6 +201,8 @@ pub(crate) struct Opened<'a> {
     flags: EntityFlags,
     pub num_reactors: u32,
     pub xdic_missing: bool,
+    /// The object keeps data in the data store section (AutoCAD 2013 on).
+    pub has_ds_data: bool,
     pub xdata: Vec<XData>,
     /// The entity that follows this one in its block's chain (up to AutoCAD 2000), when the
     /// entity stores it; `None` when the next object of the file follows.
@@ -242,6 +244,7 @@ pub(crate) fn open<'a>(ctx: &DecodeCtx, data: &'a [u8], offset: usize) -> Result
     let mut common: Option<EntityCommon> = None;
     let num_reactors;
     let xdic_missing;
+    let mut has_ds_data = false;
     if is_entity {
         if dat.b()? {
             let gsize = if ver >= V::R2010 { dat.bll()? } else { dat.rl()? as u64 };
@@ -257,7 +260,7 @@ pub(crate) fn open<'a>(ctx: &DecodeCtx, data: &'a [u8], offset: usize) -> Result
             flags.xdic_missing = dat.b()?;
         }
         if ver >= V::R2013 {
-            let _has_ds_data = dat.b()?;
+            has_ds_data = dat.b()?;
         }
         if ver <= V::R14 {
             flags.bylayer_ltype = dat.b()?;
@@ -319,7 +322,7 @@ pub(crate) fn open<'a>(ctx: &DecodeCtx, data: &'a [u8], offset: usize) -> Result
         num_reactors = dat.bl()?;
         xdic_missing = if ver >= V::R2004 { dat.b()? } else { false };
         if ver >= V::R2013 {
-            let _has_ds_data = dat.b()?;
+            has_ds_data = dat.b()?;
         }
     }
 
@@ -353,6 +356,7 @@ pub(crate) fn open<'a>(ctx: &DecodeCtx, data: &'a [u8], offset: usize) -> Result
         flags,
         num_reactors,
         xdic_missing,
+        has_ds_data,
         xdata,
         next_entity: None,
         s: Streams { ver, codepage: ctx.codepage, dat, strs, hdl: Some(hdl), text: ctx.text },

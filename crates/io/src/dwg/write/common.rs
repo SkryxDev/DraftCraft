@@ -171,6 +171,7 @@ pub(super) fn entity_start<'r>(cx: &Cx<'_>, r: &'r Rec<'_>) -> EntityStart<'r> {
         invisible: g.i(60) & 1 != 0,
         lineweight: lineweight(g.i_or(370, -1)),
         links: cx.links.get(&r.handle).copied(),
+        data_store: false,
     }
 }
 

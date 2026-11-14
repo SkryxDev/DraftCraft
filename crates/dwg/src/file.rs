@@ -226,6 +226,11 @@ impl ObjectReader<'_> {
     pub fn version(&self) -> read::DwgVersion {
         self.o.s.ver
     }
+    /// True when the object keeps data in the file's data store section (AutoCAD 2013 on): a
+    /// solid's, region's or body's modeler description.
+    pub fn has_data_store_record(&self) -> bool {
+        self.o.has_ds_data
+    }
     /// True when the file keeps text apart from the other fields (AutoCAD 2007 and later).
     pub fn has_string_stream(&self) -> bool {
         self.o.s.ver.has_string_stream()
@@ -506,6 +511,12 @@ impl DwgFile {
             was_zombie: c.was_zombie,
             is_entity: c.item_class_id == 0x1F2,
         })
+    }
+
+    /// A named section of a 2004-or-later file, decompressed (`AcDb:AcDsPrototype_1b`,
+    /// `AcDb:Preview`…). `None` when the file has no such section, or is older.
+    pub fn section(&self, name: &str) -> Option<&[u8]> {
+        self.others.iter().find(|(n, _)| n == name).map(|(_, s)| s.as_slice())
     }
 
     /// True for the versions before AutoCAD 2000 (R13 and R14).

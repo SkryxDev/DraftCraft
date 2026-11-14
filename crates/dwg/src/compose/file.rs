@@ -61,6 +61,9 @@ pub struct Parts<'a> {
     pub app_version: &'a str,
     /// The font file of each text style, with the style's handle.
     pub fonts: &'a [(String, u64)],
+    /// The data store section (2013 and later: the modeler descriptions of solids, regions and
+    /// bodies, laid out by [`crate::datastore::write`]), when the drawing has any.
+    pub data_store: Option<&'a [u8]>,
 }
 
 /// The maintenance release each version's file records, as AutoCAD writes it today.
@@ -354,12 +357,20 @@ fn paged(p: &Parts<'_>) -> Result<Vec<u8>> {
     let history = app_info_history(p);
     let history_page = round_up(history.len(), 0x80);
     let compressed = |name, data| Section { name, data, compressed: true, page_size: MAX_PAGE };
-    let stream = vec![
+    let mut stream = vec![
         Section { name: "AcDb:SummaryInfo", data: summary, compressed: false, page_size: summary_page },
         Section { name: "AcDb:Preview", data: preview, compressed: false, page_size: preview_page },
         Section { name: "AcDb:AppInfo", data: app_info, compressed: false, page_size: app_info_page },
         Section { name: "AcDb:AppInfoHistory", data: history, compressed: false, page_size: history_page },
         compressed("AcDb:XrefManifest", xref_manifest(p)),
+    ];
+    // AutoCAD files the data store after the xref manifest, in the stream and in the map.
+    let mut map_order: Vec<&str> = MAP_ORDER.to_vec();
+    if let Some(ds) = p.data_store.filter(|_| ver >= V::R2013) {
+        stream.push(compressed("AcDb:AcDsPrototype_1b", ds.to_vec()));
+        map_order.insert(1, "AcDb:AcDsPrototype_1b");
+    }
+    stream.extend([
         compressed("AcDb:RevHistory", shared::rev_history()),
         compressed("AcDb:AcDbObjects", objects),
         compressed("AcDb:ObjFreeSpace", obj_free_space(p)),
@@ -368,7 +379,7 @@ fn paged(p: &Parts<'_>) -> Result<Vec<u8>> {
         compressed("AcDb:Classes", classes_section(ver, p.codepage, p.text, p.classes)),
         compressed("AcDb:AuxHeader", aux_header(p)),
         compressed("AcDb:Header", header(p)),
-    ];
+    ]);
     let mut code = [0u8; 6];
     code.copy_from_slice(ver.magic().as_bytes().get(..6).unwrap_or(b"AC1032"));
     let info = FileInfo {
@@ -379,7 +390,7 @@ fn paged(p: &Parts<'_>) -> Result<Vec<u8>> {
         codepage: p.codepage,
         acad_maintenance: if ver >= V::R2018 { shared::ACAD_MAINTENANCE } else { 0 },
     };
-    container::pack(&info, &stream, &MAP_ORDER)
+    container::pack(&info, &stream, &map_order)
 }
 
 /// AutoCAD 2007: named sections in pages of Reed-Solomon codewords.
