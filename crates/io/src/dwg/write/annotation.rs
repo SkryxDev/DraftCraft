@@ -81,6 +81,33 @@ pub(super) fn entity(cx: &Cx<'_>, r: &Rec<'_>) -> Option<ObjectWriter> {
         "VIEWPORT" => viewport(cx, r),
         "MLINE" => mline(cx, r),
         "IMAGE" | "WIPEOUT" => raster(cx, r)?,
+        "MULTILEADER" => super::mleader::mleader(cx, r)?,
+        "PDFUNDERLAY" => {
+            // The plane, insertion point, rotation, three scales, flags, contrast, fade and clip
+            // boundary; the definition is its one reference.
+            let g = r.sub("AcDbUnderlayReference");
+            let mut w = begin(cx, cx.class("PDFUNDERLAY")?, r);
+            w.bd3(g.extrusion());
+            w.bd3(g.p3(10));
+            w.bd(g.f(50).to_radians());
+            w.bd(g.f_or(41, 1.0));
+            w.bd(g.f_or(42, 1.0));
+            w.bd(g.f_or(43, 1.0));
+            let byte = |code: i32, default: i64, top: i64| u8::try_from(g.i_or(code, default).clamp(0, top)).unwrap_or(0);
+            w.rc(byte(280, 2, 255));
+            w.rc(byte(281, 100, 100));
+            w.rc(byte(282, 0, 100));
+            let xs: Vec<f64> = g.all(11).map(Tag::f64).collect();
+            let ys: Vec<f64> = g.all(21).map(Tag::f64).collect();
+            let n = xs.len().min(ys.len());
+            w.bl(count(n));
+            for (x, y) in xs.iter().zip(&ys).take(n) {
+                w.rd2([*x, *y]);
+            }
+            w.reference(Ref::HardPointer, cx.known(g.h(340)));
+            w
+        }
+        "ACAD_TABLE" => super::table::table(cx, r)?,
         _ => return None,
     })
 }

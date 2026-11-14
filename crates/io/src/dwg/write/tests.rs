@@ -175,10 +175,13 @@ fn scratch_dump() {
     use draftcraft_geom::Vec3;
     let mut d = Drawing::new_metric();
     d.add(&draftcraft_doc::Space::Model, draftcraft_doc::Common::default(), EntityKind::Line(Line { a: Vec3::new(0.0, 0.0, 0.0), b: Vec3::new(10.0, 5.0, 0.0) })).expect("add");
-    let ver = match std::env::var("V").as_deref() { Ok("2000") => draftcraft_dxf::Version::R2000, Ok("2018") => draftcraft_dxf::Version::R2018, _ => draftcraft_dxf::Version::R2004 };
+    d.table_styles.push(draftcraft_doc::TableStyle { name: "Sched".into(), text_height: 2.5, margin: 1.0, title: false, header: true, ..Default::default() });
+    let ver = match std::env::var("V").as_deref() { Ok("2000") => draftcraft_dxf::Version::R2000, Ok("2018") => draftcraft_dxf::Version::R2018, Ok("2010") => draftcraft_dxf::Version::R2010, Ok("2013") => draftcraft_dxf::Version::R2013, _ => draftcraft_dxf::Version::R2004 };
     let (bytes, unw) = crate::write_dwg_own(&d, ver).expect("write");
     println!("unwritten {unw:?}");
     std::fs::write(std::env::var("OUT").unwrap_or("/dev/null".into()), &bytes).expect("out");
+    let back = crate::read(&bytes, "x.dwg").expect("read");
+    println!("styles back: {:?}", back.table_styles.iter().map(|s| &s.name).collect::<Vec<_>>());
     let file = DwgFile::open(&bytes).expect("open");
     let _ = file.header();
     for o in file.objects() {

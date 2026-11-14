@@ -14,8 +14,10 @@ mod annotation;
 mod common;
 mod entities;
 mod header;
+mod mleader;
 mod objects;
 mod rec;
+mod table;
 mod tables;
 mod variables;
 

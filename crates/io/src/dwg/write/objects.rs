@@ -71,11 +71,19 @@ pub(super) fn object(cx: &Cx<'_>, r: &Rec<'_>) -> Option<ObjectWriter> {
         }
         "MLEADERSTYLE" => mleader_style(cx, r)?,
         "DIMASSOC" => dim_assoc(cx, r)?,
-        "TABLESTYLE" if cx.ver < V::R2010 => table_style(cx, r)?,
+        "TABLESTYLE" => table_style(cx, r)?,
         "SPATIAL_FILTER" => spatial_filter(cx, r)?,
-        "VISUALSTYLE" | "MATERIAL" | "TABLESTYLE" | "ACDBSECTIONVIEWSTYLE" | "ACDBDETAILVIEWSTYLE" | "IMAGEDEF"
+        "VISUALSTYLE" | "MATERIAL" | "ACDBSECTIONVIEWSTYLE" | "ACDBDETAILVIEWSTYLE" | "IMAGEDEF"
         | "IMAGEDEF_REACTOR" | "RASTERVARIABLES" => grouped(cx, r)?,
         "MLINESTYLE" => mline_style(cx, r),
+        "PDFDEFINITION" => {
+            // The file and the page.
+            let g = r.sub("AcDbUnderlayDefinition");
+            let mut w = begin(cx, cx.class("PDFDEFINITION")?, r);
+            w.text(g.s(1));
+            w.text(g.s(2));
+            w
+        }
         _ => return None,
     })
 }
@@ -429,6 +437,14 @@ fn table_style(cx: &Cx<'_>, r: &Rec<'_>) -> Option<ObjectWriter> {
     };
     let rows_at = g.0.iter().position(|t| t.code == 7).unwrap_or(g.0.len());
     let head = Groups(g.0.get(..rows_at).unwrap_or(&[]));
+    if cx.ver >= V::R2010 {
+        let version = match all.0 {
+            [first, second, ..] if first.code == 280 && second.code == 3 => first.i64(),
+            _ => 0,
+        };
+        table_style_cells(cx, &mut w, version, head, g);
+        return Some(w);
+    }
     let color = |w: &mut ObjectWriter, aci: i64| {
         let c = match aci {
             0 => ColorValue::ByBlock,
@@ -468,6 +484,151 @@ fn table_style(cx: &Cx<'_>, r: &Rec<'_>) -> Option<ObjectWriter> {
         }
     }
     Some(w)
+}
+
+/// A colour word for an AutoCAD Color Index number as a table style holds it (0 ByBlock, 256
+/// ByLayer, 257 none).
+fn aci_word(aci: i64) -> u32 {
+    match aci {
+        0 => 0xC100_0000,
+        256 => 0xC000_0000,
+        257 => 0xC800_0000,
+        i => u8::try_from(i).map_or(0xC100_0000, |i| 0xC300_0000 | u32::from(i)),
+    }
+}
+
+/// A table style's colour: a colour record with no name or book.
+fn color_record(w: &mut ObjectWriter, word: u32) {
+    w.bs(0);
+    w.bl(word);
+    w.rc(0);
+}
+
+/// One row of a table style's record (from its group 7).
+struct StyleRow {
+    text_style: u64,
+    height: f64,
+    align: u32,
+    text_color: u32,
+    /// The fill colour; `None` for no fill.
+    fill: Option<u32>,
+    data_type: u32,
+    unit_type: u32,
+    format: String,
+    /// The borders that are not the default (ByBlock lineweight, shown, ByBlock colour): edge
+    /// bit, lineweight, visibility, colour word.
+    borders: Vec<(u32, i64, bool, u32)>,
+}
+
+fn style_row(cx: &Cx<'_>, row: Groups<'_>) -> StyleRow {
+    let mut borders = Vec::new();
+    for k in 0..6 {
+        let (weight, shown, color) = (row.i_or(274 + k, -2), row.i_or(284 + k, 1) != 0, row.i_or(64 + k, 0));
+        if (weight, shown, color) != (-2, true, 0) {
+            borders.push((1 << k, weight, shown, aci_word(color)));
+        }
+    }
+    StyleRow {
+        text_style: cx.style(if row.has(7) { row.s(7) } else { "Standard" }),
+        height: row.f_or(140, 0.18),
+        align: u32::try_from(row.i_or(170, 5)).unwrap_or(5),
+        text_color: aci_word(row.i_or(62, 0)),
+        fill: (row.i(283) != 0).then(|| aci_word(row.i_or(63, 7))),
+        data_type: u32::try_from(row.i_or(90, 512)).unwrap_or(512),
+        unit_type: u32::try_from(row.i(91)).unwrap_or(0),
+        format: row.s(1).to_string(),
+        borders,
+    }
+}
+
+/// A named cell style of a table style from AutoCAD 2010: its data (no overrides of its own
+/// beyond `overrides`, the merge and flow bits in `flags`, the background, a content layout of
+/// one flow, the content format, the margins when it has them, the borders that aren't the
+/// default).
+fn cell_style(w: &mut ObjectWriter, row: &StyleRow, overrides: u32, flags: u32, margins: Option<[f64; 6]>) {
+    w.bl(5);
+    w.bs(1);
+    w.bl(overrides);
+    w.bl(flags);
+    color_record(w, row.fill.unwrap_or(0xC800_0000));
+    w.bl(1);
+    w.bl(0);
+    w.bl(0);
+    w.bl(row.data_type);
+    w.bl(row.unit_type);
+    w.text(&row.format);
+    w.bd(0.0);
+    w.bd(1.0);
+    w.bl(row.align);
+    color_record(w, row.text_color);
+    w.reference(Ref::HardPointer, row.text_style);
+    w.bd(row.height);
+    match margins {
+        Some(m) => {
+            w.bs(1);
+            for v in m {
+                w.bd(v);
+            }
+        }
+        None => w.bs(0),
+    }
+    w.bl(u32::try_from(row.borders.len()).unwrap_or(0));
+    for &(edge, weight, shown, color) in &row.borders {
+        w.bl(edge);
+        // Its lineweight, colour and visibility are its own; a single line, no linetype.
+        w.bl(0x02 | 0x08 | 0x10);
+        w.bl(1);
+        color_record(w, color);
+        w.bl(u32::try_from(weight & 0xFFFF_FFFF).unwrap_or(0));
+        w.reference(Ref::HardPointer, 0);
+        w.bl(u32::from(!shown));
+        w.bd(0.0);
+    }
+}
+
+/// TABLESTYLE from AutoCAD 2010: a version, the description, the flags (title and header rows
+/// suppressed), AutoCAD's number 101, then the cell styles: the table's own ("Table": the data
+/// rows' height, the style's margins and flow direction), then _TITLE, _HEADER and _DATA from the
+/// record's three rows (data, title, header in DXF), each after its key. The rows of AutoCAD's
+/// own Standard style come out as AutoCAD's file holds them (MI-201).
+fn table_style_cells(cx: &Cx<'_>, w: &mut ObjectWriter, version: i64, head: Groups<'_>, g: Groups<'_>) {
+    let starts: Vec<usize> = g.0.iter().enumerate().filter(|(_, t)| t.code == 7).map(|(i, _)| i).collect();
+    let row = |n: usize| style_row(cx, starts.get(n).map_or(Groups::default(), |&i| Groups(g.0.get(i..starts.get(n + 1).copied().unwrap_or(g.0.len())).unwrap_or(&[]))));
+    let (data, title, header) = (row(0), row(1), row(2));
+    let flags = u32::try_from(head.i(71) & 0xFFFF_FFFC).unwrap_or(0) | u32::from(head.i(280) != 0) | (u32::from(head.i(281) != 0) << 1);
+    w.rc(u8::try_from(version).unwrap_or(0));
+    w.text(head.s(3));
+    w.bl(flags);
+    w.bl(101);
+    w.reference(Ref::HardOwner, 0);
+    let (h, v) = (head.f_or(40, 0.06), head.f_or(41, 0.06));
+    // Margins other than AutoCAD's default: top, left, bottom, right, and the spacing between
+    // contents, horizontal and vertical.
+    let margins = ((h, v) != (0.06, 0.06)).then_some([v, h, v, h, h, v]);
+    let table = StyleRow {
+        text_style: 0,
+        height: data.height,
+        align: 1,
+        text_color: 0xC100_0000,
+        fill: None,
+        data_type: 512,
+        unit_type: 0,
+        format: String::new(),
+        borders: Vec::new(),
+    };
+    let overrides = if margins.is_some() { 0x6_3C00 } else { 0 };
+    cell_style(w, &table, overrides, if head.i(70) == 1 { 0x1_0000 } else { 0 }, margins);
+    w.bl(4);
+    w.bl(2);
+    w.text("Table");
+    w.bl(3);
+    for (id, class, name, row, merge) in [(1u32, 1u32, "_TITLE", &title, 0x8000u32), (2, 1, "_HEADER", &header, 0), (3, 2, "_DATA", &data, 0)] {
+        w.bl(id);
+        cell_style(w, row, 0, merge, None);
+        w.bl(id);
+        w.bl(class);
+        w.text(name);
+    }
 }
 
 /// SPATIAL_FILTER: a block reference's clip boundary. Its vertices, the boundary's normal and
