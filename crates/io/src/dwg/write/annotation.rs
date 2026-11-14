@@ -238,7 +238,7 @@ fn dimension(cx: &Cx<'_>, r: &Rec<'_>) -> Option<ObjectWriter> {
 
 /// The dimension style `name`, or Standard.
 fn dim_style(cx: &Cx<'_>, name: &str) -> u64 {
-    cx.dim_styles.get(&name.trim().to_ascii_uppercase()).or_else(|| cx.dim_styles.get("STANDARD")).copied().unwrap_or(0)
+    cx.dim_styles.get(&name.trim().to_uppercase()).or_else(|| cx.dim_styles.get("STANDARD")).copied().unwrap_or(0)
 }
 
 fn count(n: usize) -> u32 {

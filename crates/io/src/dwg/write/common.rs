@@ -27,7 +27,7 @@ pub(super) fn xdata(cx: &Cx<'_>, tags: &[Tag]) -> Vec<XDataBlock> {
     while let Some(t) = tags.get(i).filter(|_| i < MAX_XDATA) {
         i += 1;
         if t.code == 1001 {
-            match cx.apps.get(&text(t).trim().to_ascii_uppercase()) {
+            match cx.apps.get(&text(t).trim().to_uppercase()) {
                 Some(&app) => {
                     out.push(XDataBlock { app, items: Vec::new() });
                     skip = false;
@@ -202,7 +202,7 @@ pub(super) fn structure(cx: &mut Cx<'_>) {
     for r in every().filter(|r| r.kind == "INSERT") {
         let name = r.sub("AcDbBlockReference").s(2);
         let name = if name.is_empty() { r.sub("AcDbMInsertBlock").s(2) } else { name };
-        if let Some(&record) = cx.blocks.get(&name.trim().to_ascii_uppercase()) {
+        if let Some(&record) = cx.blocks.get(&name.trim().to_uppercase()) {
             cx.inserts.entry(record).or_default().push(r.handle);
         }
     }

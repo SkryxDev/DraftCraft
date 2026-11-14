@@ -112,16 +112,16 @@ impl Cx<'_> {
         w
     }
     pub fn layer(&self, name: &str) -> u64 {
-        self.layers.get(&name.trim().to_ascii_uppercase()).or_else(|| self.layers.get("0")).copied().unwrap_or(0)
+        self.layers.get(&name.trim().to_uppercase()).or_else(|| self.layers.get("0")).copied().unwrap_or(0)
     }
     pub fn linetype(&self, name: &str) -> u64 {
-        self.linetypes.get(&name.trim().to_ascii_uppercase()).copied().unwrap_or(0)
+        self.linetypes.get(&name.trim().to_uppercase()).copied().unwrap_or(0)
     }
     pub fn style(&self, name: &str) -> u64 {
-        self.styles.get(&name.trim().to_ascii_uppercase()).or_else(|| self.styles.get("STANDARD")).copied().unwrap_or(0)
+        self.styles.get(&name.trim().to_uppercase()).or_else(|| self.styles.get("STANDARD")).copied().unwrap_or(0)
     }
     pub fn block(&self, name: &str) -> u64 {
-        self.blocks.get(&name.trim().to_ascii_uppercase()).copied().unwrap_or(0)
+        self.blocks.get(&name.trim().to_uppercase()).copied().unwrap_or(0)
     }
     /// A handle the record names, when the drawing has that object; 0 otherwise.
     pub fn known(&self, h: u64) -> u64 {
@@ -143,7 +143,7 @@ impl Cx<'_> {
 }
 
 fn index<'a>(doc: &Doc<'a>, table: &str) -> HashMap<String, u64> {
-    doc.table(table).map(|t| t.records.iter().map(|r| (r.all().s(2).trim().to_ascii_uppercase(), r.handle)).collect()).unwrap_or_default()
+    doc.table(table).map(|t| t.records.iter().map(|r| (r.all().s(2).trim().to_uppercase(), r.handle)).collect()).unwrap_or_default()
 }
 
 /// One encoded object.

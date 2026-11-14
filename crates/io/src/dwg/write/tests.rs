@@ -138,3 +138,32 @@ fn a_drawing_reads_back() {
         assert!(unread.is_empty(), "{version:?}: {}", unread.summary());
     }
 }
+
+/// The header variables of AutoCAD's DXF, as the writer would store them, against the values
+/// AutoCAD's DWG of the same drawing holds. Prints the differences.
+#[test]
+#[ignore]
+fn probe_header() {
+    use draftcraft_dwg::file::HeaderValue;
+    for (dxf, dwg, ver) in PAIRS {
+        let tags = draftcraft_dxf::parse(&mi201(dxf)).expect("AutoCAD's DXF");
+        let doc = Doc::parse(&tags);
+        let cx = context(&doc, ver);
+        let ours = header::values(&cx);
+        let bytes = mi201(dwg);
+        let file = DwgFile::open(&bytes).expect("AutoCAD's DWG");
+        println!("== {dwg}");
+        for (name, theirs) in file.header().expect("header").vars {
+            let same = match (ours.get(name), &theirs) {
+                (Some(HeaderValue::Real(a)), HeaderValue::Real(b)) => (a - b).abs() <= 1e-9 * b.abs().max(1.0),
+                (Some(HeaderValue::Point2(a)), HeaderValue::Point2(b)) => a.iter().zip(b).all(|(x, y)| (x - y).abs() <= 1e-9 * y.abs().max(1.0)),
+                (Some(HeaderValue::Point3(a)), HeaderValue::Point3(b)) => a.iter().zip(b).all(|(x, y)| (x - y).abs() <= 1e-9 * y.abs().max(1.0)),
+                (Some(a), b) => a == b,
+                (None, _) => false,
+            };
+            if !same {
+                println!("  {name}: ours {:?} theirs {theirs:?}", ours.get(name));
+            }
+        }
+    }
+}

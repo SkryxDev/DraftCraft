@@ -44,7 +44,7 @@ fn reference(cx: &Cx<'_>, name: &str) -> Option<u64> {
     let doc = cx.doc;
     let named = |key: &str| cx.named.get(key).copied().unwrap_or(0);
     let by = |table: &HashMap<String, u64>, var: &str| {
-        let n = text(doc, var).trim().to_ascii_uppercase();
+        let n = text(doc, var).trim().to_uppercase();
         if n.is_empty() { 0 } else { table.get(&n).copied().unwrap_or(0) }
     };
     let control = |table: &str| cx.controls.iter().find(|(k, _)| k.eq_ignore_ascii_case(table)).map_or(0, |(_, h)| *h);
@@ -124,6 +124,8 @@ pub(super) fn values(cx: &Cx<'_>) -> HashMap<&'static str, HeaderValue> {
                 draftcraft_dxf::Value::Str(s) => HeaderValue::Int(s.chars().next().map_or(46, |c| i64::from(u32::from(c)))),
                 _ => HeaderValue::Int(t.i64()),
             }),
+            // DXF writes these two angles in degrees.
+            ("ANGBASE" | "SNAPANG", _) => first.map(|t| HeaderValue::Real(t.f64().to_radians())),
             (_, HeaderKind::Bool) => first.map(|t| HeaderValue::Bool(t.i64() != 0)),
             (_, HeaderKind::Int) => first.map(|t| HeaderValue::Int(t.i64())),
             (_, HeaderKind::Real | HeaderKind::Time) => first.map(|t| HeaderValue::Real(t.f64())),
