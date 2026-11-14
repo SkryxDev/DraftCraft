@@ -62,11 +62,10 @@ fn every_object_of_every_version_is_accounted_for() {
             assert!(types.contains_key(t) || (t.contains(' ') && t == k), "{name}: {k} counted, not in the file: {}", unread.summary());
         }
         assert!(!unread.by_type.contains_key("?"), "{name}: {}", unread.summary());
-        // A type of a later step is still counted, not dropped: the codec decodes visual styles
-        // from AutoCAD 2013 on.
-        if *code < "AC1027" {
-            assert_eq!(unread_of("VISUALSTYLE"), types.get("VISUALSTYLE").copied().unwrap_or(0), "{name}: {}", unread.summary());
-            assert!(unread_of("VISUALSTYLE") > 0, "{name}: no VISUALSTYLE among {}", unread.summary());
+        // Visual styles are read in each of their three layouts (up to 2007, 2010, from 2013).
+        if *code >= "AC1015" {
+            assert!(types.get("VISUALSTYLE").copied().unwrap_or(0) > 0, "{name}: no VISUALSTYLE");
+            assert_eq!(unread_of("VISUALSTYLE"), 0, "{name}: {}", unread.summary());
         }
     }
 }

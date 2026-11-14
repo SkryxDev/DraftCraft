@@ -29,6 +29,8 @@ enum D {
     Bd,
     Rc,
     Tv,
+    /// TV that AutoCAD ends with a zero byte up to 2004 (8-bit text); read like `Tv`.
+    Tz,
     /// A handle with the given reference code.
     H(u8),
     /// CmColor: DXF 62 (the colour index), 420 (true colour) when set.
@@ -71,8 +73,8 @@ struct Layout {
     dwg: Vec<W>,
 }
 
-/// The layout of a type, or `None` for types handled by code below.
-fn layout(kind: &str) -> Option<Layout> {
+/// The layout of a type in files of version `ver`, or `None` for types handled by code below.
+fn layout(kind: &str, ver: V) -> Option<Layout> {
     use D::*;
     use G::*;
     Some(match kind {
@@ -87,6 +89,77 @@ fn layout(kind: &str) -> Option<Layout> {
         "IMAGEDEF_REACTOR" => Layout { dxf: vec![M("AcDbRasterImageDefReactor"), V(90, Bl)], dwg: vec![W::I(1)] },
         "RASTERVARIABLES" => {
             Layout { dxf: vec![M("AcDbRasterVariables"), V(90, Bl), V(70, Bs), V(71, Bs), V(72, Bs)], dwg: vec![W::I(1), W::I(2), W::I(3), W::I(4)] }
+        }
+        // The visual style AutoCAD files before 2010, its DXF groups in AutoCAD's order. DXF
+        // adds a colour (62, always 5) and, before 2007, a real (45) the record doesn't hold;
+        // the record keeps the edge count (175) after the other flags and DXF's real 44 as a
+        // whole number.
+        "VISUALSTYLE" if ver < super::version::DwgVersion::R2010 => {
+            let r2007 = ver >= super::version::DwgVersion::R2007;
+            let dxf = vec![
+                M("AcDbVisualStyle"),
+                V(2, Tz),
+                V(70, Bl),
+                V(71, Bl),
+                V(72, Bl),
+                V(73, Bl),
+                V(90, Bl),
+                V(40, Bd),
+                V(41, Bd),
+                X(62, 5),
+                V(63, Cmc),
+                V(74, Bl),
+                V(91, Bl),
+                V(64, Cmc),
+                V(65, Cmc),
+                V(75, Bl),
+                V(175, Bs),
+                V(42, Bd),
+                V(92, Bl),
+                V(66, Cmc),
+                V(43, Bd),
+                V(76, Bs),
+                V(77, Bs),
+                V(78, Bl),
+                V(67, Cmc),
+                V(79, Bs),
+                V(170, Rc),
+                V(171, Bs),
+                V(290, B),
+                V(174, Bs),
+                V(93, Bl),
+                V(44, Bl),
+                V(173, Bl),
+                V(291, B),
+                if r2007 { V(45, Bd) } else { X(45, 0) },
+            ];
+            let mut dwg: Vec<W> =
+                [1, 2, 3, 4, 5, 7, 8, 10, 6, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 16, 30, 31, 32]
+                    .into_iter()
+                    .map(W::I)
+                    .collect();
+            if r2007 {
+                dwg.push(W::I(34));
+            }
+            dwg.push(W::I(33));
+            Layout { dxf, dwg }
+        }
+        // AutoCAD 2010's visual style: the first 28 of the later properties, each under a DXF
+        // code of its own (the later records number them all 90, 40, 62 or 290 by kind).
+        "VISUALSTYLE" if ver < super::version::DwgVersion::R2013 => {
+            let mut dxf = vec![M("AcDbVisualStyle"), V(2, Tv), V(70, Bs), V(177, Bs), V(291, B)];
+            for (code, kind) in VISUALSTYLE_2010.iter().zip(VISUALSTYLE_PROPERTIES) {
+                let d = match kind {
+                    90 => Bl,
+                    40 => Bd,
+                    62 => Cmc,
+                    _ => B,
+                };
+                dxf.push(V(*code, d));
+                dxf.push(V(176, Bs));
+            }
+            let dwg = (1..dxf.len()).map(W::I).collect();
+            Layout { dxf, dwg }
         }
         "VISUALSTYLE" => {
             let mut dxf = vec![M("AcDbVisualStyle"), V(2, Tv), V(70, Bs), X(177, 3), V(291, B), X(70, 58)];
@@ -284,6 +357,228 @@ const VISUALSTYLE_PROPERTIES: [u16; 58] = [
     290, 290, 290, 90, 40, 40, 90, 62, 90, 90, 62, 290, 90, 90, 90, 290, 90, 62, 40, 90, 1, 290, 40, 40,
 ];
 
+/// The DXF codes of AutoCAD 2010's visual style properties, the first 28 of
+/// [`VISUALSTYLE_PROPERTIES`] in order.
+const VISUALSTYLE_2010: [u16; 28] =
+    [71, 72, 73, 90, 40, 41, 63, 74, 91, 64, 65, 75, 175, 42, 92, 66, 43, 76, 77, 78, 67, 79, 170, 171, 290, 93, 44, 173];
+
+// ---------------------------------------------------------------------------
+// Visual styles across versions
+// ---------------------------------------------------------------------------
+
+/// How a visual style's DXF groups are laid out: before 2010 (the properties under codes of
+/// their own, with a few more groups), AutoCAD 2010 (28 properties, each followed by its
+/// operation, 176) and from 2013 (58 properties numbered by kind, each with its operation).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum VisualGrouping {
+    Legacy,
+    R2010,
+    R2013,
+}
+
+impl VisualGrouping {
+    fn of(ver: V) -> Self {
+        if ver < V::R2010 {
+            VisualGrouping::Legacy
+        } else if ver < V::R2013 {
+            VisualGrouping::R2010
+        } else {
+            VisualGrouping::R2013
+        }
+    }
+}
+
+/// One visual style property: its value, the true colour after a colour, and its operation.
+#[derive(Clone, Debug)]
+struct VisualProp {
+    value: Val,
+    rgb: Option<Val>,
+    op: i64,
+}
+
+/// The visual style types that change one property of the style below them (edge colour,
+/// jitter, overhang off): their properties are left as they are (operation 0) but the edge
+/// modifiers, which they set (operation 2).
+fn edits_one_property(kind: i64) -> bool {
+    (20..=22).contains(&kind)
+}
+
+/// The operation of property `i` of a style of type `kind` read from a file whose records have
+/// none: what AutoCAD gives each property of its own styles.
+fn default_op(kind: i64, i: usize) -> i64 {
+    if edits_one_property(kind) {
+        match i {
+            14 => 2,
+            28..=36 | 45 | 49 | 55 => 1,
+            _ => 0,
+        }
+    } else {
+        match i {
+            51 | 52 => 0,
+            _ => 1,
+        }
+    }
+}
+
+/// Property `i` (28 to 57: the ones only the 2013 record holds) of a style of type `kind`, as
+/// AutoCAD sets it in its own styles.
+fn default_prop(kind: i64, i: usize) -> VisualProp {
+    let wireframe_2d = kind == 4;
+    let (value, rgb) = match i {
+        28 => (Val::Int(wireframe_2d as i64), None),
+        29 => (Val::Int(1), None),
+        30 => (Val::Int(!wireframe_2d as i64), None),
+        37 | 42 | 46 | 47 | 48 | 50 => (Val::Int(50), None),
+        38 => (Val::Real(0.0), None),
+        39 | 52 | 56 | 57 => (Val::Real(1.0), None),
+        41 => (Val::Int(18), Some(Val::Int(0))),
+        43 => (Val::Int(3), None),
+        44 => (Val::Int(5), Some(Val::Int(255))),
+        51 => (Val::Int(256), None),
+        53 => (Val::Int(2), None),
+        54 => (Val::Str("strokes_ogs.tif".to_string()), None),
+        _ => (Val::Int(0), None),
+    };
+    VisualProp { value, rgb, op: default_op(kind, i) }
+}
+
+/// A visual style's groups laid out for files of version `ver`, when they are laid out for
+/// another version: `None` when they already fit or aren't a visual style's.
+fn regroup_visual_style(items: &[(u16, XrValue)], ver: V) -> Option<Vec<(u16, XrValue)>> {
+    let code_at = |i: usize| items.get(i).map(|x| x.0);
+    let value_at = |i: usize| items.get(i).map(|x| from_xr(&x.1));
+    if code_at(0) != Some(100) || code_at(1) != Some(2) || code_at(2) != Some(70) {
+        return None;
+    }
+    let from = match code_at(3) {
+        Some(71) => VisualGrouping::Legacy,
+        Some(177) if code_at(5) == Some(70) => VisualGrouping::R2013,
+        Some(177) => VisualGrouping::R2010,
+        _ => return None,
+    };
+    let to = VisualGrouping::of(ver);
+    if from == to {
+        return None;
+    }
+    let name = value_at(1)?;
+    let kind = match value_at(2)? {
+        Val::Int(k) => k,
+        _ => return None,
+    };
+    let is_rgb = |code: u16| (420..=427).contains(&code);
+    let (internal, mut props) = match from {
+        VisualGrouping::Legacy => {
+            // Each property under its own code, true colours after their colours.
+            let mut by_code: Vec<(u16, Val, Option<Val>)> = Vec::new();
+            for (code, v) in items.get(3..)? {
+                if is_rgb(*code) {
+                    if let Some(last) = by_code.last_mut() {
+                        last.2 = Some(from_xr(v));
+                    }
+                } else {
+                    by_code.push((*code, from_xr(v), None));
+                }
+            }
+            let find = |code: u16| by_code.iter().find(|x| x.0 == code);
+            let mut props = Vec::with_capacity(VISUALSTYLE_PROPERTIES.len());
+            for (i, code) in VISUALSTYLE_2010.iter().enumerate() {
+                let (_, value, rgb) = find(*code)?;
+                // Opacity and specular are negative while switched off.
+                let value = match (i, value) {
+                    (4 | 5, Val::Real(f)) => Val::Real(f.abs()),
+                    (_, v) => v.clone(),
+                };
+                props.push(VisualProp { value, rgb: rgb.clone(), op: default_op(kind, i) });
+            }
+            (find(291)?.1.clone(), props)
+        }
+        VisualGrouping::R2010 | VisualGrouping::R2013 => {
+            let (count, mut at) = if from == VisualGrouping::R2013 { (VISUALSTYLE_PROPERTIES.len(), 6) } else { (VISUALSTYLE_2010.len(), 5) };
+            let internal = value_at(4)?;
+            let mut props = Vec::with_capacity(VISUALSTYLE_PROPERTIES.len());
+            for _ in 0..count {
+                let value = value_at(at)?;
+                at += 1;
+                let rgb = match code_at(at) {
+                    Some(c) if is_rgb(c) => {
+                        at += 1;
+                        value_at(at - 1)
+                    }
+                    _ => None,
+                };
+                if code_at(at) != Some(176) {
+                    return None;
+                }
+                let op = match value_at(at)? {
+                    Val::Int(op) => op,
+                    _ => return None,
+                };
+                at += 1;
+                props.push(VisualProp { value, rgb, op });
+            }
+            (internal, props)
+        }
+    };
+    while props.len() < VISUALSTYLE_PROPERTIES.len() {
+        props.push(default_prop(kind, props.len()));
+    }
+    let mut out = vec![(100, XrValue::Str("AcDbVisualStyle".to_string())), (2, xr(2, &name)), (70, xr(70, &Val::Int(kind)))];
+    let push = |out: &mut Vec<(u16, XrValue)>, code: u16, p: &VisualProp, true_color: u16| {
+        out.push((code, xr(code, &p.value)));
+        if let Some(rgb) = &p.rgb {
+            out.push((true_color, xr(true_color, rgb)));
+        }
+    };
+    match to {
+        VisualGrouping::Legacy => {
+            let modifiers = match props.get(3).map(|p| &p.value) {
+                Some(Val::Int(m)) => *m,
+                _ => 0,
+            };
+            for (i, code) in VISUALSTYLE_2010.iter().enumerate() {
+                let p = props.get(i)?;
+                let on = match i {
+                    4 => modifiers & 1 != 0,
+                    5 => modifiers & 2 != 0,
+                    _ => true,
+                };
+                let p = match (&p.value, on) {
+                    (Val::Real(f), false) => VisualProp { value: Val::Real(-f.abs()), ..p.clone() },
+                    _ => p.clone(),
+                };
+                if *code == 63 {
+                    out.push((62, xr(62, &Val::Int(5))));
+                }
+                if *code == 93 {
+                    out.push((174, xr(174, &Val::Int(0))));
+                }
+                push(&mut out, *code, &p, true_color_code(*code));
+            }
+            out.push((291, xr(291, &internal)));
+            out.push((45, xr(45, &Val::Real(0.0))));
+        }
+        VisualGrouping::R2010 => {
+            out.push((177, xr(177, &Val::Int(2))));
+            out.push((291, xr(291, &internal)));
+            for (i, code) in VISUALSTYLE_2010.iter().enumerate() {
+                let p = props.get(i)?;
+                push(&mut out, *code, p, true_color_code(*code));
+                out.push((176, xr(176, &Val::Int(p.op))));
+            }
+        }
+        VisualGrouping::R2013 => {
+            out.push((177, xr(177, &Val::Int(3))));
+            out.push((291, xr(291, &internal)));
+            out.push((70, xr(70, &Val::Int(VISUALSTYLE_PROPERTIES.len() as i64))));
+            for (p, code) in props.iter().zip(VISUALSTYLE_PROPERTIES) {
+                push(&mut out, code, p, 420);
+                out.push((176, xr(176, &Val::Int(p.op))));
+            }
+        }
+    }
+    Some(out)
+}
+
 // ---------------------------------------------------------------------------
 // Values
 // ---------------------------------------------------------------------------
@@ -356,17 +651,29 @@ fn from_xr(v: &XrValue) -> Val {
 /// DXF 62 (and 420) for a method word, as AutoCAD writes them: the nearest
 /// index beside a true colour.
 fn color_groups(code: u16, word: u32, out: &mut Vec<(u16, XrValue)>) {
-    let index: i16 = match word >> 24 {
+    out.push((code, XrValue::Int16(index_of(word))));
+    if word >> 24 == 0xC2 {
+        out.push((true_color_code(code), XrValue::Int32((word & 0xFF_FFFF) as i32)));
+    }
+}
+
+/// The colour index of a CmColor method word (the nearest one for a true colour).
+fn index_of(word: u32) -> i16 {
+    match word >> 24 {
         0xC0 => 256,
         0xC1 => 0,
         0xC2 => crate::read::model::color::nearest_aci((word >> 16) as u8, (word >> 8) as u8, word as u8) as i16,
         0xC3 => (word & 0xFF) as i16,
         0xC8 => 257,
         _ => 7,
-    };
-    out.push((code, XrValue::Int16(index)));
-    if word >> 24 == 0xC2 {
-        out.push((420, XrValue::Int32((word & 0xFF_FFFF) as i32)));
+    }
+}
+
+/// The group of a colour's true colour: 420 after 62, 421 after 63 and so on.
+fn true_color_code(code: u16) -> u16 {
+    match code {
+        62..=69 => 420 + (code - 62),
+        _ => 420,
     }
 }
 
@@ -393,12 +700,14 @@ fn read(s: &mut Streams, own: u64, d: D) -> Result<Val> {
         D::Bl => Val::Int(s.dat.bl()? as i32 as i64),
         D::Bd => Val::Real(s.dat.bd()?),
         D::Rc => Val::Int(s.dat.rc()? as i64),
-        D::Tv => Val::Str(s.tv()?),
+        D::Tv | D::Tz => Val::Str(s.tv()?),
         D::Rd2 => {
             let [x, y] = s.dat.rd2()?;
             Val::Point(Vec3::new(x, y, 0.0))
         }
         D::H(_) => Val::Handle(Handle(s.h_abs(own)?)),
+        // Before 2004 a colour is its index alone.
+        D::Cmc | D::Word if s.ver < super::version::DwgVersion::R2004 => Val::Color(word_of(i64::from(s.dat.bs()? as i16), None)),
         D::Cmc | D::Word => {
             let _index = s.dat.bs()?;
             let word = s.dat.bl()?;
@@ -489,7 +798,7 @@ pub(crate) fn decode(kind: &str, s: &mut Streams, own: u64, d: &Lookup) -> Optio
         "MATERIAL" => decode_material(s),
         "TABLESTYLE" => decode_tablestyle(s, own, d),
         "CELLSTYLEMAP" => return None,
-        k => decode_layout(s, own, &layout(k)?),
+        k => decode_layout(s, own, &layout(k, s.ver)?),
     };
     Some(items.map(|items| Groups { kind: kind.to_string(), items }))
 }
@@ -560,7 +869,8 @@ impl<'a> Cur<'a> {
     }
     fn color(&mut self, code: u16) -> Result<u32> {
         let index = self.int(code)?;
-        let rgb = if self.peek() == Some(420) { Some(self.int(420)?) } else { None };
+        let tc = true_color_code(code);
+        let rgb = if self.peek() == Some(tc) { Some(self.int(tc)?) } else { None };
         if self.peek() == Some(430) {
             return Err(Error::format(format!("{}: named colour", self.kind)));
         }
@@ -597,6 +907,13 @@ fn write(w: &mut ObjW, d: D, v: &Val) -> Result<()> {
             Val::Str(s) => s,
             _ => "",
         }),
+        D::Tz => {
+            let s = match v {
+                Val::Str(s) => s.as_str(),
+                _ => "",
+            };
+            if w.ver.has_string_stream() { w.tv(s) } else { w.tv(&format!("{s}\0")) }
+        }
         D::H(code) => {
             let h = match v {
                 Val::Handle(h) => *h,
@@ -610,9 +927,13 @@ fn write(w: &mut ObjW, d: D, v: &Val) -> Result<()> {
                 Val::Int(i) => *i as u32,
                 _ => return Err(Error::format("colour expected")),
             };
-            w.dat.bs(0);
-            w.dat.bl(word);
-            w.dat.rc(0);
+            if w.ver < super::version::DwgVersion::R2004 {
+                w.dat.bs(index_of(word) as u16);
+            } else {
+                w.dat.bs(0);
+                w.dat.bl(word);
+                w.dat.rc(0);
+            }
         }
     }
     Ok(())
@@ -635,7 +956,7 @@ fn encode_layout(w: &mut ObjW, g: &Groups, l: &Layout) -> Result<()> {
             }
             G::V(code, D::Cmc) => Val::Color(c.color(*code)?),
             G::V(code, D::Word) => Val::Color(c.int(*code)? as u32),
-            G::V(code, D::Tv) => Val::Str(c.str(*code)?),
+            G::V(code, D::Tv | D::Tz) => Val::Str(c.str(*code)?),
             G::V(code, D::H(_)) => Val::Handle(c.handle(*code)?),
             G::V(code, D::Bd) => Val::Real(c.real(*code)?),
             G::V(code, D::Rd2) => Val::Point(c.point(*code)?),
@@ -656,7 +977,7 @@ fn encode_layout(w: &mut ObjW, g: &Groups, l: &Layout) -> Result<()> {
                 for _ in 0..n {
                     list.push(match id {
                         D::Bd => Val::Real(c.real(*ic)?),
-                        D::Tv => Val::Str(c.str(*ic)?),
+                        D::Tv | D::Tz => Val::Str(c.str(*ic)?),
                         _ => Val::Int(c.int(*ic)?),
                     });
                 }
@@ -699,7 +1020,14 @@ pub(crate) fn encode_with(w: &mut ObjW, g: &Groups, lookup: &Lookup) -> Result<(
         "DIMASSOC" => encode_dimassoc(w, g),
         "MATERIAL" => encode_material(w, g),
         "TABLESTYLE" => encode_tablestyle(w, g, lookup),
-        k => match layout(k) {
+        "VISUALSTYLE" => {
+            let regrouped = regroup_visual_style(&g.items, w.ver).map(|items| Groups { kind: g.kind.clone(), items });
+            match layout("VISUALSTYLE", w.ver) {
+                Some(l) => encode_layout(w, regrouped.as_ref().unwrap_or(g), &l),
+                None => Err(Error::unsupported("VISUALSTYLE is kept for DXF only")),
+            }
+        }
+        k => match layout(k, w.ver) {
             Some(l) => encode_layout(w, g, &l),
             None => Err(Error::unsupported(format!("{k} is kept for DXF only"))),
         },
@@ -714,6 +1042,7 @@ fn since(kind: &str) -> V {
         "IMAGEDEF" | "IMAGEDEF_REACTOR" | "RASTERVARIABLES" => V::R13,
         // The cell styles came with AutoCAD 2010: its records read as the later ones.
         "TABLESTYLE" => V::R2010,
+        "VISUALSTYLE" => V::R2000,
         _ => V::R2013,
     }
 }
@@ -1218,12 +1547,12 @@ mod tests {
     /// A style object's groups as DXF gives them, every value plain, and
     /// the repeated list claiming `claimed` items while holding two.
     fn groups(kind: &str, claimed: i32) -> Groups {
-        let l = layout(kind).expect("a laid-out kind");
+        let l = layout(kind, V::R2018).expect("a laid-out kind");
         let mut items = Vec::new();
         for f in &l.dxf {
             match f {
                 G::M(name) => items.push((100, XrValue::Str(name.to_string()))),
-                G::V(code, D::Tv) => items.push((*code, XrValue::Str(String::new()))),
+                G::V(code, D::Tv | D::Tz) => items.push((*code, XrValue::Str(String::new()))),
                 G::V(code, D::Bd) => items.push((*code, XrValue::Real(1.0))),
                 G::V(code, D::H(_)) => items.push((*code, XrValue::Handle(Handle::NULL))),
                 G::V(code, D::Cmc) => items.push((*code, XrValue::Int16(256))),
@@ -1243,7 +1572,7 @@ mod tests {
 
     #[test]
     fn a_claimed_count_does_not_size_the_list() {
-        let l = layout("ACDBSECTIONVIEWSTYLE").expect("laid out");
+        let l = layout("ACDBSECTIONVIEWSTYLE", V::R2018).expect("laid out");
         // Sound: two items, both written.
         let mut w = ObjW::new(V::R2018, Handle(0x100));
         encode_layout(&mut w, &groups("ACDBSECTIONVIEWSTYLE", 2), &l).unwrap();

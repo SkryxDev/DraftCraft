@@ -601,7 +601,11 @@ impl ObjectWriter {
             w.bs(self.type_code);
         }
         // AutoCAD 2000 to 2007: where the references start, in bits from the object's start.
-        let strings = if ver.has_string_stream() { if self.has_strings { self.strs.position() + if self.strs.position() >= 0x8000 { 33 } else { 17 } } else { 1 } } else { 0 };
+        let strings = if ver.has_string_stream() {
+            if self.has_strings { self.strs.position() + if self.strs.position() >= 0x8000 { 33 } else { 17 } } else { 1 }
+        } else {
+            0
+        };
         if ver < V::R2010 {
             let end = w.position() + 32 + self.dat.position() + strings;
             w.rl(u32::try_from(end).unwrap_or(u32::MAX));

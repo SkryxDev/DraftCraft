@@ -32,7 +32,9 @@ fn is_dynamic_block_type(kind: &str) -> bool {
             | "ACDBBLOCKPARAMDEPENDENCYBODY"
             | "BLOCKPARAMDEPENDENCYBODY"
             | "BLOCKGRIPLOCATIONCOMPONENT"
-    ) || (kind.starts_with("BLOCK") && (kind.ends_with("GRIP") || kind.ends_with("PARAMETER") || kind.ends_with("ACTION")) && kind != "BLOCKPROPERTIESTABLE")
+    ) || (kind.starts_with("BLOCK")
+        && (kind.ends_with("GRIP") || kind.ends_with("PARAMETER") || kind.ends_with("ACTION"))
+        && kind != "BLOCKPROPERTIESTABLE")
 }
 
 fn decode(r: &mut ObjectReader<'_>, kind: &str) -> Result<(Groups, CommonRefs)> {
@@ -181,13 +183,20 @@ fn decode(r: &mut ObjectReader<'_>, kind: &str) -> Result<(Groups, CommonRefs)> 
         }
         "BLOCKDIAMETRICCONSTRAINTPARAMETER" | "BLOCKRADIALCONSTRAINTPARAMETER" => {
             o.constraint()?;
-            o.marker(if kind == "BLOCKRADIALCONSTRAINTPARAMETER" { "AcDbBlockRadialConstraintParameter" } else { "AcDbBlockDiametricConstraintParameter" });
+            o.marker(if kind == "BLOCKRADIALCONSTRAINTPARAMETER" {
+                "AcDbBlockRadialConstraintParameter"
+            } else {
+                "AcDbBlockDiametricConstraintParameter"
+            });
             o.text(305)?;
             o.text(306)?;
             o.bd(140)?;
             o.value_set(96, 128, 175, 307)?;
         }
-        "BLOCKALIGNEDCONSTRAINTPARAMETER" | "BLOCKLINEARCONSTRAINTPARAMETER" | "BLOCKHORIZONTALCONSTRAINTPARAMETER" | "BLOCKVERTICALCONSTRAINTPARAMETER" => {
+        "BLOCKALIGNEDCONSTRAINTPARAMETER"
+        | "BLOCKLINEARCONSTRAINTPARAMETER"
+        | "BLOCKHORIZONTALCONSTRAINTPARAMETER"
+        | "BLOCKVERTICALCONSTRAINTPARAMETER" => {
             o.constraint()?;
             o.marker("AcDbBlockLinearConstraintParameter");
             o.text(305)?;

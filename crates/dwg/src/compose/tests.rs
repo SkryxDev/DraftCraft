@@ -164,7 +164,13 @@ fn probe_header_tail() {
         let vars = file.header().unwrap().vars;
         let ours = header_section(ver, c.codepage, TextEncoding::default(), &|n| vars.iter().find(|(k, _)| *k == n).map(|(_, v)| v.clone()));
         let at = ours.iter().zip(&theirs).enumerate().position(|(i, (x, y))| x != y && !(16..24).contains(&i)).unwrap_or(ours.len());
-        println!("{name}: ours {} theirs {} diff at {at}\n ours   {:02x?}\n theirs {:02x?}", ours.len(), theirs.len(), &ours[at.saturating_sub(8)..], &theirs[at.saturating_sub(8)..]);
+        println!(
+            "{name}: ours {} theirs {} diff at {at}\n ours   {:02x?}\n theirs {:02x?}",
+            ours.len(),
+            theirs.len(),
+            &ours[at.saturating_sub(8)..],
+            &theirs[at.saturating_sub(8)..]
+        );
     }
 }
 

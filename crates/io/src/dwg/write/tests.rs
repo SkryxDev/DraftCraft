@@ -261,55 +261,89 @@ fn scratch_dump() {
 
 #[test]
 #[ignore]
-fn scratch_resave() {
-    use draftcraft_doc::{Drawing, EntityKind};
-    let mut d = Drawing::new_metric();
-    use draftcraft_geom::Vec3;
-    let dm = draftcraft_doc::Dimension {
-        kind: draftcraft_doc::DimKind::Linear { rotation: 0.0 },
-        defpt: Vec3::new(5.0, 3.0, 0.0),
-        text_mid: Vec3::ZERO,
-        p13: Vec3::ZERO,
-        p14: Vec3::new(10.0, 0.0, 0.0),
-        p15: Vec3::ZERO,
-        p16: Vec3::ZERO,
-        text: String::new(),
-        style: "Standard".into(),
-        measurement: 0.0,
-        text_rotation: 0.0,
-        user_text_pos: false,
-        block: None,
-        overrides: Default::default(),
-        assoc: Vec::new(),
-        marks: Default::default(),
-        insertion_point: Vec3::ZERO,
-    };
-    d.add(&draftcraft_doc::Space::Model, draftcraft_doc::Common::default(), EntityKind::Dimension(dm)).expect("add");
-    let mut bytes = crate::write(&d, "a.dwg").expect("w");
-    let mut prev: Option<Vec<(u64, String, Vec<u8>)>> = None;
-    for round in 0..3 {
-        let back = crate::read(&bytes, "a.dwg").expect("r");
-        println!("round {round} handseed {:X}", back.handseed);
-        bytes = crate::write(&back, "a.dwg").expect("w");
-        let file = DwgFile::open(&bytes).expect("open");
-        let objs: Vec<(u64, String, Vec<u8>)> =
-            file.objects().map(|o| (o.handle, o.type_name.clone(), file.object_bytes(&o).map(|b| b.to_vec()).unwrap_or_default())).collect();
-        if let Some(p) = &prev {
-            for o in &objs {
-                match p.iter().find(|q| q.0 == o.0) {
-                    Some(q) if q.2 != o.2 => println!("  changed {:X} {}", o.0, o.1),
-                    None => println!("  new {:X} {}", o.0, o.1),
-                    _ => {}
+fn scratch_fields() {
+    let bytes = mi201(&std::env::var("F").expect("F"));
+    let kind = std::env::var("K").expect("K");
+    let fields: Vec<String> = std::env::var("S").unwrap_or_default().split(',').filter(|s| !s.is_empty()).map(str::to_string).collect();
+    let max: usize = std::env::var("N").ok().and_then(|n| n.parse().ok()).unwrap_or(2);
+    let file = DwgFile::open(&bytes).expect("open");
+    for o in file.objects().filter(|o| o.type_name == kind).take(max) {
+        let mut r = file.read_object(&o).expect("object");
+        let _ = r.common_refs();
+        let mut out = Vec::new();
+        for f in &fields {
+            let v = match f.as_str() {
+                "T" => r.text().map(|t| format!("{t:?}")),
+                "BL" => r.bl().map(|v| format!("{}", v as i32)),
+                "BS" => r.bs().map(|v| format!("{}", v as i16)),
+                "BD" => r.bd().map(|v| format!("{v}")),
+                "B" => r.b().map(|v| format!("{}", u8::from(v))),
+                "RC" => r.rc().map(|v| format!("{v}")),
+                "CMC" => r.color().map(|v| format!("{v:?}")),
+                "H" => r.reference().map(|v| format!("h{v:X}")),
+                _ => Ok("?".to_string()),
+            };
+            match v {
+                Ok(v) => out.push(format!("{f}={v}")),
+                Err(e) => {
+                    out.push(format!("{f}=ERR {e}"));
+                    break;
                 }
             }
-            for q in p {
-                if !objs.iter().any(|o| o.0 == q.0) {
-                    println!("  gone {:X} {}", q.0, q.1);
-                }
-            }
-            println!("  header same: {}", format!("{:?}", file.header().ok()) == "x");
         }
-        prev = Some(objs);
+        println!("{:X}: {} | left {} bits", o.handle, out.join(" "), r.remaining_bits());
+    }
+}
+
+#[test]
+#[ignore]
+fn scratch_types() {
+    let dir = std::env::var("DIR").expect("DIR");
+    let kinds: Vec<String> = std::env::var("KINDS").unwrap_or_default().split(',').map(str::to_string).collect();
+    let mut names: Vec<_> = std::fs::read_dir(&dir)
+        .expect("dir")
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|e| e == "dwg"))
+        .collect();
+    names.sort();
+    for p in names {
+        let bytes = std::fs::read(&p).expect("read");
+        let Ok(file) = DwgFile::open(&bytes) else { continue };
+        let mut tally: std::collections::BTreeMap<String, usize> = Default::default();
+        for o in file.objects() {
+            if kinds.contains(&o.type_name) {
+                *tally.entry(o.type_name.clone()).or_default() += 1;
+                if std::env::var("DUMP").is_ok() {
+                    println!("  {:X} {} {}", o.handle, o.type_name, hex_of(file.object_bytes(&o).unwrap_or_default()));
+                }
+            }
+        }
+        println!("{} {}: {tally:?}", p.file_name().map(|n| n.to_string_lossy()).unwrap_or_default(), file.version_code());
+    }
+}
+
+#[test]
+#[ignore]
+fn scratch_unwritten() {
+    let dir = std::env::var("DIR").expect("DIR");
+    let mut names: Vec<_> = std::fs::read_dir(&dir).expect("dir").filter_map(|e| e.ok()).map(|e| e.path()).collect();
+    names.sort();
+    for p in names {
+        let Ok(bytes) = std::fs::read(&p) else { continue };
+        let d = match crate::read(&bytes, &p) {
+            Ok(d) => d,
+            Err(e) => {
+                println!("{}: read {e}", p.display());
+                continue;
+            }
+        };
+        for ver in [draftcraft_dxf::Version::R2000, draftcraft_dxf::Version::R2010, draftcraft_dxf::Version::R2018] {
+            match crate::write_dwg_own(&d, ver) {
+                Ok((_, unw)) => println!("{} {:?}: {unw:?}", p.file_name().map(|n| n.to_string_lossy()).unwrap_or_default(), ver),
+                Err(e) => println!("{} {ver:?}: {e}", p.display()),
+            }
+        }
     }
 }
 

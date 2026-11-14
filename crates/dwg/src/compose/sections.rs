@@ -125,7 +125,17 @@ fn default_value(name: &str, kind: VarKind) -> HeaderValue {
         VarKind::B => HeaderValue::Bool(match dt {
             "" => matches!(
                 name,
-                "DIMASO" | "DIMSHO" | "REGENMODE" | "FILLMODE" | "PSLTSCALE" | "USRTIMER" | "WORLDVIEW" | "TILEMODE" | "VISRETAIN" | "DIMTIH" | "DIMTOH"
+                "DIMASO"
+                    | "DIMSHO"
+                    | "REGENMODE"
+                    | "FILLMODE"
+                    | "PSLTSCALE"
+                    | "USRTIMER"
+                    | "WORLDVIEW"
+                    | "TILEMODE"
+                    | "VISRETAIN"
+                    | "DIMTIH"
+                    | "DIMTOH"
             ),
             t => t == "true" || t == "1",
         }),

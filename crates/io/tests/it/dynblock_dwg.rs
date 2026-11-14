@@ -75,7 +75,12 @@ fn objects() -> Vec<(&'static str, &'static str, String, &'static str)> {
             ),
             "FlipTip",
         ),
-        ("87", "BLOCKPOINTPARAMETER", format!("{}100 AcDbBlockPointParameter\n303 Position\n304 Where\n1011 4\n1021 5.875\n1031 0\n", one_point("Point", 17)), "5.875"),
+        (
+            "87",
+            "BLOCKPOINTPARAMETER",
+            format!("{}100 AcDbBlockPointParameter\n303 Position\n304 Where\n1011 4\n1021 5.875\n1031 0\n", one_point("Point", 17)),
+            "5.875",
+        ),
         (
             "88",
             "BLOCKPOLARPARAMETER",
@@ -90,7 +95,11 @@ fn objects() -> Vec<(&'static str, &'static str, String, &'static str)> {
         (
             "89",
             "BLOCKROTATIONPARAMETER",
-            format!("{}100 AcDbBlockRotationParameter\n305 Angle2\n306 Turn\n1011 3\n1021 1\n1031 0\n140 0.5\n{}", two_point("Rotation", 19), value_set(307, 96, 141, 175)),
+            format!(
+                "{}100 AcDbBlockRotationParameter\n305 Angle2\n306 Turn\n1011 3\n1021 1\n1031 0\n140 0.5\n{}",
+                two_point("Rotation", 19),
+                value_set(307, 96, 141, 175)
+            ),
             "Turn",
         ),
         (
@@ -134,7 +143,11 @@ fn objects() -> Vec<(&'static str, &'static str, String, &'static str)> {
         (
             "8E",
             "BLOCKRADIALCONSTRAINTPARAMETER",
-            format!("{}100 AcDbBlockRadialConstraintParameter\n305 rad1\n306 Round\n140 1.25\n{}", constraint("Radial", 24), value_set(307, 96, 128, 175)),
+            format!(
+                "{}100 AcDbBlockRadialConstraintParameter\n305 rad1\n306 Round\n140 1.25\n{}",
+                constraint("Radial", 24),
+                value_set(307, 96, 128, 175)
+            ),
             "Round",
         ),
         (
@@ -146,7 +159,10 @@ fn objects() -> Vec<(&'static str, &'static str, String, &'static str)> {
         (
             "90",
             "BLOCKFLIPACTION",
-            format!("{}100 AcDbBlockFlipAction\n92 1\n93 1\n94 1\n95 1\n301 FlipBaseX\n302 FlipBaseY\n303 FlipEndX\n304 FlipEndY\n", action("FlipIt", 26)),
+            format!(
+                "{}100 AcDbBlockFlipAction\n92 1\n93 1\n94 1\n95 1\n301 FlipBaseX\n302 FlipBaseY\n303 FlipEndX\n304 FlipEndY\n",
+                action("FlipIt", 26)
+            ),
             "FlipEndY",
         ),
         (
@@ -162,7 +178,10 @@ fn objects() -> Vec<(&'static str, &'static str, String, &'static str)> {
         (
             "92",
             "BLOCKARRAYACTION",
-            format!("{}100 AcDbBlockArrayAction\n92 1\n93 1\n94 1\n95 1\n301 A1\n302 B1\n303 C1\n304 D1\n140 12.375\n141 6.625\n", action("Array", 28)),
+            format!(
+                "{}100 AcDbBlockArrayAction\n92 1\n93 1\n94 1\n95 1\n301 A1\n302 B1\n303 C1\n304 D1\n140 12.375\n141 6.625\n",
+                action("Array", 28)
+            ),
             "6.625",
         ),
         (
@@ -176,11 +195,17 @@ fn objects() -> Vec<(&'static str, &'static str, String, &'static str)> {
             "0.1875",
         ),
         ("94", "BLOCKGRIPLOCATIONCOMPONENT", format!("{}100 AcDbBlockGripExpr\n91 1\n300 UpdatedGripX\n", eval(30)), "UpdatedGripX"),
-        ("95", "ACDB_DYNAMICBLOCKPROXYNODE", "100 AcDbEvalExpr\n90 31\n98 33\n99 232\n1\n70 40\n140 2.75\n100 AcDbDynamicBlockProxyNode\n".to_string(), "2.75"),
+        (
+            "95",
+            "ACDB_DYNAMICBLOCKPROXYNODE",
+            "100 AcDbEvalExpr\n90 31\n98 33\n99 232\n1\n70 40\n140 2.75\n100 AcDbDynamicBlockProxyNode\n".to_string(),
+            "2.75",
+        ),
         (
             "96",
             "ACDBBLOCKPARAMDEPENDENCYBODY",
-            "100 AcDbAssocDependencyBody\n90 1\n100 AcDbImpAssocDimDependencyBodyBase\n90 2\n1 width1\n100 AcDbBlockParameterDependencyBody\n90 0\n".to_string(),
+            "100 AcDbAssocDependencyBody\n90 1\n100 AcDbImpAssocDimDependencyBodyBase\n90 2\n1 width1\n100 AcDbBlockParameterDependencyBody\n90 0\n"
+                .to_string(),
             "width1",
         ),
         ("97", "ACDB_BLOCKREPRESENTATION_DATA", "100 AcDbBlockRepresentationData\n70 1\n340 1D\n".to_string(), "1"),

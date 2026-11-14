@@ -222,14 +222,18 @@ pub(super) fn object(cx: &Cx<'_>, r: &Rec<'_>) -> Option<ObjectWriter> {
         }
         "BLOCKDIAMETRICCONSTRAINTPARAMETER" | "BLOCKRADIALCONSTRAINTPARAMETER" => {
             x.constraint();
-            let marker = if kind.starts_with("BLOCKDIAMETRIC") { "AcDbBlockDiametricConstraintParameter" } else { "AcDbBlockRadialConstraintParameter" };
+            let marker =
+                if kind.starts_with("BLOCKDIAMETRIC") { "AcDbBlockDiametricConstraintParameter" } else { "AcDbBlockRadialConstraintParameter" };
             let g = r.sub(marker);
             x.w.text(g.s(305));
             x.w.text(g.s(306));
             x.w.bd(g.f(140));
             value_set(x.w, g, 96, 128, 175);
         }
-        "BLOCKALIGNEDCONSTRAINTPARAMETER" | "BLOCKLINEARCONSTRAINTPARAMETER" | "BLOCKHORIZONTALCONSTRAINTPARAMETER" | "BLOCKVERTICALCONSTRAINTPARAMETER" => {
+        "BLOCKALIGNEDCONSTRAINTPARAMETER"
+        | "BLOCKLINEARCONSTRAINTPARAMETER"
+        | "BLOCKHORIZONTALCONSTRAINTPARAMETER"
+        | "BLOCKVERTICALCONSTRAINTPARAMETER" => {
             x.constraint();
             let g = r.sub("AcDbBlockLinearConstraintParameter");
             x.w.text(g.s(305));
