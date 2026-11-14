@@ -301,8 +301,10 @@ fn mleader_style(r: &mut ObjectReader, name: &str, tables: &Tables) -> DwgResult
     let _block_rotation = (r.bd()?, r.b()?);
     let _block_connection = r.bs()?;
     let _scale = r.bd()?;
-    let annotative = r.b()?;
+    // The "changed" flag (DXF 295) before the annotative one (296), as AutoCAD's records hold
+    // them.
     let _changed = r.b()?;
+    let annotative = r.b()?;
     let _break_size = r.bd()?;
     if ver >= V::R2010 {
         let _attachment = (r.bs()?, r.bs()?, r.bs()?);

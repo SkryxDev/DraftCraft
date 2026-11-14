@@ -9,7 +9,7 @@ mod r2007;
 mod sections;
 
 pub use file::{Parts, Properties, compose};
-pub use object::{EntityStart, ObjectWriter, Ref, TextEncoding, frame, method_word};
+pub use object::{EntityStart, ObjectWriter, Ref, TextEncoding, color_of_word, frame, method_word};
 pub use sections::{HeaderKind, header_variables, Class, class_versions, classes_section, header_section, object_map};
 
 #[cfg(test)]

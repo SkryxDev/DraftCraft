@@ -65,6 +65,8 @@ pub fn version_of(code: &str) -> Option<V> {
 /// What the encoders need to know about the whole drawing.
 pub(super) struct Cx<'a> {
     pub ver: V,
+    /// Parts of records the file has no place for, counted by what they are.
+    pub lost: std::cell::RefCell<Unwritten>,
     pub codepage: u16,
     pub doc: &'a Doc<'a>,
     /// Table records by upper-case name.
@@ -133,6 +135,12 @@ impl Cx<'_> {
         self.kinds.get(&h).copied()
     }
     /// The type number of the class `dxf_name`.
+    /// Count a part of a record the file leaves out.
+    pub fn lose(&self, what: &str) {
+        if let Ok(mut lost) = self.lost.try_borrow_mut() {
+            *lost.entry(what.to_string()).or_default() += 1;
+        }
+    }
     pub fn class(&self, dxf_name: &str) -> Option<u16> {
         self.classes.get(&dxf_name.to_ascii_uppercase()).copied()
     }
@@ -259,6 +267,7 @@ fn context<'a>(doc: &'a Doc<'a>, ver: V) -> Cx<'a> {
     let codepage = doc.header.get("DWGCODEPAGE").and_then(|v| v.first()).map_or(30, |t| code_page_number(rec::text(t)));
     let mut cx = Cx {
         ver,
+        lost: std::cell::RefCell::default(),
         codepage,
         doc,
         layers: index(doc, "LAYER"),
@@ -322,6 +331,10 @@ pub(super) fn encode<'a>(doc: &'a Doc<'a>, ver: V) -> Objects<'a> {
     for r in &doc.objects {
         let w = objects::object(&out.cx, r);
         put(&mut out, r, w);
+    }
+    let lost = out.cx.lost.take();
+    for (what, n) in lost {
+        *out.unwritten.entry(what).or_default() += n;
     }
     out
 }

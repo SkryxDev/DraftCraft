@@ -29,6 +29,42 @@ pub(super) fn entity(cx: &Cx<'_>, r: &Rec<'_>) -> Option<ObjectWriter> {
             spline_fields(cx, &mut w, r.sub("AcDbSpline"));
             w
         }
+        "HELIX" => {
+            // A spline's data, then the helix: its version, the axis's base point, the start
+            // point, the axis's direction, the radius, the turns, a turn's height, whether it
+            // turns counter-clockwise and what stays fixed when it is edited.
+            let mut w = begin(cx, cx.class("HELIX")?, r);
+            spline_fields(cx, &mut w, r.sub("AcDbSpline"));
+            let g = r.sub("AcDbHelix");
+            w.bl(u32::try_from(g.i_or(90, 29)).unwrap_or(29));
+            w.bl(u32::try_from(g.i_or(91, 63)).unwrap_or(63));
+            w.bd3(g.p3(10));
+            w.bd3(g.p3(11));
+            w.bd3(if g.has(12) { g.p3(12) } else { [0.0, 0.0, 1.0] });
+            w.bd(g.f(40));
+            w.bd(g.f(41));
+            w.bd(g.f(42));
+            w.b(g.i(290) != 0);
+            w.rc(u8::try_from(g.i(280)).unwrap_or(0));
+            w
+        }
+        "OLE2FRAME" => {
+            // Its type, its space, its data and (from 2000) whether it keeps its proportions; the
+            // frame's corners are in the data's wrapper.
+            let mut w = begin(cx, 0x4A, r);
+            let g = r.sub("AcDbOle2Frame");
+            w.bs(u16::try_from(g.i(71)).unwrap_or(0));
+            if cx.ver >= V::R2000 {
+                w.bs(u16::try_from(g.i(72)).unwrap_or(0));
+            }
+            let data: Vec<u8> = g.all(310).flat_map(|t| common::bytes_of(text(t))).collect();
+            w.bl(u32::try_from(data.len()).unwrap_or(0));
+            w.bytes(&data);
+            if cx.ver >= V::R2000 {
+                w.rc(u8::try_from(g.i(73)).unwrap_or(0));
+            }
+            w
+        }
         "HATCH" => hatch(cx, r)?,
         "LEADER" => leader(cx, r),
         "TOLERANCE" => {

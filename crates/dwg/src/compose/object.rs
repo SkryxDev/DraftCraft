@@ -306,6 +306,50 @@ impl ObjectWriter {
         }
     }
 
+    /// The common properties of an entity embedded in another (an AutoCAD 2018 multiline
+    /// attribute's text): its own owner (none), no reactors, extension dictionary or binary data,
+    /// then `e`'s colour, linetype scale and linetype, material and plot style flags, shadows, no
+    /// visual styles, visibility and lineweight. Its references follow, where the handle stream
+    /// holds them, by [`ObjectWriter::embedded_entity_refs`].
+    pub fn embedded_entity(&mut self, e: &EntityStart<'_>) {
+        self.dat.bb(0);
+        self.dat.bl(0);
+        self.dat.b(true);
+        self.dat.b(false);
+        self.entity_color(e);
+        self.dat.bd(e.linetype_scale);
+        self.dat.bb(match e.linetype {
+            EntityLinetype::ByLayer => 0,
+            EntityLinetype::ByBlock => 1,
+            EntityLinetype::Continuous => 2,
+            EntityLinetype::Record(_) => 3,
+        });
+        self.dat.bb(if e.material == 0 { 0 } else { 3 });
+        self.dat.bb(if e.plotstyle == 0 { 0 } else { 3 });
+        self.dat.rc(e.shadow);
+        self.dat.b(false);
+        self.dat.b(false);
+        self.dat.b(false);
+        self.dat.bs(u16::from(e.invisible));
+        self.dat.rc(e.lineweight);
+    }
+
+    /// The references of an entity [`ObjectWriter::embedded_entity`] wrote: its owner (none),
+    /// layer, then the linetype, material and plot style it flagged.
+    pub fn embedded_entity_refs(&mut self, e: &EntityStart<'_>) {
+        self.reference(Ref::SoftPointer, 0);
+        self.reference(Ref::HardPointer, e.layer);
+        if let EntityLinetype::Record(h) = e.linetype {
+            self.reference(Ref::HardPointer, h);
+        }
+        if e.material != 0 {
+            self.reference(Ref::HardPointer, e.material);
+        }
+        if e.plotstyle != 0 {
+            self.reference(Ref::HardPointer, e.plotstyle);
+        }
+    }
+
     /// An entity's colour: an index up to AutoCAD 2000; from 2004 the index with flags for a
     /// true colour, a colour book colour and a transparency, each following when flagged.
     fn entity_color(&mut self, e: &EntityStart<'_>) {
@@ -624,6 +668,20 @@ pub fn method_word(c: ColorValue) -> u32 {
         ColorValue::Rgb(r, g, b) => 0xC200_0000 | u32::from(r) << 16 | u32::from(g) << 8 | u32::from(b),
         ColorValue::Index(i) => 0xC300_0000 | u32::from(i),
         ColorValue::None => 0xC800_0000,
+    }
+}
+
+/// The colour a colour word ([`method_word`]) stores; ByLayer for a method it doesn't name.
+pub fn color_of_word(word: u32) -> ColorValue {
+    let [method, r, g, b] = word.to_be_bytes();
+    match method {
+        0xC1 => ColorValue::ByBlock,
+        0xC2 => ColorValue::Rgb(r, g, b),
+        0xC3 if b == 0 => ColorValue::ByBlock,
+        0xC3 if b == 0xFF => ColorValue::ByLayer,
+        0xC3 => ColorValue::Index(b),
+        0xC8 => ColorValue::None,
+        _ => ColorValue::ByLayer,
     }
 }
 

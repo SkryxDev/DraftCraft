@@ -236,23 +236,45 @@ fn text_fields(cx: &Cx<'_>, w: &mut ObjectWriter, g: Groups<'_>, valign: i64) ->
     cx.style(g.s(7))
 }
 
-/// ATTRIB and ATTDEF: a text's fields, then the attribute's own. A multiline attribute (whose
-/// text is an MTEXT inside it) has no encoding yet.
+/// ATTRIB and ATTDEF: a text's fields, then the attribute's own. A multiline attribute keeps its
+/// text as an MTEXT inside it (its groups follow group 101): from AutoCAD 2018 the file holds it
+/// so; an older file has no place for it, and the attribute is stored with its text on one line
+/// (its plain reading, which the record's value is), the loss counted.
 fn attribute(cx: &Cx<'_>, r: &Rec<'_>) -> Option<ObjectWriter> {
     let definition = r.kind == "ATTDEF";
     let ver = cx.ver;
     let t = r.sub("AcDbText");
-    let a = r.sub(if definition { "AcDbAttributeDefinition" } else { "AcDbAttribute" });
-    if a.i(71) > 1 || r.tags.iter().any(|t| t.code == 101) {
-        return None;
-    }
+    let whole = r.sub(if definition { "AcDbAttributeDefinition" } else { "AcDbAttribute" });
+    let split = whole.0.iter().position(|t| t.code == 101);
+    let a = Groups(whole.0.get(..split.unwrap_or(whole.0.len())).unwrap_or(&[]));
+    let embedded = split.map(|i| Groups(whole.0.get(i + 1..).unwrap_or(&[])));
+    let kind = a.i(71);
+    let multiline = match embedded {
+        Some(m) if kind > 1 && ver >= V::R2018 => Some(m),
+        Some(_) if kind > 1 => {
+            cx.lose(if definition { "ATTDEF multiline text" } else { "ATTRIB multiline text" });
+            None
+        }
+        _ => None,
+    };
     let mut w = if definition { begin(cx, 0x03, r) } else { begin_owned(cx, 0x02, r) };
     let style = text_fields(cx, &mut w, t, a.i(74));
     if ver >= V::R2010 {
         w.rc(0);
     }
+    let start = multiline.map(|_| entity_start(cx, r));
+    let mut text_style = 0;
     if ver >= V::R2018 {
-        w.rc(1);
+        match (multiline, &start) {
+            (Some(m), Some(start)) => {
+                w.rc(u8::try_from(kind).unwrap_or(2));
+                w.embedded_entity(start);
+                text_style = super::annotation::mtext_fields(cx, &mut w, m, m.0);
+                // No secondary attributes.
+                w.bs(0);
+            }
+            _ => w.rc(1),
+        }
     }
     w.text(a.s(2));
     w.bs(u16::try_from(a.i(73)).unwrap_or(0));
@@ -268,6 +290,10 @@ fn attribute(cx: &Cx<'_>, r: &Rec<'_>) -> Option<ObjectWriter> {
         w.text(&decode_line(a.s(3)));
     }
     w.reference(Ref::HardPointer, style);
+    if let Some(start) = &start {
+        w.embedded_entity_refs(start);
+        w.reference(Ref::HardPointer, text_style);
+    }
     Some(w)
 }
 

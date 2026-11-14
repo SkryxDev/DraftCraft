@@ -712,6 +712,8 @@ pub(crate) fn encode_with(w: &mut ObjW, g: &Groups, lookup: &Lookup) -> Result<(
 fn since(kind: &str) -> V {
     match kind {
         "IMAGEDEF" | "IMAGEDEF_REACTOR" | "RASTERVARIABLES" => V::R13,
+        // The cell styles came with AutoCAD 2010: its records read as the later ones.
+        "TABLESTYLE" => V::R2010,
         _ => V::R2013,
     }
 }
