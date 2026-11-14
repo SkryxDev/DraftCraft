@@ -389,9 +389,18 @@ fn write_insert_entity(w: &mut W, d: &Drawing, e: &Entity, owner: &str, paper: b
     }
 }
 
+/// The DXF type of a dimension: AutoCAD's own types for an arc length and a jogged radius.
+pub(super) fn dimension_type(dm: &draftcraft_doc::Dimension) -> &'static str {
+    match dm.kind {
+        DimKind::ArcLength => "ARC_DIMENSION",
+        DimKind::Radius if dm.marks.jogged.is_some() => "LARGE_RADIAL_DIMENSION",
+        _ => "DIMENSION",
+    }
+}
+
 fn write_dimension_entity(w: &mut W, d: &Drawing, e: &Entity, owner: &str, paper: bool, cx: &Ctx) {
     if let EntityKind::Dimension(dm) = &e.kind {
-        w.s(0, "DIMENSION");
+        w.s(0, dimension_type(dm));
         common_x(w, e, owner, paper, "AcDbDimension", cx.assoc.get(&e.handle));
         let bname = cx.dim_blocks.get(&e.handle).cloned().or_else(|| dm.block.clone()).unwrap_or_default();
         w.s(2, bname);
@@ -410,11 +419,12 @@ fn write_dimension_entity(w: &mut W, d: &Drawing, e: &Entity, owner: &str, paper
             DimKind::Aligned => 1,
             DimKind::Angular => 2,
             DimKind::Diameter => 3,
+            DimKind::Radius if dm.marks.jogged.is_some() => 9,
             DimKind::Radius => 4,
             DimKind::Angular3P => 5,
             DimKind::Ordinate { x_type } => 6 | if x_type { 64 } else { 0 },
-            // Written as aligned, marked by DraftCraft xdata (see `dim_xdata`).
-            DimKind::ArcLength => 1,
+            // The values AutoCAD gives its arc-length and jogged radius dimensions.
+            DimKind::ArcLength => 5,
         };
         w.i(70, ty | 32 | if dm.user_text_pos { 128 } else { 0 });
         // The actual measurement (read-only in DXF): AutoLISP's entget shows it.
@@ -435,13 +445,37 @@ fn write_dimension_entity(w: &mut W, d: &Drawing, e: &Entity, owner: &str, paper
                 oblique_52(w, dm, rotation);
                 w.s(100, "AcDbRotatedDimension");
             }
-            DimKind::Aligned | DimKind::ArcLength => {
+            DimKind::Aligned => {
                 w.s(100, "AcDbAlignedDimension");
                 w.p(13, dm.p13);
                 w.p(14, dm.p14);
-                if matches!(dm.kind, DimKind::Aligned) {
-                    oblique_52(w, dm, (dm.p14.xy() - dm.p13.xy()).angle());
-                }
+                oblique_52(w, dm, (dm.p14.xy() - dm.p13.xy()).angle());
+            }
+            DimKind::ArcLength => {
+                // The arc's two points, its centre, whether it measures part of the arc, the
+                // start and end angles counter-clockwise from p13 to p14, whether it has a
+                // leader, and the two points again, as AutoCAD writes them.
+                let c = dm.p15.xy();
+                let start = draftcraft_geom::norm_angle(c.angle_to(dm.p13.xy()));
+                let sweep = draftcraft_geom::norm_angle(c.angle_to(dm.p14.xy()) - start);
+                w.s(100, "AcDbArcDimension");
+                w.p(13, dm.p13);
+                w.p(14, dm.p14);
+                w.p(15, dm.p15);
+                w.i(70, i64::from(dm.marks.arc_partial));
+                w.f(40, start);
+                w.f(41, start + sweep);
+                w.i(71, i64::from(dm.marks.arc_leader));
+                w.p(16, dm.p13);
+                w.p(17, dm.p14);
+            }
+            DimKind::Radius if dm.marks.jogged.is_some() => {
+                let j = dm.marks.jogged.clone().unwrap_or_default();
+                w.s(100, "AcDbRadialDimensionLarge");
+                w.p(13, j.center);
+                w.p(14, j.jog);
+                w.p(15, dm.p15);
+                w.f(40, 0.0);
             }
             DimKind::Radius => {
                 w.s(100, "AcDbRadialDimension");

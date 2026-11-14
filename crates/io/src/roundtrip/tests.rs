@@ -406,8 +406,8 @@ fn dxf_round_trip_of_plain_geometry_is_lossless() {
     let dwg = round_trip(&d, Format::Dxf, Format::Dwg, &Options::default(), None);
     assert!(dwg.save_error.is_none() && dwg.reopen_error.is_none(), "{dwg:#?}");
     assert!(dwg.saved_bytes > 0);
-    // Through DWG, only the custom-class entity is lost (gap FF1: acadrust drops other programs'
-    // entities without DWG data of their own) — and the comparator says so.
+    // Through DWG, only the custom-class entity is lost (gap FF1: the DWG writer leaves out other
+    // programs' entities without DWG data of their own) — and the comparator says so.
     let lost: Vec<&str> = dwg.comparison.differences.iter().filter(|d| d.category == Category::Count).map(|d| d.place.as_str()).collect();
     assert_eq!(lost, ["Model ACME_WIDGET"], "{:#?}", dwg.comparison.differences);
     assert_eq!(dwg.comparison.tally(Category::Geometry), Tally::default(), "{:#?}", dwg.comparison.differences);

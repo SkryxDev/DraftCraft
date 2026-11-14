@@ -8,7 +8,7 @@
 //! §20.4.45, MLINESTYLE §20.4.73, DICTIONARYVAR §20.4.74, LAYOUT §20.4.84,
 //! SCALE §20.4.92, XRECORD §20.4.104, VPORT §20.4.64, DIMSTYLE §20.4.68).
 //! `dwg::nongraphic` reads them from DWG records, `dxf` reads and writes
-//! them as DXF, `dwg::write` encodes them, and `native` stores them.
+//! them as DXF, and `native` stores them.
 
 use super::{Color, DimStyle, Handle, Lineweight};
 use crate::records::geom::{Vec2, Vec3};

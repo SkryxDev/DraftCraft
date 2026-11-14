@@ -2,8 +2,6 @@
 //! the one written as `*Paper_Space` (the DWG header's paper space block), the others
 //! `*Paper_SpaceN`. Saving used to make the first tab the active one again.
 
-use std::io::Cursor;
-
 use draftcraft_doc::{Common, Drawing, EntityKind, Layout, Line, Space};
 use draftcraft_geom::Vec3;
 use draftcraft_io::{SaveOptions, Version, read, write_with};
@@ -18,14 +16,16 @@ fn three_sheets() -> Drawing {
     d
 }
 
-/// The layout the DWG marks active: the one whose block the header names as paper space.
+/// The layout the DWG marks active: the one whose block the header names as paper space, as
+/// the object records of the file give them.
 fn dwg_active_layout(dwg: &[u8]) -> String {
-    let doc = acadrust::DwgReader::from_stream(Cursor::new(dwg.to_vec())).read().unwrap();
-    let ps = doc.header.paper_space_block_handle;
-    doc.objects
-        .iter()
-        .find_map(|(_, o)| match o {
-            acadrust::objects::ObjectType::Layout(l) if l.block_record == ps => Some(l.name.clone()),
+    use draftcraft_dwg::records::model::{NonGraphic, ObjectKind};
+    let file = draftcraft_dwg::read_bytes(dwg).unwrap();
+    let ps = file.header.paper_space;
+    file.objects
+        .values()
+        .find_map(|o| match &o.kind {
+            ObjectKind::NonGraphic(NonGraphic::Layout(l)) if l.block == ps => Some(l.name.clone()),
             _ => None,
         })
         .unwrap()

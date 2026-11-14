@@ -90,6 +90,17 @@ pub struct DimMarks {
     /// Inspection frame, label and rate (DIMINSPECT).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub inspect: Option<Inspection>,
+    /// An arc-length dimension of part of its arc (DIMARC Partial): `p13` and `p14` are the
+    /// picked points rather than the arc's ends.
+    #[serde(skip_serializing_if = "is_false")]
+    pub arc_partial: bool,
+    /// An arc-length dimension with a leader from its text to the arc (DIMARC Leader).
+    #[serde(skip_serializing_if = "is_false")]
+    pub arc_leader: bool,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 impl DimMarks {

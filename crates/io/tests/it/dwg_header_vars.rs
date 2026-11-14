@@ -1,6 +1,5 @@
 //! Unit, angle and drafting settings in the drawing header survive saving as DXF or DWG and
-//! reopening. The DWG bridge converts with acadrust, whose DXF writer leaves some header
-//! variables out; the snap grid's origin and rotation live in the `*ACTIVE` VPORT record.
+//! reopening. The snap grid's origin and rotation live in the `*ACTIVE` VPORT record.
 
 use draftcraft_doc::{Drawing, HVal};
 use draftcraft_geom::Vec3;

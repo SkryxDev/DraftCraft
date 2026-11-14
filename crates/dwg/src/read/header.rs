@@ -45,6 +45,10 @@ enum W {
     R2007P,
     R2010P,
     R2013P,
+    /// AutoCAD R14 to 2004.
+    R14R2004,
+    /// AutoCAD 2004 only.
+    R2004,
     /// CPSNID: only when CEPSNTYPE == 3.
     Cpsnid,
 }
@@ -59,6 +63,8 @@ fn applies(w: W, v: DwgVersion, cepsntype: i64) -> bool {
         W::R2007P => v >= V::R2007,
         W::R2010P => v >= V::R2010,
         W::R2013P => v >= V::R2013,
+        W::R14R2004 => (V::R14..=V::R2004).contains(&v),
+        W::R2004 => v == V::R2004,
         W::Cpsnid => v >= V::R2000 && cepsntype == 3,
     }
 }
@@ -416,10 +422,20 @@ static VARS: &[(&str, K, W)] = &[
     ("DRAGVS", H, R2007P),
     ("CSHADOW", Rc, R2007P),
     ("UNKNOWN_BD_R2007_2", Bd, R2007P),
+    // Up to AutoCAD 2004, the specification's four unknown shorts and, in 2004, two longs and a
+    // bit: values AutoCAD's files differ in and nothing reads (from 2007 the strings follow the
+    // last variable). Other programs' files may stop before them.
+    ("UNKNOWN_BS_TAIL_1", Bs, R14R2004),
+    ("UNKNOWN_BS_TAIL_2", Bs, R14R2004),
+    ("UNKNOWN_BS_TAIL_3", Bs, R14R2004),
+    ("UNKNOWN_BS_TAIL_4", Bs, R14R2004),
+    ("UNKNOWN_BL_TAIL_1", Bl, R2004),
+    ("UNKNOWN_BL_TAIL_2", Bl, R2004),
+    ("UNKNOWN_B_TAIL", B, R2004),
 ];
 
 #[derive(Debug, Clone, PartialEq)]
-enum Val {
+pub(crate) enum Val {
     Bool(bool),
     Int(i64),
     Real(f64),
@@ -502,6 +518,8 @@ pub(crate) fn vars() -> impl Iterator<Item = (&'static str, VarKind, fn(DwgVersi
             W::R2007P => |v, _| v >= V::R2007,
             W::R2010P => |v, _| v >= V::R2010,
             W::R2013P => |v, _| v >= V::R2013,
+            W::R14R2004 => |v, _| (V::R14..=V::R2004).contains(&v),
+            W::R2004 => |v, _| v == V::R2004,
             W::Cpsnid => |v, c| v >= V::R2000 && c == 3,
         };
         let kind = match k {
@@ -549,7 +567,12 @@ fn read_all(mut s: Streams) -> Result<(Vec<(&'static str, Val)>, usize)> {
         if !applies(w, s.ver, cepsntype) {
             continue;
         }
-        let v = read_value(&mut s, k).map_err(|e| e.context(format!("header variable {name}")))?;
+        let v = match read_value(&mut s, k) {
+            Ok(v) => v,
+            // The fields after the variables are optional: a file that stops before them is whole.
+            Err(_) if name.starts_with("UNKNOWN_") && name.contains("_TAIL") => break,
+            Err(e) => return Err(e.context(format!("header variable {name}"))),
+        };
         if name == "CEPSNTYPE"
             && let Val::Int(i) = v
         {
@@ -635,21 +658,31 @@ fn to_header(vals: Vec<(&'static str, Val)>, verified: bool, note: String) -> He
 /// Parse the header section. Never fails outright: an unreadable header
 /// yields `HeaderVars { verified: false, note }`.
 pub(crate) fn parse(data: &[u8], ver: DwgVersion, maintenance: u8, codepage: u16, type_of: &dyn Fn(u64) -> Option<u16>) -> HeaderVars {
-    match parse_inner(data, ver, maintenance, codepage, type_of) {
-        Ok(h) => h,
+    match parse_values(data, ver, maintenance, codepage, Default::default(), type_of) {
+        Ok((vals, verified, note)) => to_header(vals, verified, note),
         Err(e) => HeaderVars { verified: false, note: e.to_string(), ..Default::default() },
     }
 }
 
-fn parse_inner(data: &[u8], ver: DwgVersion, maintenance: u8, codepage: u16, type_of: &dyn Fn(u64) -> Option<u16>) -> Result<HeaderVars> {
+/// The header's variables in file order, whether the reading was verified
+/// (its control handles point at objects of the right types), and a note
+/// on how it was read.
+pub(crate) fn parse_values(
+    data: &[u8],
+    ver: DwgVersion,
+    maintenance: u8,
+    codepage: u16,
+    text: crate::records::text::TextDecoding,
+    type_of: &dyn Fn(u64) -> Option<u16>,
+) -> Result<(Vec<(&'static str, Val)>, bool, String)> {
     let wrapped = section::unwrap(data, &HEADER_START, &HEADER_END, ver, maintenance)?;
     let body = wrapped.body;
     if ver < V::R2007 {
-        let s = Streams { ver, codepage, dat: BitReader::new(body), strs: None, hdl: None };
+        let s = Streams { ver, codepage, dat: BitReader::new(body), strs: None, hdl: None, text };
         let (vals, _end) = read_all(s)?;
         return Ok(match validate(&vals, type_of) {
-            Ok(()) => to_header(vals, true, String::new()),
-            Err(why) => to_header(vals, false, format!("header not verified: {why}")),
+            Ok(()) => (vals, true, String::new()),
+            Err(why) => (vals, false, format!("header not verified: {why}")),
         });
     }
     // R2007+: main, string and handle streams. The layout of the leading
@@ -677,10 +710,10 @@ fn parse_inner(data: &[u8], ver: DwgVersion, maintenance: u8, codepage: u16, typ
         };
         let hdl = BitReader::with_bounds(body, endbit, body.len() * 8);
         let dat = BitReader::with_bounds(body, main_start, endbit);
-        let s = Streams { ver, codepage, dat, strs, hdl: Some(hdl) };
+        let s = Streams { ver, codepage, dat, strs, hdl: Some(hdl), text };
         match read_all(s) {
             Ok((vals, _)) => match validate(&vals, type_of) {
-                Ok(()) => return Ok(to_header(vals, true, format!("layout: {label}"))),
+                Ok(()) => return Ok((vals, true, format!("layout: {label}"))),
                 Err(why) => {
                     notes.push(format!("{label}: {why}"));
                     if best.is_none() {
@@ -692,8 +725,8 @@ fn parse_inner(data: &[u8], ver: DwgVersion, maintenance: u8, codepage: u16, typ
         }
     }
     let note = format!("header not verified ({})", notes.join("; "));
-    Ok(match best {
-        Some(vals) => to_header(vals, false, note),
-        None => HeaderVars { verified: false, note, ..Default::default() },
-    })
+    match best {
+        Some(vals) => Ok((vals, false, note)),
+        None => Err(Error::format(note)),
+    }
 }

@@ -17,6 +17,7 @@ mod dim_marks_roundtrip;
 mod dimstyle_vars_roundtrip;
 mod dimtfill_roundtrip;
 mod drafting_spacing;
+mod dwg_direct;
 #[cfg(not(target_arch = "wasm32"))]
 mod dwg_header_vars;
 mod dwg_layout_owner;
@@ -25,6 +26,7 @@ mod dwg_native_read;
 mod dwg_roundtrip_losses;
 mod dwt_template;
 mod dxf_versions;
+mod dynblock_dwg;
 mod dynblock_read;
 mod entity_props_roundtrip;
 mod followups_626;
@@ -69,6 +71,7 @@ mod skipped_records;
 mod sortents;
 mod spline_fit_data;
 mod split_entities_section;
+mod style_objects_dwg;
 mod style_typeface;
 mod svg_arc_budget;
 mod svg_tiny_extents;
@@ -83,3 +86,22 @@ mod view_target;
 mod viewport_clip_roundtrip;
 mod xclip_roundtrip;
 mod xref_roundtrip;
+
+/// A DWG file as DraftCraft reads it, saved as DXF: what the DWG holds, in groups.
+pub(crate) fn dwg_as_dxf(dwg: &[u8]) -> String {
+    String::from_utf8(draftcraft_io::write(&draftcraft_io::read(dwg, "t.dwg").unwrap(), "t.dxf").unwrap()).unwrap()
+}
+
+/// The measurement each dimension of a DWG file stores, as its object records give them.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn dwg_dimension_measurements(dwg: &[u8]) -> Vec<f64> {
+    use draftcraft_dwg::records::model::ObjectKind;
+    let file = draftcraft_dwg::read_bytes(dwg).unwrap();
+    file.objects
+        .values()
+        .filter_map(|o| match &o.kind {
+            ObjectKind::Dimension(d) => Some(d.measurement),
+            _ => None,
+        })
+        .collect()
+}

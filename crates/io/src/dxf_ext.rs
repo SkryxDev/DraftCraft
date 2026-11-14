@@ -20,6 +20,11 @@ use serde_json::Value;
 
 /// Registered application name of DraftCraft's extended data.
 pub(crate) const APP: &str = "DRAFTCRAFT";
+
+/// The DraftCraft extended data of a linetype whose element rotations (group 50) are in degrees,
+/// as AutoCAD writes them (its DXF of ZIGZAG and BATTING has 180 where its DWG has pi). Without
+/// it, a file DraftCraft wrote has them in radians, as DraftCraft wrote them before.
+pub(crate) const LTYPE_DEGREES: &str = "LTYPE_DEGREES";
 /// Named-object-dictionary key of the constraint XRECORD.
 pub(crate) const CONSTRAINTS_KEY: &str = "DRAFTCRAFT_CONSTRAINTS";
 /// Named-object-dictionary key of the saved layer states XRECORD.
@@ -467,13 +472,6 @@ pub(crate) fn assoc_xdata(assoc: &[DimAssoc]) -> Vec<Tag> {
     v
 }
 
-/// An arc-length dimension as DraftCraft xdata: `1000 ARCLEN`, `1002 {`, the arc centre as an xdata
-/// point (`1010`/`1020`/`1030`), `1002 }`. The record itself stays a standard aligned dimension
-/// (DXF has no arc-length DIMENSION type), so other programs still read it.
-pub(crate) fn arclen_xdata(center: draftcraft_geom::Vec3) -> Vec<Tag> {
-    vec![Tag::s(1000, "ARCLEN"), Tag::s(1002, "{"), Tag::f(1010, center.x), Tag::f(1020, center.y), Tag::f(1030, center.z), Tag::s(1002, "}")]
-}
-
 /// Dimension marks as DraftCraft xdata (`1000 MARKS`, `1002 {`, items, `1002 }`): `1000 JOGLINE`
 /// and a point; `1000 JOGGED`, the centre and the jog point; `1000 BREAK`, a point, `1040` size
 /// and `1070` auto; `1000 INSPECT`, `1070` shape, `1000` label and `1000` rate. Points are
@@ -505,6 +503,17 @@ pub(crate) fn marks_xdata(m: &draftcraft_doc::DimMarks) -> Vec<Tag> {
     out.extend(v);
     out.push(Tag::s(1002, "}"));
     out
+}
+
+/// The marks a record's own groups hold (a jogged radius, an arc-length dimension's flags) with
+/// those DraftCraft's extended data adds.
+pub(crate) fn merge_marks(native: draftcraft_doc::DimMarks, mut extra: draftcraft_doc::DimMarks) -> draftcraft_doc::DimMarks {
+    if native.jogged.is_some() {
+        extra.jogged = native.jogged;
+    }
+    extra.arc_partial |= native.arc_partial;
+    extra.arc_leader |= native.arc_leader;
+    extra
 }
 
 /// The marks written by [`marks_xdata`] (no oblique angle); empty for other writers. Damaged
@@ -546,7 +555,9 @@ pub(crate) fn read_marks(tags: &[Tag]) -> draftcraft_doc::DimMarks {
     m
 }
 
-/// The arc centre written by [`arclen_xdata`]; None for other dimensions and other writers.
+/// The arc centre DraftCraft wrote as extended data on an aligned dimension before arc-length
+/// dimensions were written as AutoCAD's ARC_DIMENSION (`1000 ARCLEN`, `1002 {`, a 1010 point,
+/// `1002 }`); None for other dimensions and other writers.
 pub(crate) fn read_arclen(tags: &[Tag]) -> Option<draftcraft_geom::Vec3> {
     let list = xdata_list(xdata(tags, APP), "ARCLEN");
     let g = |c: i32| list.iter().find(|t| t.code == c).map(Tag::f64).filter(|v| v.is_finite());
@@ -865,7 +876,13 @@ pub(crate) fn apply_anno(d: &mut draftcraft_doc::Drawing, p: AnnoPayload) {
 pub(crate) fn read_scale(tags: &[Tag]) -> Option<draftcraft_doc::AnnoScale> {
     let name = tags.iter().find(|t| t.code == 300).map(Tag::str)?;
     let num = |c: i32| tags.iter().find(|t| t.code == c).map(Tag::f64);
-    let s = draftcraft_doc::AnnoScale::new(name.trim(), num(140)?, num(141)?);
+    scale_from(&name, num(140)?, num(141)?)
+}
+
+/// An annotation scale from a SCALE object's name and its paper and drawing units, when it is a
+/// usable one. The DWG reader uses it too.
+pub(crate) fn scale_from(name: &str, paper_units: f64, drawing_units: f64) -> Option<draftcraft_doc::AnnoScale> {
+    let s = draftcraft_doc::AnnoScale::new(name.trim(), paper_units, drawing_units);
     (s.is_valid() && !s.name.is_empty() && s.name.len() <= 255).then_some(s)
 }
 

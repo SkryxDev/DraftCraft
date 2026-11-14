@@ -168,7 +168,34 @@ fn add_member(d: &mut Drawing, g: Handle, kind: &str, mut tags: Vec<RawTag>) -> 
     if let Some(o) = find_mut(d, g) {
         o.tags.push(tag(360, h.hex()));
     }
+    rebuild_graph(d, g);
     h
+}
+
+/// Write graph `g`'s node list as AutoCAD's files hold it, from the members it lists: the next
+/// free id twice (96, 97), then each member as a node, its id (91, its expression's 90), flags
+/// 32 (93), the id after it (95), the member (360) and four unused links (92 -1). The DWG writer
+/// encodes the nodes from these groups; a bare list of members would be written as an empty
+/// graph, and the block would open as a plain block.
+fn rebuild_graph(d: &mut Drawing, g: Handle) {
+    let Some(graph) = find(d, g) else { return };
+    let members: Vec<Handle> = graph.tags.iter().filter(|t| t.code == 360).filter_map(|t| Handle::parse_hex(&t.value)).collect();
+    let node_of = |h: Handle| -> Option<i64> {
+        let o = find(d, h)?;
+        let mut tags = o.tags.iter().skip_while(|t| !(t.code == 100 && t.value == "AcDbEvalExpr"));
+        tags.find(|t| t.code == 90).and_then(|t| t.value.trim().parse().ok())
+    };
+    let nodes: Vec<(i64, Handle)> = members.into_iter().filter_map(|h| Some((node_of(h)?, h))).collect();
+    let free = nodes.iter().map(|n| n.0).max().map_or(0, |n| n.saturating_add(1));
+    let Some(graph) = find_mut(d, g) else { return };
+    let head = graph.tags.iter().position(|t| t.code == 100 && t.value == "AcDbEvalGraph").map_or(graph.tags.len(), |i| i + 1);
+    graph.tags.truncate(head);
+    graph.tags.extend([tag(96, free.to_string()), tag(97, free.to_string())]);
+    for (i, (id, h)) in nodes.iter().enumerate() {
+        let after = nodes.get(i + 1).map_or(free, |n| n.0);
+        graph.tags.extend([tag(91, id.to_string()), tag(93, "32"), tag(95, after.to_string()), tag(360, h.hex())]);
+        graph.tags.extend(std::iter::repeat_with(|| tag(92, "-1")).take(4));
+    }
 }
 
 fn head(node: i32, element: &str) -> Vec<RawTag> {
@@ -319,8 +346,16 @@ pub fn remove(d: &mut Drawing, name: &str, node: i32) -> Result<Vec<String>, Str
     let hs: std::collections::HashSet<Handle> = gone.iter().map(|g| g.0).collect();
     Arc::make_mut(&mut d.foreign).objects.retain(|o| !hs.contains(&o.handle));
     let hexes: std::collections::HashSet<String> = hs.iter().map(|h| h.hex()).collect();
+    let mut graphs = Vec::new();
     for o in Arc::make_mut(&mut d.foreign).objects.iter_mut().filter(|o| o.kind.eq_ignore_ascii_case("ACAD_EVALUATION_GRAPH")) {
+        let before = o.tags.len();
         o.tags.retain(|t| !(t.code == 360 && Handle::parse_hex(&t.value).is_some_and(|h| hexes.contains(&h.hex()))));
+        if o.tags.len() != before {
+            graphs.push(o.handle);
+        }
+    }
+    for g in graphs {
+        rebuild_graph(d, g);
     }
     Ok(gone.into_iter().map(|g| g.1).filter(|n| !n.is_empty()).collect())
 }
@@ -397,5 +432,41 @@ mod tests {
         let m = dynamic_block(&d, "B").unwrap();
         assert!(m.parameters.is_empty() && m.actions.is_empty() && m.grip_objects.is_empty());
         assert!(add_parameter(&mut d, "NOPE", &NewParameter::Point { at: Vec2::ZERO, label: String::new(), description: String::new() }).is_err());
+    }
+
+    /// The graph lists its members as AutoCAD's files do, one node each (id, flags, the next id,
+    /// the member, four links), and keeps the list right when a member goes.
+    #[test]
+    fn the_graph_lists_each_member_as_a_node() {
+        let (mut d, hs, _) = drawing();
+        let p =
+            add_parameter(&mut d, "B", &NewParameter::Point { at: Vec2::new(5.0, 5.0), label: "Top".into(), description: String::new() }).unwrap();
+        let mv = add_action(&mut d, "B", &NewAction::Move { parameter: p.node, objects: vec![hs[2]] }).unwrap();
+        let graph = |d: &Drawing| d.foreign.objects.iter().find(|o| o.kind == "ACAD_EVALUATION_GRAPH").unwrap().tags.clone();
+        let nodes = |tags: &[RawTag]| -> Vec<(String, String, String)> {
+            let mut out = Vec::new();
+            for (i, t) in tags.iter().enumerate().filter(|(_, t)| t.code == 91) {
+                let at = |k: usize| tags.get(i + k).map(|t| (t.code, t.value.clone()));
+                assert_eq!(at(1), Some((93, "32".into())));
+                let Some((95, next)) = at(2) else { panic!("95 after 91") };
+                let Some((360, member)) = at(3) else { panic!("360 after 95") };
+                assert!((4..8).all(|k| at(k) == Some((92, "-1".into()))));
+                out.push((t.value.clone(), next, member));
+            }
+            out
+        };
+        let tags = graph(&d);
+        let listed = nodes(&tags);
+        // The point parameter, its grip and the move.
+        assert_eq!(listed.len(), 3, "{tags:?}");
+        assert_eq!(listed.last().map(|n| n.2.clone()), Some(mv.handle.hex()));
+        let free = tags.iter().find(|t| t.code == 96).map(|t| t.value.clone()).unwrap();
+        assert_eq!(listed.last().map(|n| n.1.clone()), Some(free.clone()), "the last node's next is the next free id");
+        assert_eq!(tags.iter().filter(|t| t.code == 360).count(), 3);
+        remove(&mut d, "B", mv.node).unwrap();
+        let tags = graph(&d);
+        assert_eq!(nodes(&tags).len(), 2, "{tags:?}");
+        assert_eq!(tags.iter().filter(|t| t.code == 360).count(), 2);
+        assert!(dynamic_block(&d, "B").is_some_and(|m| m.actions.is_empty() && m.parameters.len() == 1));
     }
 }

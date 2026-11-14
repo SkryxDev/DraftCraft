@@ -154,11 +154,7 @@ fn a_rotated_linear_dimension_stores_its_projected_length() {
         Vec3::new(0.0, 210.0, 0.0),
         Vec3::new(-40.0, 105.0, 0.0),
     );
-    let dwg = write_with(&d, "case.dwg", &SaveOptions { version: Some(Version::R2018), binary: false }).unwrap();
-    let dxf = String::from_utf8(draftcraft_dwg::acadrust::dwg_to_dxf(&dwg).unwrap()).unwrap();
-    let t = tags(&dxf);
-    let dim = t.iter().position(|(c, v)| *c == 0 && v == "DIMENSION").unwrap();
-    let m: f64 = t[dim..].iter().find(|(c, _)| *c == 42).unwrap().1.parse().unwrap();
+    let m = stored_measurement(&d);
     assert!((m - 210.0).abs() < 1e-9, "group 42 = {m}");
 }
 
@@ -239,13 +235,12 @@ fn justified_text_made_here_writes_its_baseline_start_for_every_justification() 
     assert_eq!(text_starts(&write_dxf(&back)), starts);
 }
 
-/// Group 42 of a dimension in the DXF AutoCAD reads from `d`'s DWG.
+/// The measurement (DXF group 42) the dimension of `d`'s DWG stores.
 fn stored_measurement(d: &Drawing) -> f64 {
     let dwg = write_with(d, "case.dwg", &SaveOptions { version: Some(Version::R2018), binary: false }).unwrap();
-    let dxf = String::from_utf8(draftcraft_dwg::acadrust::dwg_to_dxf(&dwg).unwrap()).unwrap();
-    let t = tags(&dxf);
-    let dim = t.iter().position(|(c, v)| *c == 0 && v == "DIMENSION").unwrap();
-    t[dim..].iter().find(|(c, _)| *c == 42).unwrap().1.parse().unwrap()
+    let all = crate::dwg_dimension_measurements(&dwg);
+    assert_eq!(all.len(), 1, "{all:?}");
+    all[0]
 }
 
 fn polar(deg: f64, r: f64) -> Vec3 {

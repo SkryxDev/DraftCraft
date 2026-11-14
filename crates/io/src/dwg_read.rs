@@ -1,9 +1,8 @@
 //! DWG → Drawing, straight from the records `draftcraft-dwg`'s reader decodes: no DXF in between.
 //!
 //! The reader maps what it covers and counts the rest in [`Coverage`]: the entity types, entity
-//! properties and objects it doesn't carry into the drawing yet. [`crate::read`] uses it only when
-//! nothing was left out (or when asked to, for tests and measurements); otherwise the file goes
-//! through acadrust as before, so opening a file never loses what that path keeps.
+//! properties and objects it doesn't carry into the drawing yet. It is kept to compare with the
+//! direct reader ([`crate::dwg::read`]), which opens files: `DRAFTCRAFT_DWG_READER=native` selects it.
 //!
 //! Where a value means the same in DWG and DXF (an OCS point, a transparency word), the conversion
 //! is the DXF reader's own (`dxf_read`), so each rule exists once.

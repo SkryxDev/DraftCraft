@@ -83,19 +83,12 @@ fn dwg_mtext_caret_spaces_round_trip() -> TestResult {
         for pass in 1..=2 {
             let bytes = write_with(&d, "carets.dwg", &SaveOptions { version: Some(version), binary: false })?;
             assert_eq!(draftcraft_dwg::version(&bytes).as_deref(), Some(version.code()));
-            // Inspect the stored DWG text before its DXF rendition: a compensating reader
-            // must not hide corruption on save. This uses the same codec, not an external oracle.
-            let native = acadrust::DwgReader::from_stream(std::io::Cursor::new(&bytes)).read()?;
+            // Inspect the stored DWG text as its object records hold it, before the drawing is
+            // built from them: a compensating reader must not hide corruption on save.
+            let stored = stored_contents(&bytes)?;
             for (handle, contents) in &expected {
-                let text = native.entities().find_map(|e| match e {
-                    acadrust::EntityType::MText(t) if t.common.handle.value() == handle.0 => Some(&t.value),
-                    _ => None,
-                });
-                assert_eq!(text, Some(contents), "native DWG {version:?}, pass={pass}, {handle:?}");
+                assert_eq!(stored.get(&handle.0), Some(contents), "stored DWG {version:?}, pass={pass}, {handle:?}");
             }
-            let dxf = draftcraft_dwg::acadrust::dwg_to_dxf(&bytes)?;
-            let converted = read(&dxf, "bridge.dxf")?;
-            assert_contents(&converted, &expected, &format!("DWG bridge DXF {version:?}, pass={pass}"))?;
             d = read(&bytes, "carets.dwg")?;
             assert_contents(&d, &expected, &format!("DWG {version:?}, pass={pass}"))?;
         }
@@ -103,16 +96,30 @@ fn dwg_mtext_caret_spaces_round_trip() -> TestResult {
     Ok(())
 }
 
+/// Each MTEXT's contents as the DWG's object records hold them, by handle.
+#[cfg(not(target_arch = "wasm32"))]
+fn stored_contents(dwg: &[u8]) -> Result<std::collections::HashMap<u64, String>, Box<dyn std::error::Error>> {
+    use draftcraft_dwg::records::model::ObjectKind;
+    let file = draftcraft_dwg::read_bytes(dwg)?;
+    Ok(file
+        .objects
+        .values()
+        .filter_map(|o| match &o.kind {
+            ObjectKind::MText(t) => Some((o.handle.0, t.contents.clone())),
+            _ => None,
+        })
+        .collect())
+}
+
+/// A literal caret and the space after it: DXF escapes the caret's space once (two spaces on the
+/// wire), the DWG holds the text as it is.
 #[cfg(not(target_arch = "wasm32"))]
 #[test]
-fn bridge_caret_space_is_escaped_once_in_each_direction() -> TestResult {
+fn a_caret_space_is_escaped_once_in_dxf_and_stored_as_is_in_dwg() -> TestResult {
     let (d, _) = drawing()?;
     let dxf = draftcraft_io::write_dxf(&d);
     assert!(dxf.contains("  1\r\n^  C\r\n"), "literal caret plus authored space needs two wire spaces");
-    let native = acadrust::DxfReader::from_reader(std::io::Cursor::new(dxf.into_bytes()))?.read()?;
-    assert!(native.entities().any(|e| matches!(e, acadrust::EntityType::MText(t) if t.value == "^ C")));
     let dwg = write_with(&d, "carets.dwg", &SaveOptions { version: Some(Version::R2018), binary: false })?;
-    let returned = String::from_utf8(draftcraft_dwg::acadrust::dwg_to_dxf(&dwg)?)?;
-    assert!(returned.contains("  1\r\n^  C\r\n"), "the return bridge must encode the separator independently of authored whitespace");
+    assert!(stored_contents(&dwg)?.values().any(|t| t == "^ C"));
     Ok(())
 }

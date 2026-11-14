@@ -1,8 +1,6 @@
 //! A block made dynamic in the Block Editor (BPARAMETER, BACTION) keeps its parameters and
-//! actions through a DXF save, and its references stretch after reopening.
-//!
-//! A DWG save doesn't keep them yet: the DWG writer (acadrust) writes another program's objects
-//! only from their original DWG data, which objects made here don't have.
+//! actions through a DXF and a DWG save, and its references stretch after reopening. The DWG
+//! writer encodes the evaluation graph's nodes from the node list the Block Editor writes.
 
 use draftcraft_engine::Session;
 use draftcraft_engine::cmd::file::{IoHooks, set_io};
@@ -23,7 +21,7 @@ fn an_authored_dynamic_block_survives_save_and_reopen() {
     let dir = std::env::temp_dir().join(format!("draftcraft-dynauthor-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
-    for ext in ["dxf"] {
+    for ext in ["dxf", "dwg"] {
         let mut s = Session::new();
         let mut hs = Vec::new();
         for (a, b) in [([0, 0], [10, 0]), ([10, 0], [10, 5]), ([10, 5], [0, 5]), ([0, 5], [0, 0])] {

@@ -101,28 +101,14 @@ fn with_scale_action() -> String {
         .replacen("0 BLOCKLOOKUPPARAMETER\n", &format!("{action}0 BLOCKLOOKUPPARAMETER\n"), 1)
 }
 
-/// A scale action goes through DraftCraft's own DWG save (the bridge DXF, then acadrust) whole:
-/// the DWG holds it with its connections, and it reads back as the same action. AutoCAD refused
-/// such DWGs while acadrust left out the byte after its connections (draftcraft-dwg's
-/// `scale_actions_keep_the_byte_autocad_reads_after_their_connections` covers the byte).
+/// A scale action goes through a DWG save whole: it reads back as the same action, with its
+/// connections.
 #[test]
 fn a_scale_action_survives_a_dwg_save() {
-    use acadrust::objects::{DynamicBlockData, DynamicBlockObject, ObjectType};
     let d = read_dxf(dxf(&with_scale_action()).as_bytes()).unwrap();
     let before = dynamic_block(&d, "Door").unwrap();
     assert!(before.actions.iter().any(|a| a.node == 7 && matches!(a.kind, ActionKind::Scale)), "{:?}", before.actions);
     let dwg = draftcraft_io::write(&d, "x.dwg").unwrap();
-
-    let doc = acadrust::DwgReader::from_stream(std::io::Cursor::new(&dwg)).read().unwrap();
-    let scale = doc.objects.values().find_map(|o| match o {
-        ObjectType::DynamicBlock(DynamicBlockObject { data: DynamicBlockData::ScaleAction(s), .. }) => Some(s.clone()),
-        _ => None,
-    });
-    let scale = scale.expect("the DWG has no scale action");
-    let names = |c: &[acadrust::objects::BlockConnection]| c.iter().map(|c| (c.code, c.name.clone())).collect::<Vec<_>>();
-    assert_eq!(names(&scale.connections), [(2, "Scale".to_string()), (2, "XScale".into()), (2, "YScale".into())]);
-    assert_eq!(names(&scale.action.connections), [(2, "UpdatedBaseX".to_string()), (2, "UpdatedBaseY".into())]);
-    assert_eq!(scale.dwg_tail_byte, 0);
 
     let back = draftcraft_io::read(&dwg, "x.dwg").unwrap();
     assert_eq!(by_node(dynamic_block(&back, "Door").unwrap()), by_node(before));
