@@ -167,3 +167,29 @@ fn probe_header() {
         }
     }
 }
+
+#[test]
+#[ignore]
+fn scratch_dump() {
+    use draftcraft_doc::{Drawing, EntityKind, Line};
+    use draftcraft_geom::Vec3;
+    let mut d = Drawing::new_metric();
+    d.add(&draftcraft_doc::Space::Model, draftcraft_doc::Common::default(), EntityKind::Line(Line { a: Vec3::new(0.0, 0.0, 0.0), b: Vec3::new(10.0, 5.0, 0.0) })).expect("add");
+    let ver = match std::env::var("V").as_deref() { Ok("2000") => draftcraft_dxf::Version::R2000, Ok("2018") => draftcraft_dxf::Version::R2018, _ => draftcraft_dxf::Version::R2004 };
+    let (bytes, unw) = crate::write_dwg_own(&d, ver).expect("write");
+    println!("unwritten {unw:?}");
+    std::fs::write(std::env::var("OUT").unwrap_or("/dev/null".into()), &bytes).expect("out");
+    let file = DwgFile::open(&bytes).expect("open");
+    let _ = file.header();
+    for o in file.objects() {
+        println!("{:X} {} {} bytes", o.handle, o.type_name, file.object_bytes(&o).map_or(0, |b| b.len()));
+    }
+    match acadrust::DwgReader::from_stream(std::io::Cursor::new(&bytes)).read() {
+        Ok(_) => println!("acadrust OK"),
+        Err(e) => println!("acadrust: {e:?}"),
+    }
+    match acadrust::DwgReader::from_stream_with_options(std::io::Cursor::new(&bytes), acadrust::io::dwg::DwgReadOptions::failsafe()).read() {
+        Ok(doc) => for n in &doc.notifications { println!("note: {n:?}"); },
+        Err(e) => println!("failsafe: {e:?}"),
+    }
+}

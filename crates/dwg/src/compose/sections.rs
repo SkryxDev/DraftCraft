@@ -182,6 +182,8 @@ pub fn header_section(ver: V, codepage: u16, text: TextEncoding, value: &dyn Fn(
             VarKind::B => s.dat.b(match &given {
                 Some(HeaderValue::Bool(b)) => *b,
                 Some(HeaderValue::Int(i)) => *i != 0,
+                // The bit after the variables: set in AutoCAD's 2004 files.
+                _ if name == "UNKNOWN_B_TAIL" => true,
                 _ => matches!(default(), HeaderValue::Bool(true)),
             }),
             VarKind::Bs => {
@@ -259,10 +261,7 @@ pub fn header_section(ver: V, codepage: u16, text: TextEncoding, value: &dyn Fn(
             }
         }
     }
-    let mut body = s.body(false);
-    // AutoCAD's own files go on for some nine bytes that differ from file to file and that no
-    // reader takes a value from (the specification's four "unknown" shorts): zeros here.
-    body.extend_from_slice(&[0u8; 8]);
+    let body = s.body(false);
     wrap(&HEADER_START, &HEADER_END, &body, ver)
 }
 

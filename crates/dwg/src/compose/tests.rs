@@ -98,9 +98,16 @@ fn autocads_header_writes_back_byte_for_byte() {
         let file = crate::file::DwgFile::open(&bytes).unwrap();
         let vars = file.header().unwrap().vars;
         let ours = header_section(ver, c.codepage, TextEncoding::default(), &|n| vars.iter().find(|(k, _)| *k == n).map(|(_, v)| v.clone()));
-        // Up to the last variable: what follows differs from file to file in AutoCAD's own.
-        let vars_end = ours.len() - 16 - 2 - 8 - 1;
-        let same = ours.iter().zip(&theirs).enumerate().take(vars_end).all(|(i, (a, b))| a == b || (16..24).contains(&i));
+        // Up to 2004 every byte, the fields after the variables and the check sum too. From 2007
+        // AutoCAD's section goes on after the handles for some ten bytes that differ from file to
+        // file, starting in the unused bits of the last byte: every byte up to that one (and so
+        // the sizes, bytes 16 to 24, differ).
+        let same = if ver <= V::R2004 {
+            ours == theirs
+        } else {
+            let body_end = ours.len() - 2 - 16 - 1;
+            ours.iter().zip(&theirs).enumerate().take(body_end).all(|(i, (a, b))| a == b || (16..24).contains(&i))
+        };
         assert!(same, "{name}: {}", first_difference(&ours, &theirs));
     }
 }

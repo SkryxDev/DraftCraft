@@ -17,6 +17,7 @@ mod header;
 mod objects;
 mod rec;
 mod tables;
+mod variables;
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -160,6 +161,37 @@ pub(super) struct Objects<'a> {
     pub unwritten: Unwritten,
 }
 
+/// AutoCAD's class definitions of the types the writer encodes that have no type number of their
+/// own: (DXF name, C++ name, application, proxy flags, entity).
+const STANDARD_CLASSES: &[(&str, &str, &str, u16, bool)] = &[
+    ("ACAD_TABLE", "AcDbTable", "ObjectDBX Classes", 1025, true),
+    ("ACDBDETAILVIEWSTYLE", "AcDbDetailViewStyle", "ObjectDBX Classes", 1025, false),
+    ("ACDBDICTIONARYWDFLT", "AcDbDictionaryWithDefault", "ObjectDBX Classes", 0, false),
+    ("ACDBPLACEHOLDER", "AcDbPlaceHolder", "ObjectDBX Classes", 0, false),
+    ("ACDBSECTIONVIEWSTYLE", "AcDbSectionViewStyle", "ObjectDBX Classes", 1025, false),
+    ("CELLSTYLEMAP", "AcDbCellStyleMap", "ObjectDBX Classes", 1152, false),
+    ("DICTIONARYVAR", "AcDbDictionaryVar", "ObjectDBX Classes", 0, false),
+    ("DIMASSOC", "AcDbDimAssoc", "AcDbDimAssoc", 0, false),
+    ("HELIX", "AcDbHelix", "ObjectDBX Classes", 4095, true),
+    ("IMAGE", "AcDbRasterImage", "ISM", 127, true),
+    ("IMAGEDEF", "AcDbRasterImageDef", "ISM", 0, false),
+    ("IMAGEDEF_REACTOR", "AcDbRasterImageDefReactor", "ISM", 1, false),
+    ("LAYOUT", "AcDbLayout", "ObjectDBX Classes", 0, false),
+    ("MATERIAL", "AcDbMaterial", "ObjectDBX Classes", 1153, false),
+    ("MLEADERSTYLE", "AcDbMLeaderStyle", "ACDB_MLEADERSTYLE_CLASS", 4095, false),
+    ("MULTILEADER", "AcDbMLeader", "ACDB_MLEADER_CLASS", 3071, true),
+    ("PDFDEFINITION", "AcDbPdfDefinition", "ObjectDBX Classes", 1153, false),
+    ("PDFUNDERLAY", "AcDbPdfReference", "ObjectDBX Classes", 4095, true),
+    ("RASTERVARIABLES", "AcDbRasterVariables", "ISM", 0, false),
+    ("SCALE", "AcDbScale", "ObjectDBX Classes", 1153, false),
+    ("SORTENTSTABLE", "AcDbSortentsTable", "ObjectDBX Classes", 0, false),
+    ("SPATIAL_FILTER", "AcDbSpatialFilter", "ObjectDBX Classes", 0, false),
+    ("TABLESTYLE", "AcDbTableStyle", "ObjectDBX Classes", 4095, false),
+    ("VISUALSTYLE", "AcDbVisualStyle", "ObjectDBX Classes", 4095, false),
+    ("WIPEOUT", "AcDbWipeout", "WipeOut", 127, true),
+    ("WIPEOUTVARIABLES", "AcDbWipeoutVariables", "WipeOut", 0, false),
+];
+
 /// The classes of the file: the drawing's, numbered from 500 in order. An AutoCAD 2000 file
 /// also declares the placeholder and the layout as classes (from 2004 they are types of the
 /// format), as AutoCAD's own 2000 files do.
@@ -180,21 +212,37 @@ fn classes(doc: &Doc<'_>, ver: V) -> Vec<Class> {
             versions: compose::class_versions(c.dxf_name),
         })
         .collect();
-    if ver <= V::R2000 {
-        for (dxf_name, cpp_name) in [("ACDBPLACEHOLDER", "AcDbPlaceHolder"), ("LAYOUT", "AcDbLayout")] {
-            if !list.iter().any(|c| c.dxf_name.eq_ignore_ascii_case(dxf_name)) {
-                list.push(Class {
-                    number: 0,
-                    dxf_name: dxf_name.to_string(),
-                    cpp_name: cpp_name.to_string(),
-                    app_name: "ObjectDBX Classes".to_string(),
-                    proxy_flags: 0,
-                    instance_count: 0,
-                    was_zombie: false,
-                    is_entity: false,
-                    versions: (0, 0),
-                });
-            }
+    // A type with no number of its own needs its class: the records' declare most, AutoCAD's
+    // definition stands in for one they don't (an object the writer adds, a record kept from
+    // another program's file whose class was not).
+    let kinds: std::collections::BTreeSet<String> = doc
+        .entities
+        .iter()
+        .chain(&doc.objects)
+        .chain(doc.blocks.iter().flat_map(|b| &b.entities))
+        .map(|r| r.kind.to_ascii_uppercase())
+        .chain(if ver <= V::R2000 { vec!["ACDBPLACEHOLDER".to_string(), "LAYOUT".to_string()] } else { Vec::new() })
+        .collect();
+    for kind in &kinds {
+        if list.iter().any(|c| c.dxf_name.eq_ignore_ascii_case(kind)) {
+            continue;
+        }
+        // From 2004 the placeholder and the layout are types of the format.
+        if ver >= V::R2004 && matches!(kind.as_str(), "ACDBPLACEHOLDER" | "LAYOUT") {
+            continue;
+        }
+        if let Some(&(dxf_name, cpp_name, app_name, proxy_flags, is_entity)) = STANDARD_CLASSES.iter().find(|c| c.0 == kind) {
+            list.push(Class {
+                number: 0,
+                dxf_name: dxf_name.to_string(),
+                cpp_name: cpp_name.to_string(),
+                app_name: app_name.to_string(),
+                proxy_flags,
+                instance_count: 0,
+                was_zombie: false,
+                is_entity,
+                versions: compose::class_versions(dxf_name),
+            });
         }
     }
     for (i, c) in list.iter_mut().enumerate() {
@@ -280,6 +328,12 @@ pub(super) fn encode<'a>(doc: &'a Doc<'a>, ver: V) -> Objects<'a> {
 
 /// The drawing whose records are `tags`, as a DWG file of version `ver`, with the records the
 /// file leaves out.
+/// Add the drawing variables dictionary AutoCAD writes in every DWG, with the drawing's values,
+/// when the records have none (see `variables`).
+pub fn add_variable_dictionary(tags: &mut Vec<Tag>, d: &draftcraft_doc::Drawing) {
+    variables::add(tags, &variables::values(d));
+}
+
 pub fn write(tags: &[Tag], ver: V, info: &FileInfo<'_>) -> Result<(Vec<u8>, Unwritten)> {
     let doc = Doc::parse(tags);
     let encoded = encode(&doc, ver);

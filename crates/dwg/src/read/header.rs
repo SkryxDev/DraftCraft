@@ -45,6 +45,10 @@ enum W {
     R2007P,
     R2010P,
     R2013P,
+    /// AutoCAD R14 to 2004.
+    R14R2004,
+    /// AutoCAD 2004 only.
+    R2004,
     /// CPSNID: only when CEPSNTYPE == 3.
     Cpsnid,
 }
@@ -59,6 +63,8 @@ fn applies(w: W, v: DwgVersion, cepsntype: i64) -> bool {
         W::R2007P => v >= V::R2007,
         W::R2010P => v >= V::R2010,
         W::R2013P => v >= V::R2013,
+        W::R14R2004 => (V::R14..=V::R2004).contains(&v),
+        W::R2004 => v == V::R2004,
         W::Cpsnid => v >= V::R2000 && cepsntype == 3,
     }
 }
@@ -416,6 +422,16 @@ static VARS: &[(&str, K, W)] = &[
     ("DRAGVS", H, R2007P),
     ("CSHADOW", Rc, R2007P),
     ("UNKNOWN_BD_R2007_2", Bd, R2007P),
+    // Up to AutoCAD 2004, the specification's four unknown shorts and, in 2004, two longs and a
+    // bit: values AutoCAD's files differ in and nothing reads (from 2007 the strings follow the
+    // last variable). Other programs' files may stop before them.
+    ("UNKNOWN_BS_TAIL_1", Bs, R14R2004),
+    ("UNKNOWN_BS_TAIL_2", Bs, R14R2004),
+    ("UNKNOWN_BS_TAIL_3", Bs, R14R2004),
+    ("UNKNOWN_BS_TAIL_4", Bs, R14R2004),
+    ("UNKNOWN_BL_TAIL_1", Bl, R2004),
+    ("UNKNOWN_BL_TAIL_2", Bl, R2004),
+    ("UNKNOWN_B_TAIL", B, R2004),
 ];
 
 #[derive(Debug, Clone, PartialEq)]
@@ -502,6 +518,8 @@ pub(crate) fn vars() -> impl Iterator<Item = (&'static str, VarKind, fn(DwgVersi
             W::R2007P => |v, _| v >= V::R2007,
             W::R2010P => |v, _| v >= V::R2010,
             W::R2013P => |v, _| v >= V::R2013,
+            W::R14R2004 => |v, _| (V::R14..=V::R2004).contains(&v),
+            W::R2004 => |v, _| v == V::R2004,
             W::Cpsnid => |v, c| v >= V::R2000 && c == 3,
         };
         let kind = match k {
@@ -549,7 +567,12 @@ fn read_all(mut s: Streams) -> Result<(Vec<(&'static str, Val)>, usize)> {
         if !applies(w, s.ver, cepsntype) {
             continue;
         }
-        let v = read_value(&mut s, k).map_err(|e| e.context(format!("header variable {name}")))?;
+        let v = match read_value(&mut s, k) {
+            Ok(v) => v,
+            // The fields after the variables are optional: a file that stops before them is whole.
+            Err(_) if name.starts_with("UNKNOWN_") && name.contains("_TAIL") => break,
+            Err(e) => return Err(e.context(format!("header variable {name}"))),
+        };
         if name == "CEPSNTYPE"
             && let Val::Int(i) = v
         {

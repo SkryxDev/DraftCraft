@@ -114,16 +114,16 @@ fn impossible_header_values_fall_back_to_the_defaults() {
     assert_eq!(value(&vars, "HIDETEXT"), Some("1"), "HIDETEXT in {vars:?}");
 }
 
-/// The AC1032 (AutoCAD 2018) path is deliberately unchanged: those DWGs read in Vectric Aspire
-/// without the dictionary, so no dictionary is injected and the existing output stays as it was.
+/// AutoCAD writes the dictionary in every version, and so does DraftCraft's writer: an AC1032
+/// (AutoCAD 2018) DWG has it too.
 #[test]
-fn an_ac1032_dwg_stays_as_it_was() {
-    // 2018 DWGs read fine in Aspire without the dictionary, so the latest format is unchanged.
+fn an_ac1032_dwg_has_it_too() {
     let d = rectangle();
     let dwg = write_with(&d, "rect.dwg", &SaveOptions { version: Some(Version::R2018), binary: false }).expect("write the DWG");
     assert!(dwg.starts_with(b"AC1032"));
     let doc = read_dwg(&dwg);
-    assert_eq!(variable_dictionary(&doc), None, "no dictionary is added to a 2018 DWG");
+    let vars = variable_dictionary(&doc).expect("AC1032 DWG: the named object dictionary has an AcDbVariableDictionary");
+    assert_eq!(value(&vars, "CTABLESTYLE"), Some("Standard"), "{vars:?}");
 }
 
 /// A drawing that already has the dictionary must keep its own entries and values: conversion
