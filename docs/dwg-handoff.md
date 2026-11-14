@@ -72,14 +72,11 @@ open the file again.
 
 ## What fails today
 
-Four tests of `cargo test -p draftcraft-io --test it`; everything else in the workspace passes.
-
-| Test | Needs |
-|---|---|
-| `acis_data_store::dwg_keeps_the_solids_geometry` | The data store section of 2013-and-later files (`AcDb:AcDsPrototype_1b`, DXF's ACDSDATA), where solids keep their geometry |
-| `acis_data_store::sat_text_solids_stay_in_dwg_2018_and_xref_contents_are_not_counted` | 3DSOLID, REGION and BODY as 2013-and-later files store them (in AutoCAD's 2018 region the DXF's identifier, group 2, is the 16 bytes at bit 157 of its data; what is before it is not worked out) |
-| `dynblock_read::a_saved_drawing_keeps_the_dynamic_block_as_read` | The dynamic-block objects: ACAD_EVALUATION_GRAPH and the BLOCK…PARAMETER, …ACTION and …GRIP types, as their DXF groups |
-| `dynblock_read::a_scale_action_survives_a_dwg_save` | Same |
+Nothing in `cargo test -p draftcraft-io --test it` (the three macOS-only failures of AGENTS.md
+aside). The four tests this list used to name pass: the data store section of 2013-and-later
+files (`AcDb:AcDsPrototype_1b`, DXF's ACDSDATA) is read and written by
+`crates/dwg/src/datastore.rs` (`acis_data_store::dwg_keeps_the_solids_geometry`), 3DSOLID,
+REGION and BODY are read as those files store them, and the dynamic-block objects are kept.
 
 ## What a file can still lose on opening
 
@@ -88,8 +85,11 @@ and the note says saving over the file would lose it.
 
 **Geometry that is not drawn**
 
-- 3DSOLID, REGION and BODY whose description is binary (AutoCAD 2004 and later files) or in the
-  data store (2013 and later). Text ones (AutoCAD 2000 files, DraftCraft's own) are kept.
+- 3DSOLID, REGION and BODY whose description is binary (AutoCAD 2004 to 2010 files). Text ones
+  (AutoCAD 2000 files, DraftCraft's own) and those in the data store (2013 and later) are kept.
+- The history objects of 3D solids (ACSH_HISTORY_CLASS, ACSH_BOX_CLASS and the other ACSH_
+  types, ACDBASSOCPERSSUBENTMANAGER, ACDBPERSSUBENTMANAGER): the solids themselves are kept, and
+  AutoCAD opens them without their history.
 - MESH (subdivision meshes) and SHAPE (a shape from an SHX file: its name needs the file).
 
 **Behaviour that is not kept**
@@ -129,8 +129,7 @@ order, an OLE object's wrapper. A drawing from AutoCAD with each would settle it
 
 ## What is left, in order
 
-1. The four failing tests: the data store, then the dynamic-block objects (step 12c).
-2. The other types in the read note (step 12c).
+1. The other types in the read note (step 12c).
 3. ~~DraftCraft's own DWG writer and the other save versions (15–17); acadrust removed (18).~~
    Done: see [`dwg-writer-handoff.md`](dwg-writer-handoff.md).
 

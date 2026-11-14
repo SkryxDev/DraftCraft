@@ -505,7 +505,19 @@ pub fn write(tags: &[Tag], ver: V, info: &FileInfo<'_>) -> Result<(Vec<u8>, Unwr
     let encoded = encode_pruned(doc, ver, counted, &mut again);
     let doc = &encoded.cx.doc;
     let cx = &encoded.cx;
-    let mut objects: Vec<(u64, Vec<u8>)> = encoded.objects.into_iter().map(|o| (o.handle, o.bytes)).collect();
+    // From 2013 the modeler entities written keep their description in the data store section.
+    let solids: Vec<(u64, &[u8])> = if ver >= V::R2013 {
+        encoded
+            .objects
+            .iter()
+            .filter(|o| matches!(o.kind.as_str(), "3DSOLID" | "REGION" | "BODY"))
+            .filter_map(|o| Some((o.handle, doc.data_store.get(&o.handle)?.as_slice())))
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let data_store = (!solids.is_empty()).then(|| draftcraft_dwg::datastore::write(&draftcraft_dwg::datastore::solids(&solids)));
+    let mut objects: Vec<(u64, Vec<u8>)> = encoded.objects.iter().map(|o| (o.handle, o.bytes.clone())).collect();
     // Two objects under one handle: a file AutoCAD would open with one of them lost. It happens
     // only when the drawing has used up its handles (the records then repeat the last one).
     let mut seen = std::collections::HashSet::with_capacity(objects.len());
@@ -560,6 +572,7 @@ pub fn write(tags: &[Tag], ver: V, info: &FileInfo<'_>) -> Result<(Vec<u8>, Unwr
         app_name: info.app_name,
         app_version: info.app_version,
         fonts: &fonts,
+        data_store: data_store.as_deref(),
     };
     let bytes = compose::compose(&parts).map_err(|e| IoError::Format(format!("DWG: {e}")))?;
     Ok((bytes, encoded.unwritten))

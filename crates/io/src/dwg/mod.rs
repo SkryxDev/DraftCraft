@@ -11,6 +11,7 @@
 
 mod blocks;
 mod carry;
+mod data_store;
 mod dynblock;
 mod entities;
 mod header;
@@ -175,6 +176,18 @@ pub fn read(bytes: &[u8]) -> Result<(Drawing, Unread)> {
         &mut d,
         &mut unread,
     );
+    // The ACIS geometry of solids, regions and bodies, from AutoCAD 2013 on in a section of its own.
+    if let Some(section) = file.section("AcDb:AcDsPrototype_1b") {
+        match draftcraft_dwg::datastore::read(section) {
+            Ok(store) => {
+                let groups = data_store::groups(&store);
+                if !groups.is_empty() {
+                    std::sync::Arc::make_mut(&mut d.foreign).data_store = groups;
+                }
+            }
+            Err(_) => unread.count("data store"),
+        }
+    }
     // A block reference's clip, from the kept filter objects, as the DXF reader takes it.
     crate::dxf_clip::read(&mut d);
     for o in &objects {
