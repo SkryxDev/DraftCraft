@@ -137,6 +137,39 @@ fn probe() {
     }
 }
 
+/// The plain file header (its first 0x80 bytes) is AutoCAD's in every version, but for the
+/// addresses, which depend on the drawing: a wrong byte there makes AutoCAD refuse the file
+/// (one too many before 2007's security flags read as a password).
+#[test]
+fn the_plain_file_header_is_autocads() {
+    use draftcraft_dxf::Version as Dv;
+    let mut d = draftcraft_doc::Drawing::new_metric();
+    d.add(
+        &draftcraft_doc::Space::Model,
+        draftcraft_doc::Common::default(),
+        draftcraft_doc::EntityKind::Line(draftcraft_doc::Line { a: draftcraft_geom::Vec3::ZERO, b: draftcraft_geom::Vec3::new(10.0, 5.0, 0.0) }),
+    )
+    .expect("add");
+    // The address fields: the preview's (0x0D), then from 2004 the summary information's (0x20)
+    // and the application information's two (0x2C, 0x30). Before 2004 the header holds the
+    // section locators instead, compared up to the first one.
+    let paged: &[std::ops::Range<usize>] = &[0x0D..0x11, 0x20..0x24, 0x2C..0x34];
+    for (version, autocad, compared) in [
+        (Dv::R2000, "mi201-r2000.dwg", 0x15),
+        (Dv::R2004, "mi201-r2004.dwg", 0x80),
+        (Dv::R2007, "mi201-r2007.dwg", 0x80),
+        (Dv::R2010, "mi201-r2010.dwg", 0x80),
+        (Dv::R2013, "mi201-r2013.dwg", 0x80),
+        (Dv::R2018, "mi201-r2018.dwg", 0x80),
+    ] {
+        let (ours, _) = crate::write_dwg_own(&d, version).unwrap_or_else(|e| panic!("{version:?}: {e}"));
+        let theirs = mi201(autocad);
+        for i in (0..compared).filter(|i| !paged.iter().any(|r| r.contains(i))) {
+            assert_eq!(ours[i], theirs[i], "{version:?}: byte {i:#04x}\nours     {:02x?}\nAutoCAD's {:02x?}", &ours[..compared], &theirs[..compared]);
+        }
+    }
+}
+
 /// A drawing saved by the writer and read again by the reader, in every version it writes.
 #[test]
 fn a_drawing_reads_back() {

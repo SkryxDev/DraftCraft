@@ -1345,6 +1345,8 @@ fn write_dwg_fixtures() {
         ("mlines", mlines_drawing()),
         ("tables", tables_drawing()),
         ("regions", regions_drawing()),
+        // A real drawing: AutoCAD's own DXF of MI-201, saved by DraftCraft.
+        ("mi201", draftcraft_io::read_dxf(include_bytes!("../data/mi201/mi201-r2018.dxf")).unwrap()),
     ];
     for (name, d) in &drawings {
         for version in [Version::R2000, Version::R2004, Version::R2007, Version::R2010, Version::R2013, Version::R2018] {

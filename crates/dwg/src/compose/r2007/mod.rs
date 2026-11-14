@@ -414,7 +414,9 @@ pub(super) fn compose(input: &Input<'_>) -> Result<Vec<u8>> {
     out.extend_from_slice(&at("AcDb:Preview")?.to_le_bytes());
     out.extend_from_slice(&[0x21, 0xFF]);
     out.extend_from_slice(&input.codepage.to_le_bytes());
-    out.extend_from_slice(&[0, 0, 0x21, 0xFF]);
+    // Then `00 21 FF`, and at 0x18 the security flags: 0, no password and nothing encrypted.
+    // (A byte too many here puts 0xFF in the flags, and AutoCAD asks for a password.)
+    out.extend_from_slice(&[0, 0x21, 0xFF]);
     out.resize(0x20, 0);
     for v in [at("AcDb:SummaryInfo")?, 0, 0x80, at("AcDb:AppInfo")?, at("AcDb:AppInfoHistory")?, 0x202, 0x1DD] {
         out.extend_from_slice(&v.to_le_bytes());
