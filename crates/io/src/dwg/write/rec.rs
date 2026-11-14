@@ -5,7 +5,7 @@
 //! A record is a DXF record: its groups mean what the DXF Reference says, whichever program
 //! wrote them, so AutoCAD's own DXF of a drawing splits the same way.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use draftcraft_dxf::{Tag, Value};
 
@@ -207,6 +207,61 @@ fn records(tags: &[Tag]) -> Vec<(&str, &[Tag])> {
 }
 
 impl<'a> Doc<'a> {
+    /// Every record: the tables, the blocks, the entities, the objects.
+    pub fn every(&self) -> impl Iterator<Item = &Rec<'a>> {
+        self.tables
+            .iter()
+            .flat_map(|t| std::iter::once(&t.head).chain(t.records.iter()))
+            .chain(self.blocks.iter().flat_map(|b| std::iter::once(&b.begin).chain(b.entities.iter()).chain(b.end.iter())))
+            .chain(self.entities.iter())
+            .chain(self.objects.iter())
+    }
+
+    /// The drawing without the records whose handles are in `dropped` and without the reactors
+    /// and extension dictionaries that name them. A polyline's or block reference's followers
+    /// (vertices, attributes, SEQEND) go with it.
+    pub fn without(&self, dropped: &HashSet<u64>) -> Doc<'a> {
+        let clean = |r: &Rec<'a>| {
+            let mut r = r.clone();
+            if dropped.contains(&r.xdict) {
+                r.xdict = 0;
+            }
+            r.reactors.retain(|h| !dropped.contains(h));
+            r
+        };
+        let keep = |list: &[Rec<'a>]| {
+            let mut out = Vec::with_capacity(list.len());
+            let mut skipping = false;
+            for r in list {
+                let follower = matches!(r.kind, "VERTEX" | "ATTRIB" | "SEQEND");
+                if follower && skipping {
+                    skipping = r.kind != "SEQEND";
+                    continue;
+                }
+                if dropped.contains(&r.handle) {
+                    skipping = matches!(r.kind, "POLYLINE" | "INSERT");
+                    continue;
+                }
+                skipping = false;
+                out.push(clean(r));
+            }
+            out
+        };
+        Doc {
+            header: self.header.clone(),
+            classes: self.classes.clone(),
+            tables: self.tables.iter().map(|t| Table { name: t.name, head: clean(&t.head), records: keep(&t.records) }).collect(),
+            blocks: self
+                .blocks
+                .iter()
+                .map(|b| BlockDef { begin: clean(&b.begin), entities: keep(&b.entities), end: b.end.as_ref().map(clean) })
+                .collect(),
+            entities: keep(&self.entities),
+            objects: keep(&self.objects),
+            data_store: self.data_store.clone(),
+        }
+    }
+
     /// Split a drawing's groups into its records.
     pub fn parse(tags: &'a [Tag]) -> Doc<'a> {
         let mut doc = Doc::default();

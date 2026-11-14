@@ -29,12 +29,15 @@ enum D {
     Bd,
     Rc,
     Tv,
-    /// TV that AutoCAD ends with a zero byte up to 2004 (8-bit text); read like `Tv`.
+    /// TV that AutoCAD ends with a zero byte, when not empty, up to 2004 (8-bit text); read
+    /// like `Tv`.
     Tz,
     /// A handle with the given reference code.
     H(u8),
     /// CmColor: DXF 62 (the colour index), 420 (true colour) when set.
     Cmc,
+    /// CmColor that AutoCAD's DXF before 2004 leaves out, the index it then has.
+    CmcOr(i16),
     /// CmColor whose DXF group holds the method word itself.
     Word,
     /// 2RD: a 2D point, one DXF point group.
@@ -75,6 +78,25 @@ struct Layout {
 
 /// The layout of a type in files of version `ver`, or `None` for types handled by code below.
 fn layout(kind: &str, ver: V) -> Option<Layout> {
+    let mut l = laid_out(kind, ver)?;
+    // AutoCAD ends each text of the types that came after 2004 with a zero byte in the 8-bit
+    // files it saves them in.
+    let view_style = matches!(kind, "ACDBSECTIONVIEWSTYLE" | "ACDBDETAILVIEWSTYLE");
+    if view_style || matches!(kind, "VISUALSTYLE" | "MATERIAL") {
+        for g in &mut l.dxf {
+            match g {
+                G::V(_, d @ D::Tv) | G::Rep(_, _, _, d @ D::Tv) => *d = D::Tz,
+                // The view styles' colours, which AutoCAD's DXF gives from 2004: ByLayer but
+                // the ones laid out with another index.
+                G::V(_, d @ D::Cmc) if view_style => *d = D::CmcOr(256),
+                _ => {}
+            }
+        }
+    }
+    Some(l)
+}
+
+fn laid_out(kind: &str, ver: V) -> Option<Layout> {
     use D::*;
     use G::*;
     Some(match kind {
@@ -236,7 +258,7 @@ fn layout(kind: &str, ver: V) -> Option<Layout> {
             Layout { dxf, dwg }
         }
         "ACDBSECTIONVIEWSTYLE" => {
-            let mut dxf = model_doc_view();
+            let mut dxf = model_doc_view(ver);
             let base = dxf.len();
             dxf.extend([
                 M("AcDbSectionViewStyle"),
@@ -276,7 +298,7 @@ fn layout(kind: &str, ver: V) -> Option<Layout> {
                 V(300, Tv),          // 34
                 X(71, 4),            // 35
                 V(62, Cmc),          // 36
-                V(62, Cmc),          // 37
+                V(62, CmcOr(257)),   // 37
                 V(300, Tv),          // 38
                 V(40, Bd),           // 39
                 V(90, Bl),           // 40
@@ -295,7 +317,7 @@ fn layout(kind: &str, ver: V) -> Option<Layout> {
             Layout { dxf, dwg }
         }
         "ACDBDETAILVIEWSTYLE" => {
-            let mut dxf = model_doc_view();
+            let mut dxf = model_doc_view(ver);
             let base = dxf.len();
             dxf.extend([
                 M("AcDbDetailViewStyle"),
@@ -333,7 +355,7 @@ fn layout(kind: &str, ver: V) -> Option<Layout> {
                 V(62, Cmc),   // 32
                 V(280, Rc),   // 33
             ]);
-            let order = [1, 3, 5, 6, 7, 8, 12, 13, 9, 10, 11, 15, 16, 17, 19, 20, 21, 22, 23, 24, 25, 27, 28, 29, 30, 31, 32, 33];
+            let order = [1, 3, 5, 6, 7, 8, 11, 12, 13, 9, 10, 15, 16, 17, 19, 20, 21, 22, 23, 24, 25, 27, 28, 29, 30, 31, 32, 33];
             let mut dwg: Vec<W> = (1..base).map(W::I).collect();
             dwg.extend(order.iter().map(|i| W::I(base + i)));
             Layout { dxf, dwg }
@@ -342,11 +364,16 @@ fn layout(kind: &str, ver: V) -> Option<Layout> {
     })
 }
 
-/// The part section and detail view styles share.
-fn model_doc_view() -> Vec<G> {
+/// The part section and detail view styles share. The text and number after the flag came with
+/// AutoCAD 2018.
+fn model_doc_view(ver: V) -> Vec<G> {
     use D::*;
     use G::*;
-    vec![M("AcDbModelDocViewStyle"), V(70, Bs), V(3, Tv), V(290, B), V(300, Tv), V(90, Bl)]
+    let mut dxf = vec![M("AcDbModelDocViewStyle"), V(70, Bs), V(3, Tv), V(290, B)];
+    if ver >= super::version::DwgVersion::R2018 {
+        dxf.extend([V(300, Tv), V(90, Bl)]);
+    }
+    dxf
 }
 
 /// The value kind of each of a visual style's 58 properties, by DXF code
@@ -579,6 +606,30 @@ fn regroup_visual_style(items: &[(u16, XrValue)], ver: V) -> Option<Vec<(u16, Xr
     Some(out)
 }
 
+/// A section or detail view style's groups laid out for files of version `ver`, when they are
+/// laid out for another: from 2018 the shared part ends with a text and a number (AutoCAD gives
+/// the style's name and 0), which earlier records don't have. `None` when they already fit.
+fn regroup_view_style(items: &[(u16, XrValue)], ver: V) -> Option<Vec<(u16, XrValue)>> {
+    let code_at = |i: usize| items.get(i).map(|x| x.0);
+    // 100 AcDbModelDocViewStyle, 70, 3, 290, then (from 2018) 300 and 90.
+    if code_at(0) != Some(100) || code_at(1) != Some(70) || code_at(2) != Some(3) || code_at(3) != Some(290) {
+        return None;
+    }
+    let has = code_at(4) == Some(300) && code_at(5) == Some(90);
+    let wants = ver >= V::R2018;
+    if has == wants {
+        return None;
+    }
+    let mut out = items.to_vec();
+    if has {
+        out.drain(4..6);
+    } else {
+        let name = items.get(2).map(|x| x.1.clone())?;
+        out.splice(4..4, [(300, name), (90, XrValue::Int32(0))]);
+    }
+    Some(out)
+}
+
 // ---------------------------------------------------------------------------
 // Values
 // ---------------------------------------------------------------------------
@@ -707,17 +758,27 @@ fn read(s: &mut Streams, own: u64, d: D) -> Result<Val> {
         }
         D::H(_) => Val::Handle(Handle(s.h_abs(own)?)),
         // Before 2004 a colour is its index alone.
-        D::Cmc | D::Word if s.ver < super::version::DwgVersion::R2004 => Val::Color(word_of(i64::from(s.dat.bs()? as i16), None)),
-        D::Cmc | D::Word => {
-            let _index = s.dat.bs()?;
-            let word = s.dat.bl()?;
-            let names = s.dat.rc()?;
-            if names != 0 {
-                return Err(Error::format("named colour in a style object"));
-            }
-            Val::Color(word)
-        }
+        D::Cmc | D::CmcOr(_) | D::Word if s.ver < super::version::DwgVersion::R2004 => Val::Color(word_of(i64::from(s.dat.bs()? as i16), None)),
+        D::Cmc | D::CmcOr(_) | D::Word => Val::Color(read_cmc(s)?),
     })
+}
+
+/// A colour in the form of 2004 and later: index (unused), method word, name flags.
+fn read_cmc(s: &mut Streams) -> Result<u32> {
+    let _index = s.dat.bs()?;
+    let word = s.dat.bl()?;
+    let names = s.dat.rc()?;
+    if names != 0 {
+        return Err(Error::format("named colour in a style object"));
+    }
+    Ok(word)
+}
+
+/// [`read_cmc`] the other way.
+fn write_cmc(w: &mut ObjW, word: u32) {
+    w.dat.bs(0);
+    w.dat.bl(word);
+    w.dat.rc(0);
 }
 
 fn decode_layout(s: &mut Streams, own: u64, l: &Layout) -> Result<Vec<(u16, XrValue)>> {
@@ -755,7 +816,8 @@ fn decode_layout(s: &mut Streams, own: u64, l: &Layout) -> Result<Vec<(u16, XrVa
         match g {
             G::M(name) => out.push((100, XrValue::Str(name.to_string()))),
             G::X(code, value) => out.push((*code, xr(*code, &Val::Int(*value)))),
-            G::V(code, D::Cmc) => match v {
+            G::V(_, D::CmcOr(_)) if s.ver < V::R2004 => {}
+            G::V(code, D::Cmc | D::CmcOr(_)) => match v {
                 Val::Color(w) => color_groups(*code, *w, &mut out),
                 _ => return Err(Error::format("colour expected")),
             },
@@ -797,7 +859,7 @@ pub(crate) fn decode(kind: &str, s: &mut Streams, own: u64, d: &Lookup) -> Optio
         "DIMASSOC" => decode_dimassoc(s, own),
         "MATERIAL" => decode_material(s),
         "TABLESTYLE" => decode_tablestyle(s, own, d),
-        "CELLSTYLEMAP" => return None,
+        "CELLSTYLEMAP" => decode_cellstylemap(s, own),
         k => decode_layout(s, own, &layout(k, s.ver)?),
     };
     Some(items.map(|items| Groups { kind: kind.to_string(), items }))
@@ -861,6 +923,11 @@ impl<'a> Cur<'a> {
             v => Err(Error::format(format!("{}: group {code}: text expected, {v:?}", self.kind))),
         }
     }
+    /// Group `code` holding the text `want`.
+    fn word(&mut self, code: u16, want: &str) -> Result<()> {
+        let got = self.str(code)?;
+        if got == want { Ok(()) } else { Err(Error::format(format!("{}: {want} expected, {got:?}", self.kind))) }
+    }
     fn handle(&mut self, code: u16) -> Result<Handle> {
         match self.take(code)? {
             XrValue::Handle(h) => Ok(*h),
@@ -882,6 +949,11 @@ impl<'a> Cur<'a> {
             Some((c, _)) => Err(Error::format(format!("{}: unexpected group {c} at item {}", self.kind, self.at))),
         }
     }
+}
+
+/// Text AutoCAD ends with a zero byte in 8-bit files (up to 2004) when there is any.
+fn tz(w: &mut ObjW, s: &str) {
+    if s.is_empty() || w.ver.has_string_stream() { w.tv(s) } else { w.tv(&format!("{s}\0")) }
 }
 
 fn write(w: &mut ObjW, d: D, v: &Val) -> Result<()> {
@@ -907,13 +979,13 @@ fn write(w: &mut ObjW, d: D, v: &Val) -> Result<()> {
             Val::Str(s) => s,
             _ => "",
         }),
-        D::Tz => {
-            let s = match v {
-                Val::Str(s) => s.as_str(),
+        D::Tz => tz(
+            w,
+            match v {
+                Val::Str(s) => s,
                 _ => "",
-            };
-            if w.ver.has_string_stream() { w.tv(s) } else { w.tv(&format!("{s}\0")) }
-        }
+            },
+        ),
         D::H(code) => {
             let h = match v {
                 Val::Handle(h) => *h,
@@ -921,7 +993,7 @@ fn write(w: &mut ObjW, d: D, v: &Val) -> Result<()> {
             };
             w.hdl.handle(code, h.0);
         }
-        D::Cmc | D::Word => {
+        D::Cmc | D::CmcOr(_) | D::Word => {
             let word = match v {
                 Val::Color(c) => *c,
                 Val::Int(i) => *i as u32,
@@ -930,9 +1002,7 @@ fn write(w: &mut ObjW, d: D, v: &Val) -> Result<()> {
             if w.ver < super::version::DwgVersion::R2004 {
                 w.dat.bs(index_of(word) as u16);
             } else {
-                w.dat.bs(0);
-                w.dat.bl(word);
-                w.dat.rc(0);
+                write_cmc(w, word);
             }
         }
     }
@@ -954,7 +1024,9 @@ fn encode_layout(w: &mut ObjW, g: &Groups, l: &Layout) -> Result<()> {
                 c.take(*code)?;
                 Val::Null
             }
-            G::V(code, D::Cmc) => Val::Color(c.color(*code)?),
+            // AutoCAD's DXF before 2004 leaves out the colours of some styles.
+            G::V(code, D::CmcOr(index)) if c.peek() != Some(*code) => Val::Color(word_of(i64::from(*index), None)),
+            G::V(code, D::Cmc | D::CmcOr(_)) => Val::Color(c.color(*code)?),
             G::V(code, D::Word) => Val::Color(c.int(*code)? as u32),
             G::V(code, D::Tv | D::Tz) => Val::Str(c.str(*code)?),
             G::V(code, D::H(_)) => Val::Handle(c.handle(*code)?),
@@ -1020,6 +1092,14 @@ pub(crate) fn encode_with(w: &mut ObjW, g: &Groups, lookup: &Lookup) -> Result<(
         "DIMASSOC" => encode_dimassoc(w, g),
         "MATERIAL" => encode_material(w, g),
         "TABLESTYLE" => encode_tablestyle(w, g, lookup),
+        "CELLSTYLEMAP" => encode_cellstylemap(w, g),
+        "ACDBSECTIONVIEWSTYLE" | "ACDBDETAILVIEWSTYLE" => {
+            let regrouped = regroup_view_style(&g.items, w.ver).map(|items| Groups { kind: g.kind.clone(), items });
+            match layout(&g.kind, w.ver) {
+                Some(l) => encode_layout(w, regrouped.as_ref().unwrap_or(g), &l),
+                None => Err(Error::unsupported(format!("{} is kept for DXF only", g.kind))),
+            }
+        }
         "VISUALSTYLE" => {
             let regrouped = regroup_visual_style(&g.items, w.ver).map(|items| Groups { kind: g.kind.clone(), items });
             match layout("VISUALSTYLE", w.ver) {
@@ -1042,7 +1122,7 @@ fn since(kind: &str) -> V {
         "IMAGEDEF" | "IMAGEDEF_REACTOR" | "RASTERVARIABLES" => V::R13,
         // The cell styles came with AutoCAD 2010: its records read as the later ones.
         "TABLESTYLE" => V::R2010,
-        "VISUALSTYLE" => V::R2000,
+        "VISUALSTYLE" | "MATERIAL" | "ACDBSECTIONVIEWSTYLE" | "ACDBDETAILVIEWSTYLE" | "CELLSTYLEMAP" => V::R2000,
         _ => V::R2013,
     }
 }
@@ -1196,7 +1276,9 @@ fn encode_dimassoc(w: &mut ObjW, g: &Groups) -> Result<()> {
 /// ByBlock, Global). The DXF of those materials gives only the name, the
 /// map sources (all 0) and the six matrices; the rest of each record is
 /// AutoCAD's default values, which these runs hold. A material with any
-/// other property set is not handled.
+/// other property set is not handled. Before 2007 the record ends after the last map's source
+/// (the first 8 bits of the last run): the translucence, self-illumination, reflectivity,
+/// illumination model, channel flags and mode came with 2007.
 const MATERIAL_RUNS: [&str; 7] = [
     "0000000001000000000101000000100000000100000001",
     "00000000000000000101000000100000000100000001",
@@ -1209,6 +1291,12 @@ const MATERIAL_RUNS: [&str; 7] = [
 /// The matrix codes, and the DXF-only source group (0) before each but the
 /// last.
 const MATERIAL_MAPS: [(u16, Option<u16>); 6] = [(43, Some(72)), (47, Some(77)), (49, Some(171)), (142, Some(175)), (144, Some(179)), (147, None)];
+
+/// The bits after a material's last matrix in files of version `ver`.
+fn material_tail(ver: V) -> &'static str {
+    let tail = MATERIAL_RUNS[6];
+    if ver < V::R2007 { tail.get(..8).unwrap_or(tail) } else { tail }
+}
 
 fn read_run(r: &mut BitReader, run: &str) -> Result<()> {
     for ch in run.bytes() {
@@ -1236,7 +1324,7 @@ fn decode_material(s: &mut Streams) -> Result<Vec<(u16, XrValue)>> {
             out.push((*code, XrValue::Real(s.dat.bd()?)));
         }
     }
-    read_run(&mut s.dat, MATERIAL_RUNS[6])?;
+    read_run(&mut s.dat, material_tail(s.ver))?;
     Ok(out)
 }
 
@@ -1245,8 +1333,8 @@ fn encode_material(w: &mut ObjW, g: &Groups) -> Result<()> {
     if c.str(100)? != "AcDbMaterial" {
         return Err(Error::format("MATERIAL: subclass"));
     }
-    w.tv(&c.str(1)?);
-    w.tv(&if c.peek() == Some(2) { c.str(2)? } else { String::new() });
+    tz(w, &c.str(1)?);
+    tz(w, &if c.peek() == Some(2) { c.str(2)? } else { String::new() });
     for (i, (code, source)) in MATERIAL_MAPS.iter().enumerate() {
         for ch in MATERIAL_RUNS[i].bytes() {
             w.dat.b(ch == b'1');
@@ -1260,10 +1348,193 @@ fn encode_material(w: &mut ObjW, g: &Groups) -> Result<()> {
             w.dat.bd(c.real(*code)?);
         }
     }
-    for ch in MATERIAL_RUNS[6].bytes() {
+    for ch in material_tail(w.ver).bytes() {
         w.dat.b(ch == b'1');
     }
     c.done()
+}
+
+// ---------------------------------------------------------------------------
+// CELLSTYLEMAP
+// ---------------------------------------------------------------------------
+
+/// The most cell styles a map, and borders a table format, are read with.
+const MAX_CELL_STYLES: u32 = 1 << 12;
+const MAX_BORDERS: u32 = 6;
+
+/// The cell styles of a table style that files before 2010 keep beside it, for AutoCAD 2008
+/// and later (the record of a table style then holds the older row styles): the count, then
+/// each style's table format, id, type and name. DXF wraps each part in a named begin and end.
+fn decode_cellstylemap(s: &mut Streams, own: u64) -> Result<Vec<(u16, XrValue)>> {
+    let n = s.dat.bl()?;
+    if n > MAX_CELL_STYLES {
+        return Err(Error::format(format!("CELLSTYLEMAP: {n} cell styles")));
+    }
+    let mut out = vec![(100, XrValue::Str("AcDbCellStyleMap".into())), (90, XrValue::Int32(n as i32))];
+    let text = |out: &mut Vec<(u16, XrValue)>, code: u16, s: &str| out.push((code, XrValue::Str(s.to_string())));
+    for _ in 0..n {
+        text(&mut out, 300, "CELLSTYLE");
+        decode_table_format(s, own, &mut out)?;
+        text(&mut out, 1, "CELLSTYLE_BEGIN");
+        out.push((90, XrValue::Int32(s.dat.bl()? as i32)));
+        out.push((91, XrValue::Int32(s.dat.bl()? as i32)));
+        out.push((300, XrValue::Str(s.tv()?)));
+        text(&mut out, 309, "CELLSTYLE_END");
+    }
+    Ok(out)
+}
+
+fn decode_table_format(s: &mut Streams, own: u64, out: &mut Vec<(u16, XrValue)>) -> Result<()> {
+    let text = |out: &mut Vec<(u16, XrValue)>, code: u16, s: &str| out.push((code, XrValue::Str(s.to_string())));
+    let int = |out: &mut Vec<(u16, XrValue)>, code: u16, v: u32| out.push((code, XrValue::Int32(v as i32)));
+    // A 2008 object: its colours take the full form in every version.
+    let color = |s: &mut Streams, out: &mut Vec<(u16, XrValue)>| -> Result<()> {
+        color_groups(62, read_cmc(s)?, out);
+        Ok(())
+    };
+    text(out, 1, "TABLEFORMAT_BEGIN");
+    int(out, 90, s.dat.bl()?);
+    let data = s.dat.bs()?;
+    out.push((170, XrValue::Int16(data as i16)));
+    if data != 0 {
+        int(out, 91, s.dat.bl()?);
+        int(out, 92, s.dat.bl()?);
+        color(s, out)?;
+        int(out, 93, s.dat.bl()?);
+        text(out, 300, "CONTENTFORMAT");
+        text(out, 1, "CONTENTFORMAT_BEGIN");
+        for code in [90, 91, 92, 93] {
+            int(out, code, s.dat.bl()?);
+        }
+        out.push((300, XrValue::Str(s.tv()?)));
+        out.push((40, XrValue::Real(s.dat.bd()?)));
+        out.push((140, XrValue::Real(s.dat.bd()?)));
+        int(out, 94, s.dat.bl()?);
+        color(s, out)?;
+        out.push((340, XrValue::Handle(Handle(s.h_abs(own)?))));
+        out.push((144, XrValue::Real(s.dat.bd()?)));
+        text(out, 309, "CONTENTFORMAT_END");
+        let margins = s.dat.bs()?;
+        out.push((171, XrValue::Int16(margins as i16)));
+        if margins != 0 {
+            text(out, 301, "MARGIN");
+            text(out, 1, "CELLMARGIN_BEGIN");
+            for _ in 0..6 {
+                out.push((40, XrValue::Real(s.dat.bd()?)));
+            }
+            text(out, 309, "CELLMARGIN_END");
+        }
+        let borders = s.dat.bl()?;
+        if borders > MAX_BORDERS {
+            return Err(Error::format(format!("CELLSTYLEMAP: {borders} borders")));
+        }
+        int(out, 94, borders);
+        for _ in 0..borders {
+            let mask = s.dat.bl()?;
+            if mask != 0 {
+                int(out, 95, mask);
+                text(out, 302, "GRIDFORMAT");
+                text(out, 1, "GRIDFORMAT_BEGIN");
+                int(out, 90, s.dat.bl()?);
+                int(out, 91, s.dat.bl()?);
+                color(s, out)?;
+                int(out, 92, s.dat.bl()?);
+                out.push((340, XrValue::Handle(Handle(s.h_abs(own)?))));
+                int(out, 93, s.dat.bl()?);
+                out.push((40, XrValue::Real(s.dat.bd()?)));
+            }
+            text(out, 309, "GRIDFORMAT_END");
+        }
+    }
+    text(out, 309, "TABLEFORMAT_END");
+    Ok(())
+}
+
+/// [`decode_cellstylemap`] the other way. AutoCAD 2010 and later keep the cell styles in the
+/// table style and write no map.
+fn encode_cellstylemap(w: &mut ObjW, g: &Groups) -> Result<()> {
+    if w.ver >= V::R2010 {
+        return Err(Error::unsupported("CELLSTYLEMAP: from 2010 the table style holds its cell styles"));
+    }
+    let mut c = Cur::new(g);
+    if c.str(100)? != "AcDbCellStyleMap" {
+        return Err(Error::format("CELLSTYLEMAP: subclass"));
+    }
+    let n = c.int(90)?;
+    // Each cell style takes several groups: a count past the groups left is damage.
+    let n =
+        u32::try_from(n).ok().filter(|n| *n <= MAX_CELL_STYLES && (*n as usize) <= c.left()).ok_or_else(|| Error::format("CELLSTYLEMAP: count"))?;
+    w.dat.bl(n);
+    for _ in 0..n {
+        c.word(300, "CELLSTYLE")?;
+        encode_table_format(w, &mut c)?;
+        c.word(1, "CELLSTYLE_BEGIN")?;
+        w.dat.bl(c.int(90)? as u32);
+        w.dat.bl(c.int(91)? as u32);
+        tz(w, &c.str(300)?);
+        c.word(309, "CELLSTYLE_END")?;
+    }
+    c.done()
+}
+
+fn encode_table_format(w: &mut ObjW, c: &mut Cur) -> Result<()> {
+    let color = |w: &mut ObjW, c: &mut Cur| -> Result<()> {
+        write_cmc(w, c.color(62)?);
+        Ok(())
+    };
+    c.word(1, "TABLEFORMAT_BEGIN")?;
+    w.dat.bl(c.int(90)? as u32);
+    let data = c.int(170)?;
+    w.dat.bs(data as u16);
+    if data != 0 {
+        w.dat.bl(c.int(91)? as u32);
+        w.dat.bl(c.int(92)? as u32);
+        color(w, c)?;
+        w.dat.bl(c.int(93)? as u32);
+        c.word(300, "CONTENTFORMAT")?;
+        c.word(1, "CONTENTFORMAT_BEGIN")?;
+        for code in [90, 91, 92, 93] {
+            w.dat.bl(c.int(code)? as u32);
+        }
+        tz(w, &c.str(300)?);
+        w.dat.bd(c.real(40)?);
+        w.dat.bd(c.real(140)?);
+        w.dat.bl(c.int(94)? as u32);
+        color(w, c)?;
+        w.hdl.handle(5, c.handle(340)?.0);
+        w.dat.bd(c.real(144)?);
+        c.word(309, "CONTENTFORMAT_END")?;
+        let margins = c.int(171)?;
+        w.dat.bs(margins as u16);
+        if margins != 0 {
+            c.word(301, "MARGIN")?;
+            c.word(1, "CELLMARGIN_BEGIN")?;
+            for _ in 0..6 {
+                w.dat.bd(c.real(40)?);
+            }
+            c.word(309, "CELLMARGIN_END")?;
+        }
+        let borders = u32::try_from(c.int(94)?).ok().filter(|n| *n <= MAX_BORDERS).ok_or_else(|| Error::format("CELLSTYLEMAP: borders"))?;
+        w.dat.bl(borders);
+        for _ in 0..borders {
+            if c.peek() == Some(95) {
+                w.dat.bl(c.int(95)? as u32);
+                c.word(302, "GRIDFORMAT")?;
+                c.word(1, "GRIDFORMAT_BEGIN")?;
+                w.dat.bl(c.int(90)? as u32);
+                w.dat.bl(c.int(91)? as u32);
+                color(w, c)?;
+                w.dat.bl(c.int(92)? as u32);
+                w.hdl.handle(5, c.handle(340)?.0);
+                w.dat.bl(c.int(93)? as u32);
+                w.dat.bd(c.real(40)?);
+            } else {
+                w.dat.bl(0);
+            }
+            c.word(309, "GRIDFORMAT_END")?;
+        }
+    }
+    c.word(309, "TABLEFORMAT_END")
 }
 
 // ---------------------------------------------------------------------------
@@ -1555,7 +1826,7 @@ mod tests {
                 G::V(code, D::Tv | D::Tz) => items.push((*code, XrValue::Str(String::new()))),
                 G::V(code, D::Bd) => items.push((*code, XrValue::Real(1.0))),
                 G::V(code, D::H(_)) => items.push((*code, XrValue::Handle(Handle::NULL))),
-                G::V(code, D::Cmc) => items.push((*code, XrValue::Int16(256))),
+                G::V(code, D::Cmc | D::CmcOr(_)) => items.push((*code, XrValue::Int16(256))),
                 G::V(code, _) => items.push((*code, XrValue::Int32(0))),
                 G::X(code, v) => items.push((*code, XrValue::Int16(*v as i16))),
                 G::OptH(_) => {}

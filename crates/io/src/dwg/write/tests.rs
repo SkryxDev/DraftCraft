@@ -25,7 +25,10 @@ type Tally = BTreeMap<String, (usize, usize, usize, Vec<u64>, usize)>;
 fn compare(dxf: &str, dwg: &str, ver: V) -> (Tally, Unwritten, Vec<String>) {
     let tags = draftcraft_dxf::parse(&mi201(dxf)).expect("AutoCAD's DXF");
     let doc = Doc::parse(&tags);
-    let ours = encode(&doc, ver);
+    let (dropped, counted) = left_out(&doc, ver);
+    let pruned = if dropped.is_empty() { None } else { Some(doc.without(&dropped)) };
+    let mut again = None;
+    let ours = encode_pruned(pruned.as_ref().unwrap_or(&doc), ver, counted, &mut again);
     let bytes = mi201(dwg);
     let file = DwgFile::open(&bytes).expect("AutoCAD's DWG");
     let theirs: HashMap<u64, Vec<u8>> = file.objects().filter_map(|o| Some((o.handle, file.object_bytes(&o)?.to_vec()))).collect();

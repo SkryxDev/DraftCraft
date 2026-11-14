@@ -405,6 +405,12 @@ fn decode(src: &Source, unread: &mut Unread) -> Decoded {
             read.insert(o.handle);
             continue;
         }
+        // The cell styles a table style keeps beside it before 2010: part of the modelled table
+        // style, left out as the DXF reader leaves it out.
+        if o.type_name == "CELLSTYLEMAP" {
+            read.insert(o.handle);
+            continue;
+        }
         let own = match o.type_name.as_str() {
             "GROUP" => Some(group(&mut r)),
             "WIPEOUTVARIABLES" => Some(wipeout_variables(&mut r)),

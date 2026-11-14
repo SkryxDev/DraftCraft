@@ -70,9 +70,14 @@ pub(super) fn object(cx: &Cx<'_>, r: &Rec<'_>) -> Option<ObjectWriter> {
         "DIMASSOC" => dim_assoc(cx, r)?,
         "TABLESTYLE" => table_style(cx, r)?,
         "SPATIAL_FILTER" => spatial_filter(cx, r)?,
-        "VISUALSTYLE" | "MATERIAL" | "ACDBSECTIONVIEWSTYLE" | "ACDBDETAILVIEWSTYLE" | "IMAGEDEF" | "IMAGEDEF_REACTOR" | "RASTERVARIABLES" => {
-            grouped(cx, r)?
-        }
+        "VISUALSTYLE"
+        | "MATERIAL"
+        | "ACDBSECTIONVIEWSTYLE"
+        | "ACDBDETAILVIEWSTYLE"
+        | "CELLSTYLEMAP"
+        | "IMAGEDEF"
+        | "IMAGEDEF_REACTOR"
+        | "RASTERVARIABLES" => grouped(cx, r)?,
         "MLINESTYLE" => mline_style(cx, r),
         "PDFDEFINITION" => {
             // The file and the page.

@@ -23,7 +23,7 @@ mod table;
 mod tables;
 mod variables;
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use draftcraft_dwg::DwgVersion as V;
 use draftcraft_dwg::compose::{self, Class, ObjectWriter, Parts, Properties, TextEncoding};
@@ -173,6 +173,8 @@ pub(super) struct Objects<'a> {
     pub cx: Cx<'a>,
     pub objects: Vec<Encoded>,
     pub unwritten: Unwritten,
+    /// The handles of the records left out.
+    pub dropped: HashSet<u64>,
 }
 
 /// AutoCAD's class definitions of the types the writer encodes that have no type number of their
@@ -347,10 +349,15 @@ fn context<'a>(doc: &'a Doc<'a>, ver: V) -> Cx<'a> {
 /// Encode every record of `doc`.
 pub(super) fn encode<'a>(doc: &'a Doc<'a>, ver: V) -> Objects<'a> {
     let cx = context(doc, ver);
-    let mut out = Objects { cx, objects: Vec::new(), unwritten: Unwritten::new() };
+    let mut out = Objects { cx, objects: Vec::new(), unwritten: Unwritten::new(), dropped: HashSet::new() };
     let put = |out: &mut Objects<'a>, r: &Rec<'_>, w: Option<ObjectWriter>| match w {
         Some(w) if r.handle != 0 => out.objects.push(Encoded { handle: r.handle, kind: r.kind.to_string(), bytes: w.finish() }),
-        _ => *out.unwritten.entry(r.kind.to_string()).or_default() += 1,
+        _ => {
+            *out.unwritten.entry(r.kind.to_string()).or_default() += 1;
+            if r.handle != 0 {
+                out.dropped.insert(r.handle);
+            }
+        }
     };
     for t in &doc.tables {
         let w = tables::control(&out.cx, t);
@@ -387,6 +394,80 @@ pub(super) fn encode<'a>(doc: &'a Doc<'a>, ver: V) -> Objects<'a> {
     out
 }
 
+/// The objects of `doc` (not the entities) the file can't hold, by handle and counted by type,
+/// with the extension dictionaries that hold nothing else: the drawing is encoded without them,
+/// so that no dictionary entry, reactor or reference names an object the file doesn't have.
+/// AutoCAD leaves out the same: from 2010 a table style's cell style map, kept for DXF, and
+/// the dictionary that holds it.
+pub(super) fn left_out(doc: &Doc<'_>, ver: V) -> (HashSet<u64>, Unwritten) {
+    let cx = context(doc, ver);
+    let mut dropped = HashSet::new();
+    let mut counted = Unwritten::new();
+    for r in doc.objects.iter().filter(|r| r.handle != 0) {
+        if objects::object(&cx, r).is_none() {
+            dropped.insert(r.handle);
+            *counted.entry(r.kind.to_string()).or_default() += 1;
+        }
+    }
+    empty_extension_dictionaries(doc, &mut dropped);
+    (dropped, counted)
+}
+
+/// Add to `dropped` each extension dictionary whose entries are all dropped (and the ones that
+/// hold only those, and so on).
+fn empty_extension_dictionaries(doc: &Doc<'_>, dropped: &mut HashSet<u64>) {
+    if dropped.is_empty() {
+        return;
+    }
+    let extension: HashSet<u64> = doc.every().map(|r| r.xdict).filter(|h| *h != 0).collect();
+    let dictionaries: Vec<&Rec<'_>> =
+        doc.objects.iter().filter(|r| matches!(r.kind, "DICTIONARY" | "ACDBDICTIONARYWDFLT") && extension.contains(&r.handle)).collect();
+    // Each round drops at least one dictionary or ends.
+    for _ in 0..=dictionaries.len() {
+        let mut changed = false;
+        for r in &dictionaries {
+            if dropped.contains(&r.handle) {
+                continue;
+            }
+            let entries = common::entries(r);
+            if !entries.is_empty() && entries.iter().all(|(_, h)| dropped.contains(h)) {
+                dropped.insert(r.handle);
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+}
+
+/// Encode `doc` for `ver` without the records the file can't hold: `pruned` holds `doc`
+/// without the objects [`left_out`] finds, `again` the drawing without what the encoding of
+/// that still leaves out (an entity), when there is any. Every record left out is counted.
+pub(super) fn encode_pruned<'d>(doc: &'d Doc<'d>, ver: V, counted: Unwritten, again: &'d mut Option<Doc<'d>>) -> Objects<'d> {
+    let first = encode(doc, ver);
+    let mut more = first.dropped.clone();
+    let mut out = if more.is_empty() {
+        first
+    } else {
+        empty_extension_dictionaries(doc, &mut more);
+        let next = again.insert(doc.without(&more));
+        let mut out = encode(next, ver);
+        merge(&mut out.unwritten, first.unwritten);
+        out
+    };
+    merge(&mut out.unwritten, counted);
+    out
+}
+
+/// Add the counts of `from` to `into`, each type at the larger of its two counts.
+fn merge(into: &mut Unwritten, from: Unwritten) {
+    for (k, n) in from {
+        let v = into.entry(k).or_default();
+        *v = (*v).max(n);
+    }
+}
+
 /// The drawing whose records are `tags`, as a DWG file of version `ver`, with the records the
 /// file leaves out.
 /// Add the drawing variables dictionary AutoCAD writes in every DWG, with the drawing's values,
@@ -396,8 +477,13 @@ pub fn add_variable_dictionary(tags: &mut Vec<Tag>, d: &draftcraft_doc::Drawing)
 }
 
 pub fn write(tags: &[Tag], ver: V, info: &FileInfo<'_>) -> Result<(Vec<u8>, Unwritten)> {
-    let doc = Doc::parse(tags);
-    let encoded = encode(&doc, ver);
+    let parsed = Doc::parse(tags);
+    let (dropped, counted) = left_out(&parsed, ver);
+    let pruned = if dropped.is_empty() { None } else { Some(parsed.without(&dropped)) };
+    let doc = pruned.as_ref().unwrap_or(&parsed);
+    let mut again = None;
+    let encoded = encode_pruned(doc, ver, counted, &mut again);
+    let doc = &encoded.cx.doc;
     let cx = &encoded.cx;
     let objects: Vec<(u64, Vec<u8>)> = encoded.objects.into_iter().map(|o| (o.handle, o.bytes)).collect();
     // Two objects under one handle: a file AutoCAD would open with one of them lost. It happens
@@ -418,10 +504,10 @@ pub fn write(tags: &[Tag], ver: V, info: &FileInfo<'_>) -> Result<(Vec<u8>, Unwr
         Some(draftcraft_dwg::file::HeaderValue::Real(r)) => *r,
         _ => 0.0,
     };
-    let properties = Properties { last_saved_by: header::text(&doc, "LASTSAVEDBY").to_string(), ..Properties::default() };
+    let properties = Properties { last_saved_by: header::text(doc, "LASTSAVEDBY").to_string(), ..Properties::default() };
     let fonts: Vec<(String, u64)> =
         doc.table("STYLE").map(|t| t.records.iter().map(|r| (r.all().s(3).to_string(), r.handle)).collect()).unwrap_or_default();
-    let class_list = classes(&doc, ver);
+    let class_list = classes(doc, ver);
     let parts = Parts {
         version: ver,
         codepage: cx.codepage,
@@ -430,7 +516,7 @@ pub fn write(tags: &[Tag], ver: V, info: &FileInfo<'_>) -> Result<(Vec<u8>, Unwr
         classes: &class_list,
         objects: &objects,
         handseed: seed,
-        measurement: u16::try_from(header::int(&doc, "MEASUREMENT")).unwrap_or(0),
+        measurement: u16::try_from(header::int(doc, "MEASUREMENT")).unwrap_or(0),
         created: real("TDCREATE"),
         updated: real("TDUPDATE"),
         editing: real("TDINDWG"),
