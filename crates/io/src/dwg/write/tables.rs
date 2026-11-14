@@ -7,7 +7,7 @@ use draftcraft_dxf::Tag;
 
 use super::Cx;
 use super::common::{self, lineweight};
-use super::rec::{Groups, Rec, Table, hex, text};
+use super::rec::{Groups, Rec, Table, text};
 
 /// The DWG type of a table's control object and of its records.
 fn types(table: &str) -> Option<(u16, u16)> {
@@ -99,7 +99,7 @@ pub(super) fn record(cx: &Cx<'_>, t: &Table<'_>, r: &Rec<'_>) -> Option<ObjectWr
             w.rc(0);
             w.reference(Ref::HardPointer, 0);
         }
-        0x33 => layer(cx, &mut w, r, control),
+        0x33 => layer(cx, &mut w, r),
         0x35 => {
             record_name(&mut w, g.s(2), g.i(70));
             let flags = g.i(70);
@@ -114,9 +114,9 @@ pub(super) fn record(cx: &Cx<'_>, t: &Table<'_>, r: &Rec<'_>) -> Option<ObjectWr
             w.text(g.s(4));
             w.reference(Ref::HardPointer, 0);
         }
-        0x39 => linetype(cx, &mut w, r, control),
-        0x31 => block_header(cx, &mut w, r, control),
-        0x45 => dim_style(cx, &mut w, r, control),
+        0x39 => linetype(cx, &mut w, r),
+        0x31 => block_header(cx, &mut w, r),
+        0x45 => dim_style(cx, &mut w, r),
         0x3F => {
             record_name(&mut w, g.s(2), g.i(70));
             w.bd3(g.p3(10));
@@ -130,14 +130,14 @@ pub(super) fn record(cx: &Cx<'_>, t: &Table<'_>, r: &Rec<'_>) -> Option<ObjectWr
             w.reference(Ref::HardPointer, cx.known(g.h(346)));
             w.reference(Ref::HardPointer, 0);
         }
-        0x3D => view(cx, &mut w, r, control),
-        0x41 => vport(cx, &mut w, r, control),
+        0x3D => view(cx, &mut w, r),
+        0x41 => vport(cx, &mut w, r),
         _ => return None,
     }
     Some(w)
 }
 
-fn layer(cx: &Cx<'_>, w: &mut ObjectWriter, r: &Rec<'_>, control: u64) {
+fn layer(cx: &Cx<'_>, w: &mut ObjectWriter, r: &Rec<'_>) {
     let g = r.all();
     let flags = g.i(70);
     record_name(w, g.s(2), flags);
@@ -196,7 +196,7 @@ fn dashes<'a>(g: Groups<'a>) -> Vec<Dash<'a>> {
         .collect()
 }
 
-fn linetype(cx: &Cx<'_>, w: &mut ObjectWriter, r: &Rec<'_>, control: u64) {
+fn linetype(cx: &Cx<'_>, w: &mut ObjectWriter, r: &Rec<'_>) {
     let g = r.all();
     record_name(w, g.s(2), g.i(70));
     w.text(g.s(3));
@@ -243,7 +243,7 @@ fn linetype(cx: &Cx<'_>, w: &mut ObjectWriter, r: &Rec<'_>, control: u64) {
     }
 }
 
-fn block_header(cx: &Cx<'_>, w: &mut ObjectWriter, r: &Rec<'_>, control: u64) {
+fn block_header(cx: &Cx<'_>, w: &mut ObjectWriter, r: &Rec<'_>) {
     let g = r.all();
     let name = g.s(2);
     // The BLOCK entity holds the definition's flags, base point, path and description.
@@ -318,7 +318,7 @@ fn dim_default(code: i32) -> f64 {
     }
 }
 
-fn dim_style(cx: &Cx<'_>, w: &mut ObjectWriter, r: &Rec<'_>, control: u64) {
+fn dim_style(cx: &Cx<'_>, w: &mut ObjectWriter, r: &Rec<'_>) {
     let g = r.sub("AcDbDimStyleTableRecord");
     let g = if g.0.is_empty() { r.all() } else { g };
     let ver = cx.ver;
@@ -398,19 +398,7 @@ fn dim_style(cx: &Cx<'_>, w: &mut ObjectWriter, r: &Rec<'_>, control: u64) {
     }
 }
 
-/// The fields a named view and a viewport share: the view's size and direction, its clipping
-/// and its mode bits.
-fn view_fields(cx: &Cx<'_>, w: &mut ObjectWriter, g: Groups<'_>, height: f64, width: f64, center: [f64; 2], twist: f64, mode: i64) {
-    w.bd(height);
-    w.bd(width);
-    w.rd2(center);
-    w.bd3(if g.has(17) || g.has(27) { g.p3(17) } else { g.p3(12) });
-    let _ = cx;
-    let _ = twist;
-    let _ = mode;
-}
-
-fn view(cx: &Cx<'_>, w: &mut ObjectWriter, r: &Rec<'_>, control: u64) {
+fn view(cx: &Cx<'_>, w: &mut ObjectWriter, r: &Rec<'_>) {
     let g = r.all();
     let ver = cx.ver;
     record_name(w, g.s(2), g.i(70));
@@ -462,10 +450,9 @@ fn view(cx: &Cx<'_>, w: &mut ObjectWriter, r: &Rec<'_>, control: u64) {
     if ver >= V::R2007 {
         w.reference(Ref::SoftPointer, cx.known(g.h(334)));
     }
-    let _ = view_fields;
 }
 
-fn vport(cx: &Cx<'_>, w: &mut ObjectWriter, r: &Rec<'_>, control: u64) {
+fn vport(cx: &Cx<'_>, w: &mut ObjectWriter, r: &Rec<'_>) {
     let g = r.all();
     let ver = cx.ver;
     record_name(w, g.s(2), g.i(70));
@@ -526,5 +513,4 @@ fn vport(cx: &Cx<'_>, w: &mut ObjectWriter, r: &Rec<'_>, control: u64) {
     }
     w.reference(Ref::HardPointer, cx.known(g.h(345)));
     w.reference(Ref::HardPointer, cx.known(g.h(346)));
-    let _ = hex;
 }

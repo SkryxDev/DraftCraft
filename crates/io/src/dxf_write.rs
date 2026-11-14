@@ -127,6 +127,12 @@ pub(crate) fn dwg_bridge(d: &Drawing, dwg: Version) -> String {
     draftcraft_dxf::write_ascii(&tags)
 }
 
+/// The drawing's records for DraftCraft's own DWG writer ([`crate::dwg::write`]), which encodes
+/// each as the DWG object of the same meaning: the entity types are the DWG version's.
+pub(crate) fn dwg_records(d: &Drawing, dwg: Version) -> Vec<Tag> {
+    tags_for(d, Version::R2000, dwg, false)
+}
+
 /// Subclass markers the DWG bridge knows by another spelling (it matches them exactly):
 /// AutoCAD writes a dynamic block lookup parameter's as `AcDbBlockLookUpParameter`, the bridge
 /// reads `AcDbBlockLookupParameter`; otherwise the parameter loses its name and its lookup

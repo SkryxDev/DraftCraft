@@ -203,6 +203,15 @@ pub fn write_noted(d: &Drawing, name: impl AsRef<Path>, opts: &SaveOptions) -> R
     write_with(d, name, opts).map(|b| (b, draftcraft_dwg::acadrust::Unwritten::new()))
 }
 
+/// The drawing as a DWG file of `version` by DraftCraft's own writer ([`dwg::write`]), with the
+/// records the file leaves out, by type.
+pub fn write_dwg_own(d: &Drawing, version: Version) -> Result<(Vec<u8>, dwg::write::Unwritten)> {
+    let ver = dwg::write::version_of(version.code()).ok_or_else(|| IoError::Format(format!("DWG: no writer for {}", version.code())))?;
+    let tags = dxf_write::dwg_records(d, version);
+    let info = dwg::write::FileInfo { app_name: "DraftCraft", app_version: env!("CARGO_PKG_VERSION"), ..dwg::write::FileInfo::default() };
+    dwg::write::write(&tags, ver, &info)
+}
+
 /// The DWG bridge reads our R2000 DXF and writes the DWG at `version`, in the DWG worker when
 /// there is one.
 fn write_dwg(d: &Drawing, version: Version) -> Result<(Vec<u8>, draftcraft_dwg::acadrust::Unwritten)> {

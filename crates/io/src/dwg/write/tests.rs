@@ -121,3 +121,20 @@ fn probe() {
         }
     }
 }
+
+/// A drawing saved by the writer and read again by the reader, in every version it writes.
+#[test]
+fn a_drawing_reads_back() {
+    use draftcraft_doc::{Drawing, EntityKind, Line};
+    use draftcraft_geom::Vec3;
+    let mut d = Drawing::new_metric();
+    d.add(&draftcraft_doc::Space::Model, draftcraft_doc::Common::default(), EntityKind::Line(Line { a: Vec3::new(0.0, 0.0, 0.0), b: Vec3::new(10.0, 5.0, 0.0) })).expect("add");
+    for version in [draftcraft_dxf::Version::R2000, draftcraft_dxf::Version::R2004, draftcraft_dxf::Version::R2010, draftcraft_dxf::Version::R2013, draftcraft_dxf::Version::R2018] {
+        let (bytes, unwritten) = crate::write_dwg_own(&d, version).unwrap_or_else(|e| panic!("{version:?}: {e}"));
+        println!("{version:?}: {} bytes, unwritten {unwritten:?}", bytes.len());
+        let (back, unread) = crate::dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
+        println!("  unread {:?} notes {:?}", unread.by_type, back.read_notes);
+        assert_eq!(back.model.len(), 1, "{version:?}");
+        assert!(unread.is_empty(), "{version:?}: {}", unread.summary());
+    }
+}
