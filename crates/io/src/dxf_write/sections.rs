@@ -1166,7 +1166,9 @@ pub(super) fn tags_for(d: &Drawing, version: Version, target: Version, frozen_34
     // Only a DXF declares the version it is written for: the DWG bridge writes R2000 text for the
     // DWG writer, which keeps SAT-text solids (#2334).
     crate::dxf_raw::finish(&mut w.t, d, &w.reactors, version >= Version::R2013);
-    crate::dxf_raw::data_store(&mut w.t, d, target >= Version::R2013);
+    // A DWG of AutoCAD 2004 to 2010 (`dwg_records` declares 2000 for any DWG) holds the binary
+    // ACIS in the entity itself: the DWG writer takes it from the section.
+    crate::dxf_raw::data_store(&mut w.t, d, target >= Version::R2013 || target > version);
     add_class_instance_counts(&mut w.t, target);
     mark_xrefs(&mut w.t, d);
     w.t

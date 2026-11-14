@@ -17,6 +17,7 @@ mod header;
 mod mleader;
 mod objects;
 mod rec;
+mod solid;
 mod table;
 mod tables;
 mod variables;

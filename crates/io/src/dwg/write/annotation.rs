@@ -108,6 +108,9 @@ pub(super) fn entity(cx: &Cx<'_>, r: &Rec<'_>) -> Option<ObjectWriter> {
             w
         }
         "ACAD_TABLE" => super::table::table(cx, r)?,
+        "REGION" => super::solid::modeler(cx, r, 0x25)?,
+        "3DSOLID" => super::solid::modeler(cx, r, 0x26)?,
+        "BODY" => super::solid::modeler(cx, r, 0x27)?,
         _ => return None,
     })
 }

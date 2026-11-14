@@ -192,6 +192,9 @@ pub(super) struct Doc<'a> {
     pub blocks: Vec<BlockDef<'a>>,
     pub entities: Vec<Rec<'a>>,
     pub objects: Vec<Rec<'a>>,
+    /// The modeler geometry (binary ACIS) of each solid, region or body the data store section
+    /// holds, by the entity's handle.
+    pub data_store: HashMap<u64, Vec<u8>>,
 }
 
 /// The records of one section: (type, groups after the type).
@@ -229,11 +232,32 @@ impl<'a> Doc<'a> {
                 "BLOCKS" => doc.read_blocks(body),
                 "ENTITIES" => doc.entities = records(body).into_iter().map(|(k, t)| Rec::new(k, t)).collect(),
                 "OBJECTS" => doc.objects = records(body).into_iter().map(|(k, t)| Rec::new(k, t)).collect(),
+                "ACDSDATA" => doc.read_data_store(body),
                 _ => {}
             }
             i = start + len + 1;
         }
         doc
+    }
+
+    /// Each data store record's ASM_Data bytes, by the entity its first group 320 names: the
+    /// groups 310 after `2 ASM_Data`, up to the record's next named value.
+    fn read_data_store(&mut self, body: &'a [Tag]) {
+        for (kind, tags) in records(body) {
+            if !kind.eq_ignore_ascii_case("ACDSRECORD") {
+                continue;
+            }
+            let owner = Groups(tags).h(320);
+            let Some(at) = tags.iter().position(|t| t.code == 2 && text(t) == "ASM_Data") else { continue };
+            let mut bytes = Vec::new();
+            for t in tags.get(at + 1..).unwrap_or(&[]).iter().take_while(|t| t.code != 2).filter(|t| t.code == 310) {
+                let hex = text(t).trim().as_bytes();
+                bytes.extend(hex.chunks_exact(2).filter_map(|p| u8::from_str_radix(std::str::from_utf8(p).ok()?, 16).ok()));
+            }
+            if owner != 0 && !bytes.is_empty() {
+                self.data_store.entry(owner).or_insert(bytes);
+            }
+        }
     }
 
     fn read_header(&mut self, body: &'a [Tag]) {

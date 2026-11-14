@@ -312,3 +312,46 @@ fn scratch_resave() {
         prev = Some(objs);
     }
 }
+
+/// A region's SAT text comes back as written in every version that keeps it in the entity:
+/// lines over 255 characters (continued in groups 3), carets, and more text than one 4096-byte
+/// block holds; the end-of-data line is left out, as AutoCAD stores it.
+#[test]
+fn sat_text_survives_the_dwg_versions_that_hold_it() {
+    let long: String = "kooo ".repeat(80);
+    let mut body = String::from("1\nkooo n n o\n1\n");
+    body.push_str(&long);
+    body.push_str("\n1\na^ b\n");
+    for i in 0..200 {
+        body.push_str(&format!("1\n-{i} ;o:+>-,r+:,: n n o\n"));
+    }
+    body.push_str("1\nZ1;r09r^ \\VLr;>+>\n");
+    let dxf = format!(
+        "0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1015\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n\
+         0\nREGION\n5\n2B\n100\nAcDbEntity\n8\n0\n100\nAcDbModelerGeometry\n70\n1\n{body}0\nENDSEC\n0\nEOF\n"
+    );
+    let d = crate::read_dxf(dxf.as_bytes()).expect("dxf");
+    // The lines of text, a group 3 continuing the line before it.
+    let sat = |d: &draftcraft_doc::Drawing| -> Vec<String> {
+        let mut lines: Vec<String> = Vec::new();
+        let tags = d.model.iter().find_map(|e| match &e.kind {
+            draftcraft_doc::EntityKind::Unknown(u) if u.dxf_type == "REGION" => Some(u.tags.clone()),
+            _ => None,
+        });
+        for t in tags.unwrap_or_default().iter().filter(|t| matches!(t.code, 1 | 3)) {
+            match (t.code, lines.last_mut()) {
+                (3, Some(l)) => l.push_str(&t.value),
+                _ => lines.push(t.value.clone()),
+            }
+        }
+        lines
+    };
+    let mut want = sat(&d);
+    assert!(want.iter().map(String::len).sum::<usize>() > 4096);
+    want.pop();
+    for v in [crate::Version::R2000, crate::Version::R2004, crate::Version::R2010] {
+        let dwg = crate::write_with(&d, "x.dwg", &crate::SaveOptions { version: Some(v), binary: false }).expect("write");
+        let back = crate::read(&dwg, "x.dwg").expect("read");
+        assert_eq!(sat(&back), want, "{v:?}");
+    }
+}
