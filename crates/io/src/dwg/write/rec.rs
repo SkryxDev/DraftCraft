@@ -219,7 +219,8 @@ impl<'a> Doc<'a> {
             }
             let name = tags.get(i + 1).filter(|t| t.code == 2).map_or("", text);
             let start = i + 2;
-            let len = tags.get(start..).unwrap_or(&[]).iter().position(|t| t.code == 0 && text(t) == "ENDSEC").unwrap_or(tags.len().saturating_sub(start));
+            let len =
+                tags.get(start..).unwrap_or(&[]).iter().position(|t| t.code == 0 && text(t) == "ENDSEC").unwrap_or(tags.len().saturating_sub(start));
             let body = tags.get(start..start + len).unwrap_or(&[]);
             match name {
                 "HEADER" => doc.read_header(body),

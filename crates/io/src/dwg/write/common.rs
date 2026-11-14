@@ -231,7 +231,9 @@ pub(super) fn structure(cx: &mut Cx<'_>) {
     cx.handles.extend(doc.objects.iter().map(|r| r.handle));
     cx.handles.remove(&0);
     // The named-object dictionary is the first dictionary without an owner.
-    if let Some(root) = doc.objects.iter().find(|r| r.kind == "DICTIONARY" && r.owner == 0).or_else(|| doc.objects.iter().find(|r| r.kind == "DICTIONARY")) {
+    if let Some(root) =
+        doc.objects.iter().find(|r| r.kind == "DICTIONARY" && r.owner == 0).or_else(|| doc.objects.iter().find(|r| r.kind == "DICTIONARY"))
+    {
         cx.root = root.handle;
         cx.named = entries(root).into_iter().map(|(n, h)| (n.to_ascii_uppercase(), h)).collect();
     }

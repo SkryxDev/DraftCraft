@@ -73,8 +73,9 @@ pub(super) fn object(cx: &Cx<'_>, r: &Rec<'_>) -> Option<ObjectWriter> {
         "DIMASSOC" => dim_assoc(cx, r)?,
         "TABLESTYLE" => table_style(cx, r)?,
         "SPATIAL_FILTER" => spatial_filter(cx, r)?,
-        "VISUALSTYLE" | "MATERIAL" | "ACDBSECTIONVIEWSTYLE" | "ACDBDETAILVIEWSTYLE" | "IMAGEDEF"
-        | "IMAGEDEF_REACTOR" | "RASTERVARIABLES" => grouped(cx, r)?,
+        "VISUALSTYLE" | "MATERIAL" | "ACDBSECTIONVIEWSTYLE" | "ACDBDETAILVIEWSTYLE" | "IMAGEDEF" | "IMAGEDEF_REACTOR" | "RASTERVARIABLES" => {
+            grouped(cx, r)?
+        }
         "MLINESTYLE" => mline_style(cx, r),
         "PDFDEFINITION" => {
             // The file and the page.
@@ -266,7 +267,9 @@ fn mline_style(cx: &Cx<'_>, r: &Rec<'_>) -> ObjectWriter {
     let order: Vec<u64> = cx
         .doc
         .table("LTYPE")
-        .map(|t| t.records.iter().filter(|r| !matches!(r.all().s(2).to_ascii_uppercase().as_str(), "BYLAYER" | "BYBLOCK")).map(|r| r.handle).collect())
+        .map(|t| {
+            t.records.iter().filter(|r| !matches!(r.all().s(2).to_ascii_uppercase().as_str(), "BYLAYER" | "BYBLOCK")).map(|r| r.handle).collect()
+        })
         .unwrap_or_default();
     for e in &elements {
         w.bd(e.f(49));
@@ -593,7 +596,12 @@ fn cell_style(w: &mut ObjectWriter, row: &StyleRow, overrides: u32, flags: u32, 
 /// own Standard style come out as AutoCAD's file holds them (MI-201).
 fn table_style_cells(cx: &Cx<'_>, w: &mut ObjectWriter, version: i64, head: Groups<'_>, g: Groups<'_>) {
     let starts: Vec<usize> = g.0.iter().enumerate().filter(|(_, t)| t.code == 7).map(|(i, _)| i).collect();
-    let row = |n: usize| style_row(cx, starts.get(n).map_or(Groups::default(), |&i| Groups(g.0.get(i..starts.get(n + 1).copied().unwrap_or(g.0.len())).unwrap_or(&[]))));
+    let row = |n: usize| {
+        style_row(
+            cx,
+            starts.get(n).map_or(Groups::default(), |&i| Groups(g.0.get(i..starts.get(n + 1).copied().unwrap_or(g.0.len())).unwrap_or(&[]))),
+        )
+    };
     let (data, title, header) = (row(0), row(1), row(2));
     let flags = u32::try_from(head.i(71) & 0xFFFF_FFFC).unwrap_or(0) | u32::from(head.i(280) != 0) | (u32::from(head.i(281) != 0) << 1);
     w.rc(u8::try_from(version).unwrap_or(0));

@@ -18,9 +18,8 @@ const KEY: &str = "AcDbVariableDictionary";
 /// variable doesn't accept, which a hostile file can hold, is AutoCAD's default), and the two
 /// layer notification settings, which have no header variable.
 pub(crate) fn values(d: &Drawing) -> Vec<(&'static str, String)> {
-    let name = |var: &str, default: &str| {
-        d.header.get(var).and_then(HVal::as_str).map(str::trim).filter(|s| !s.is_empty()).unwrap_or(default).to_string()
-    };
+    let name =
+        |var: &str, default: &str| d.header.get(var).and_then(HVal::as_str).map(str::trim).filter(|s| !s.is_empty()).unwrap_or(default).to_string();
     let int = |var: &str, valid: std::ops::RangeInclusive<i64>, default: i64| {
         d.header.get(var).and_then(HVal::as_i64).filter(|v| valid.contains(v)).unwrap_or(default).to_string()
     };
@@ -39,7 +38,9 @@ pub(crate) fn values(d: &Drawing) -> Vec<(&'static str, String)> {
 /// already has one. Records that are not laid out as DraftCraft's DXF writer lays them out (no
 /// OBJECTS section, no dictionary first in it) are left as they are.
 pub(crate) fn add(tags: &mut Vec<Tag>, variables: &[(&str, String)]) {
-    let Some(objects) = tags.windows(2).position(|w| w.first().is_some_and(|t| t.code == 0 && text(t) == "SECTION") && w.get(1).is_some_and(|t| t.code == 2 && text(t) == "OBJECTS")) else {
+    let Some(objects) = tags.windows(2).position(|w| {
+        w.first().is_some_and(|t| t.code == 0 && text(t) == "SECTION") && w.get(1).is_some_and(|t| t.code == 2 && text(t) == "OBJECTS")
+    }) else {
         return;
     };
     let root_start = objects + 2;

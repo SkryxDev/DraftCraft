@@ -354,6 +354,14 @@ pub fn write(tags: &[Tag], ver: V, info: &FileInfo<'_>) -> Result<(Vec<u8>, Unwr
     let encoded = encode(&doc, ver);
     let cx = &encoded.cx;
     let objects: Vec<(u64, Vec<u8>)> = encoded.objects.into_iter().map(|o| (o.handle, o.bytes)).collect();
+    // Two objects under one handle: a file AutoCAD would open with one of them lost. It happens
+    // only when the drawing has used up its handles (the records then repeat the last one).
+    let mut seen = std::collections::HashSet::with_capacity(objects.len());
+    if let Some((h, _)) = objects.iter().find(|(h, _)| !seen.insert(*h)) {
+        return Err(IoError::Format(format!(
+            "DWG: the drawing has run out of object handles (two objects would share {h:X}); it can't be saved as DWG"
+        )));
+    }
     let top = objects.iter().map(|o| o.0).max().unwrap_or(0);
     let vars = header::values(cx);
     let seed = match vars.get("HANDSEED") {
@@ -365,7 +373,8 @@ pub fn write(tags: &[Tag], ver: V, info: &FileInfo<'_>) -> Result<(Vec<u8>, Unwr
         _ => 0.0,
     };
     let properties = Properties { last_saved_by: header::text(&doc, "LASTSAVEDBY").to_string(), ..Properties::default() };
-    let fonts: Vec<(String, u64)> = doc.table("STYLE").map(|t| t.records.iter().map(|r| (r.all().s(3).to_string(), r.handle)).collect()).unwrap_or_default();
+    let fonts: Vec<(String, u64)> =
+        doc.table("STYLE").map(|t| t.records.iter().map(|r| (r.all().s(3).to_string(), r.handle)).collect()).unwrap_or_default();
     let class_list = classes(&doc, ver);
     let parts = Parts {
         version: ver,

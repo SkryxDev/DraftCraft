@@ -41,7 +41,9 @@ fn compare(dxf: &str, dwg: &str, ver: V) -> (Tally, Unwritten, Vec<String>) {
     }
     records.extend(doc.entities.iter().chain(&doc.objects).map(|r| (r.handle, r)));
     let groups = |h: u64| {
-        records.get(&h).map_or(String::new(), |r| r.tags.iter().chain(r.xdata).map(|t| format!("{}={}", t.code, t.str())).collect::<Vec<_>>().join(" "))
+        records
+            .get(&h)
+            .map_or(String::new(), |r| r.tags.iter().chain(r.xdata).map(|t| format!("{}={}", t.code, t.str())).collect::<Vec<_>>().join(" "))
     };
     let mut tally = Tally::new();
     let mut details = Vec::new();
@@ -54,16 +56,26 @@ fn compare(dxf: &str, dwg: &str, ver: V) -> (Tally, Unwritten, Vec<String>) {
             Some(t) if near(&o.bytes, t) => {
                 e.4 += 1;
                 if e.4 <= 2 {
-                    details.push(format!("{} ~{:X}\n  {}\n  ours   {}\n  theirs {}", o.kind, o.handle, groups(o.handle), hex_of(&o.bytes), hex_of(t)));
+                    details.push(format!(
+                        "{} ~{:X}\n  {}\n  ours   {}\n  theirs {}",
+                        o.kind,
+                        o.handle,
+                        groups(o.handle),
+                        hex_of(&o.bytes),
+                        hex_of(t)
+                    ));
                 }
             }
             Some(t) => {
                 e.1 += 1;
                 e.3.push(o.handle);
                 if e.1 <= 3 {
-                    let bit = o.bytes.iter().zip(t).position(|(a, b)| a != b).map_or(o.bytes.len().min(t.len()) * 8, |i| {
-                        i * 8 + (o.bytes[i] ^ t[i]).leading_zeros() as usize
-                    });
+                    let bit = o
+                        .bytes
+                        .iter()
+                        .zip(t)
+                        .position(|(a, b)| a != b)
+                        .map_or(o.bytes.len().min(t.len()) * 8, |i| i * 8 + (o.bytes[i] ^ t[i]).leading_zeros() as usize);
                     details.push(format!(
                         "{} {:X} first different bit {bit} (byte {})\n  {}\n  ours   {}\n  theirs {}\n  ours   {}\n  theirs {}",
                         o.kind,
@@ -128,8 +140,19 @@ fn a_drawing_reads_back() {
     use draftcraft_doc::{Drawing, EntityKind, Line};
     use draftcraft_geom::Vec3;
     let mut d = Drawing::new_metric();
-    d.add(&draftcraft_doc::Space::Model, draftcraft_doc::Common::default(), EntityKind::Line(Line { a: Vec3::new(0.0, 0.0, 0.0), b: Vec3::new(10.0, 5.0, 0.0) })).expect("add");
-    for version in [draftcraft_dxf::Version::R2000, draftcraft_dxf::Version::R2004, draftcraft_dxf::Version::R2010, draftcraft_dxf::Version::R2013, draftcraft_dxf::Version::R2018] {
+    d.add(
+        &draftcraft_doc::Space::Model,
+        draftcraft_doc::Common::default(),
+        EntityKind::Line(Line { a: Vec3::new(0.0, 0.0, 0.0), b: Vec3::new(10.0, 5.0, 0.0) }),
+    )
+    .expect("add");
+    for version in [
+        draftcraft_dxf::Version::R2000,
+        draftcraft_dxf::Version::R2004,
+        draftcraft_dxf::Version::R2010,
+        draftcraft_dxf::Version::R2013,
+        draftcraft_dxf::Version::R2018,
+    ] {
         let (bytes, unwritten) = crate::write_dwg_own(&d, version).unwrap_or_else(|e| panic!("{version:?}: {e}"));
         println!("{version:?}: {} bytes, unwritten {unwritten:?}", bytes.len());
         let (back, unread) = crate::dwg::read(&bytes).unwrap_or_else(|e| panic!("{version:?}: {e}"));
@@ -174,14 +197,49 @@ fn scratch_dump() {
     use draftcraft_doc::{Drawing, EntityKind, Line};
     use draftcraft_geom::Vec3;
     let mut d = Drawing::new_metric();
-    d.add(&draftcraft_doc::Space::Model, draftcraft_doc::Common::default(), EntityKind::Line(Line { a: Vec3::new(0.0, 0.0, 0.0), b: Vec3::new(10.0, 5.0, 0.0) })).expect("add");
-    d.table_styles.push(draftcraft_doc::TableStyle { name: "Sched".into(), text_height: 2.5, margin: 1.0, title: false, header: true, ..Default::default() });
-    let ver = match std::env::var("V").as_deref() { Ok("2000") => draftcraft_dxf::Version::R2000, Ok("2018") => draftcraft_dxf::Version::R2018, Ok("2010") => draftcraft_dxf::Version::R2010, Ok("2013") => draftcraft_dxf::Version::R2013, _ => draftcraft_dxf::Version::R2004 };
+    d.add(
+        &draftcraft_doc::Space::Model,
+        draftcraft_doc::Common::default(),
+        EntityKind::Line(Line { a: Vec3::new(0.0, 0.0, 0.0), b: Vec3::new(10.0, 5.0, 0.0) }),
+    )
+    .expect("add");
+    d.table_styles.push(draftcraft_doc::TableStyle {
+        name: "Sched".into(),
+        text_height: 2.5,
+        margin: 1.0,
+        title: false,
+        header: true,
+        ..Default::default()
+    });
+    if std::env::var("H").is_ok() {
+        let base = u64::MAX - 0x2000;
+        d.model = Default::default();
+        for index in [5u64, 1, 9] {
+            d.model.push(draftcraft_doc::Entity::new(
+                draftcraft_doc::Handle(base + index * 17),
+                EntityKind::Line(Line { a: Vec3::ZERO, b: Vec3::new(index as f64, 2.0, 3.0) }),
+            ));
+        }
+        d.handseed = base + 0x1000;
+        let tags = crate::dxf_write::dwg_records(&d, draftcraft_dxf::Version::R2000);
+        for (i, t) in tags.iter().enumerate() {
+            if t.code == 5 {
+                println!("handle {:?} after {:?}", t.value, tags.get(i.saturating_sub(1)).map(|t| &t.value));
+            }
+        }
+    }
+    let ver = match std::env::var("V").as_deref() {
+        Ok("2000") => draftcraft_dxf::Version::R2000,
+        Ok("2018") => draftcraft_dxf::Version::R2018,
+        Ok("2010") => draftcraft_dxf::Version::R2010,
+        Ok("2013") => draftcraft_dxf::Version::R2013,
+        _ => draftcraft_dxf::Version::R2004,
+    };
     let (bytes, unw) = crate::write_dwg_own(&d, ver).expect("write");
     println!("unwritten {unw:?}");
     std::fs::write(std::env::var("OUT").unwrap_or("/dev/null".into()), &bytes).expect("out");
     let back = crate::read(&bytes, "x.dwg").expect("read");
-    println!("styles back: {:?}", back.table_styles.iter().map(|s| &s.name).collect::<Vec<_>>());
+    println!("styles back: {:?} notes {:?}", back.table_styles.iter().map(|s| &s.name).collect::<Vec<_>>(), back.read_notes);
     let file = DwgFile::open(&bytes).expect("open");
     let _ = file.header();
     for o in file.objects() {
@@ -192,7 +250,65 @@ fn scratch_dump() {
         Err(e) => println!("acadrust: {e:?}"),
     }
     match acadrust::DwgReader::from_stream_with_options(std::io::Cursor::new(&bytes), acadrust::io::dwg::DwgReadOptions::failsafe()).read() {
-        Ok(doc) => for n in &doc.notifications { println!("note: {n:?}"); },
+        Ok(doc) => {
+            for n in &doc.notifications {
+                println!("note: {n:?}");
+            }
+        }
         Err(e) => println!("failsafe: {e:?}"),
+    }
+}
+
+#[test]
+#[ignore]
+fn scratch_resave() {
+    use draftcraft_doc::{Drawing, EntityKind};
+    let mut d = Drawing::new_metric();
+    use draftcraft_geom::Vec3;
+    let dm = draftcraft_doc::Dimension {
+        kind: draftcraft_doc::DimKind::Linear { rotation: 0.0 },
+        defpt: Vec3::new(5.0, 3.0, 0.0),
+        text_mid: Vec3::ZERO,
+        p13: Vec3::ZERO,
+        p14: Vec3::new(10.0, 0.0, 0.0),
+        p15: Vec3::ZERO,
+        p16: Vec3::ZERO,
+        text: String::new(),
+        style: "Standard".into(),
+        measurement: 0.0,
+        text_rotation: 0.0,
+        user_text_pos: false,
+        block: None,
+        overrides: Default::default(),
+        assoc: Vec::new(),
+        marks: Default::default(),
+        insertion_point: Vec3::ZERO,
+    };
+    d.add(&draftcraft_doc::Space::Model, draftcraft_doc::Common::default(), EntityKind::Dimension(dm)).expect("add");
+    let mut bytes = crate::write(&d, "a.dwg").expect("w");
+    let mut prev: Option<Vec<(u64, String, Vec<u8>)>> = None;
+    for round in 0..3 {
+        let back = crate::read(&bytes, "a.dwg").expect("r");
+        println!("round {round} handseed {:X}", back.handseed);
+        bytes = crate::write(&back, "a.dwg").expect("w");
+        let file = DwgFile::open(&bytes).expect("open");
+        let objs: Vec<(u64, String, Vec<u8>)> =
+            file.objects().map(|o| (o.handle, o.type_name.clone(), file.object_bytes(&o).map(|b| b.to_vec()).unwrap_or_default())).collect();
+        if let Some(p) = &prev {
+            for o in &objs {
+                match p.iter().find(|q| q.0 == o.0) {
+                    Some(q) if q.2 != o.2 => println!("  changed {:X} {}", o.0, o.1),
+                    None => println!("  new {:X} {}", o.0, o.1),
+                    _ => {}
+                }
+            }
+            for q in p {
+                if !objs.iter().any(|o| o.0 == q.0) {
+                    println!("  gone {:X} {}", q.0, q.1);
+                }
+            }
+            println!("  header same: {}", format!("{:?}", file.header().ok()) == "x");
+        }
+        prev = Some(objs);
     }
 }

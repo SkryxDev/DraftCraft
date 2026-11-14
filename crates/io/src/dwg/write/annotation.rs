@@ -309,6 +309,30 @@ fn count(n: usize) -> u32 {
 }
 
 /// The fields of a SPLINE: by its fit points, or by its control points and knots.
+/// How a fit spline's knots are spaced, as the DWG numbers it (0 chord length, 1 its square
+/// root, 2 uniform), recovered from the knots of the record.
+fn knot_spacing(g: Groups<'_>, knots: &[f64], control: &[[f64; 3]], fit: &[[f64; 3]]) -> u32 {
+    use draftcraft_geom::{KnotParam, Spline, Vec2};
+    let flat = |p: &[f64; 3]| Vec2::new(p[0], p[1]);
+    let sp = Spline {
+        degree: usize::try_from(g.i_or(71, 3)).unwrap_or(3).clamp(1, 10),
+        knots: knots.to_vec(),
+        control: control.iter().map(flat).collect(),
+        weights: Vec::new(),
+        fit: fit.iter().map(flat).collect(),
+        closed: g.i(70) & 1 != 0,
+        fit_opts: Default::default(),
+    };
+    if fit.len() < 3 || !sp.is_valid() {
+        return 0;
+    }
+    match sp.infer_knot_param() {
+        KnotParam::SqrtChord => 1,
+        KnotParam::Uniform => 2,
+        _ => 0,
+    }
+}
+
 pub(super) fn spline_fields(cx: &Cx<'_>, w: &mut ObjectWriter, g: Groups<'_>) {
     let ver = cx.ver;
     let flags = g.i(70);
@@ -327,15 +351,15 @@ pub(super) fn spline_fields(cx: &Cx<'_>, w: &mut ObjectWriter, g: Groups<'_>) {
         out
     };
     let (control, fit) = (points(10), points(11));
-    // By its fit points when it has no others; from AutoCAD 2013 whenever it has them (the
-    // file then says so, and a reader fits the curve again).
-    let by_fit = !fit.is_empty() && (control.is_empty() || ver >= V::R2013);
+    // By its fit points whenever it has them, as AutoCAD stores a spline drawn through points:
+    // a reader fits the curve again (before 2013 by chord length, AutoCAD's only spacing then).
+    let by_fit = !fit.is_empty();
     w.bl(if by_fit { 2 } else { 1 });
     if ver >= V::R2013 {
         w.bl(u32::from(by_fit) | u32::from(flags & 1 != 0) << 2);
-        // How the knots are spaced: by chord length for fit points; the spline's own for
-        // control points.
-        w.bl(if by_fit { 0 } else { 15 });
+        // How the knots are spaced: for fit points as the record's knots show (chord length,
+        // its square root, or uniform); 15 for a spline of control points.
+        w.bl(if by_fit { knot_spacing(g, &knots, &control, &fit) } else { 15 });
     }
     w.bl(u32::try_from(g.i_or(71, 3)).unwrap_or(3));
     if by_fit {

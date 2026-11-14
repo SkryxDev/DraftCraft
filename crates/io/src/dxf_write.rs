@@ -46,6 +46,9 @@ struct W {
     /// Persistent reactors of source geometry: the associative hatches and DIMASSOC objects
     /// that follow it (groups `{ACAD_REACTORS 330 …}`).
     reactors: HashMap<Handle, Vec<String>>,
+    /// Handles at or above `next` that entities of the drawing already hold (the geometry of a
+    /// dimension block kept from the file read), which new records must not get.
+    taken: std::collections::HashSet<u64>,
 }
 
 impl W {
@@ -72,6 +75,9 @@ impl W {
     }
     /// A new handle for a record the drawing doesn't hold (as [`W::h`]).
     fn next_handle(&mut self) -> u64 {
+        while self.taken.remove(&self.next) {
+            self.next = self.next.saturating_add(1);
+        }
         let h = self.next;
         self.next = self.next.saturating_add(1);
         h
@@ -156,6 +162,7 @@ pub fn entity_groups(d: &Drawing, e: &Entity) -> (String, Vec<Tag>) {
         pstyles: HashMap::new(),
         layers: HashMap::new(),
         reactors: HashMap::new(),
+        taken: Default::default(),
     };
     let cx = Ctx { target: Version::R2018, legacy_columns: true, ..Ctx::default() };
     let paper = d.space_of(e.handle).is_some_and(|s| !matches!(s, draftcraft_doc::Space::Model));
