@@ -46,6 +46,9 @@ struct W {
     /// Persistent reactors of source geometry: the associative hatches and DIMASSOC objects
     /// that follow it (groups `{ACAD_REACTORS 330 …}`).
     reactors: HashMap<Handle, Vec<String>>,
+    /// Handles at or above `next` that entities of the drawing already hold (the geometry of a
+    /// dimension block kept from the file read), which new records must not get.
+    taken: std::collections::HashSet<u64>,
 }
 
 impl W {
@@ -72,6 +75,9 @@ impl W {
     }
     /// A new handle for a record the drawing doesn't hold (as [`W::h`]).
     fn next_handle(&mut self) -> u64 {
+        while self.taken.remove(&self.next) {
+            self.next = self.next.saturating_add(1);
+        }
         let h = self.next;
         self.next = self.next.saturating_add(1);
         h
@@ -119,24 +125,10 @@ pub fn tags(d: &Drawing, version: Version) -> Vec<Tag> {
     tags_for(d, version, version, version < Version::R2004)
 }
 
-/// The R2000 DXF the DWG bridge converts to a `dwg` version DWG: its entity types are the DWG
-/// version's (MULTILEADER from 2007).
-pub(crate) fn dwg_bridge(d: &Drawing, dwg: Version) -> String {
-    let mut tags = tags_for(d, Version::R2000, dwg, false);
-    bridge_markers(&mut tags);
-    draftcraft_dxf::write_ascii(&tags)
-}
-
-/// Subclass markers the DWG bridge knows by another spelling (it matches them exactly):
-/// AutoCAD writes a dynamic block lookup parameter's as `AcDbBlockLookUpParameter`, the bridge
-/// reads `AcDbBlockLookupParameter`; otherwise the parameter loses its name and its lookup
-/// action in the DWG, and AutoCAD's lookups stop working.
-fn bridge_markers(tags: &mut [Tag]) {
-    for t in tags.iter_mut().filter(|t| t.code == 100) {
-        if t.str().trim().eq_ignore_ascii_case("AcDbBlockLookupParameter") {
-            *t = Tag::s(100, "AcDbBlockLookupParameter");
-        }
-    }
+/// The drawing's records for DraftCraft's own DWG writer ([`crate::dwg::write`]), which encodes
+/// each as the DWG object of the same meaning: the entity types are the DWG version's.
+pub(crate) fn dwg_records(d: &Drawing, dwg: Version) -> Vec<Tag> {
+    tags_for(d, Version::R2000, dwg, false)
 }
 
 /// One entity's DXF groups, as the writer stores them, without its `0` group: its type name
@@ -150,6 +142,7 @@ pub fn entity_groups(d: &Drawing, e: &Entity) -> (String, Vec<Tag>) {
         pstyles: HashMap::new(),
         layers: HashMap::new(),
         reactors: HashMap::new(),
+        taken: Default::default(),
     };
     let cx = Ctx { target: Version::R2018, legacy_columns: true, ..Ctx::default() };
     let paper = d.space_of(e.handle).is_some_and(|s| !matches!(s, draftcraft_doc::Space::Model));

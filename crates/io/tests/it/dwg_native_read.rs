@@ -1,6 +1,7 @@
-//! DraftCraft's own DWG reader (`dwg_read`) against the acadrust path: on every entity type it
-//! maps, every entity it maps is the one acadrust's DXF gives the DXF reader, in the same space,
-//! with the same properties; and the layers, linetypes, text styles, blocks and layouts agree.
+//! DraftCraft's first native DWG reader (`dwg_read`) against the direct reader (`dwg::read`): on
+//! every entity type it maps, every entity it maps is the one the direct reader gives, in the same
+//! space, with the same properties; and the layers, linetypes, text styles, blocks and layouts
+//! agree.
 
 use std::sync::Arc as Shared;
 
@@ -42,11 +43,10 @@ fn mapped(k: &EntityKind) -> bool {
     )
 }
 
-/// The native reading agrees with the acadrust reading on everything the native reader maps.
-/// `same_lineweight`: R14 files store no lineweights; acadrust reports 0.00 mm for them, the
-/// native reader ByLayer (what an R14 entity has), so R14 entities are compared without them.
+/// The native reading agrees with the direct reading on everything the native reader maps.
+/// `same_lineweight`: R14 files store no lineweights, so R14 entities are compared without them.
 fn assert_agree(dwg: &[u8], what: &str, same_lineweight: bool) -> usize {
-    let a = read_dwg_with(dwg, DwgReader::Acadrust).unwrap();
+    let a = read_dwg_with(dwg, DwgReader::Direct).unwrap();
     let n = read_dwg_with(dwg, DwgReader::Native).unwrap();
     let native: std::collections::HashMap<u64, (String, Shared<Entity>)> = placed(&n).into_iter().map(|(s, e)| (e.handle.0, (s, e))).collect();
     let mut checked = 0;
@@ -205,7 +205,7 @@ fn every_mapped_type() -> Drawing {
 }
 
 #[test]
-fn every_mapped_type_reads_as_through_acadrust_in_every_version() {
+fn every_mapped_type_reads_as_the_direct_reader_reads_it_in_every_version() {
     let d = every_mapped_type();
     for ver in ["AC1015", "AC1018", "AC1024", "AC1027", "AC1032"] {
         let mut d = d.clone();
@@ -223,7 +223,7 @@ fn every_mapped_type_reads_as_through_acadrust_in_every_version() {
 /// AutoCAD's own files of the MI-201 drawing (R14 to 2018) when `MI201_CORPUS` names them; the
 /// 2007 file's container isn't read yet.
 #[test]
-fn corpus_reads_as_through_acadrust() {
+fn corpus_reads_as_the_direct_reader_reads_it() {
     let Some(dir) = std::env::var_os("MI201_CORPUS") else { return };
     let dir = std::path::PathBuf::from(dir);
     for (name, same_lw) in [

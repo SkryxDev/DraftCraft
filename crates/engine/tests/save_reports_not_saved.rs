@@ -222,10 +222,10 @@ fn a_dwg_keeps_sat_text_solids_only_before_2013() {
     assert_eq!(not_saved_as(&d, Version::R2018), [("3DSOLID".to_string(), 2)].into_iter().collect(), "2018 loses it");
 }
 
-/// The DWG bridge writes OLE objects (`ole2frame_roundtrip` in the io tests), so saving one as
+/// The DWG writer writes OLE objects (`ole2frame_roundtrip` in the io tests), so saving one as
 /// DWG reports nothing for them, at any version, while other unmodelled types are still listed.
-/// The type is matched as stored: the bridge gets it as stored too, and acadrust reads only the
-/// upper-case spelling into its OLE entity, so any other spelling is still reported.
+/// The type is matched as stored: the writer gets it as stored too, and writes only the
+/// upper-case spelling as an OLE object, so any other spelling is still reported.
 #[test]
 fn ole_objects_are_not_reported() {
     use draftcraft_engine::cmd::file::{Version, not_saved_as};

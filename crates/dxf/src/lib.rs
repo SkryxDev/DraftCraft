@@ -586,6 +586,23 @@ pub fn is_binary(bytes: &[u8]) -> bool {
 /// the literal text (#2050). So is a double-byte character whose trail byte is 0x5C (`\`) in that
 /// place, such as Shift-JIS `表` or Big5 `許`: DraftCraft decodes the code page before it looks for
 /// escapes, but a reader that looks first would take that byte and the `U+` after it for one.
+/// A string as bytes of the code page `code_page` (a `$DWGCODEPAGE` name), as [`write_ascii_in`]
+/// stores strings: a character the code page has as its bytes, any other as a `\U+XXXX` escape.
+/// Line ends are kept. For the 8-bit text of DWG files before AutoCAD 2007.
+pub fn encode_code_page(s: &str, code_page: &str) -> Vec<u8> {
+    let strings = Strings::Escaped(codepage::encoder(code_page));
+    let mut out = Vec::with_capacity(s.len());
+    let mut rest = s;
+    while let Some(at) = rest.find(['\r', '\n']) {
+        let (head, tail) = rest.split_at(at);
+        push_string(head, strings, &mut out);
+        out.push(tail.as_bytes().first().copied().unwrap_or(b'\n'));
+        rest = tail.get(1..).unwrap_or("");
+    }
+    push_string(rest, strings, &mut out);
+    out
+}
+
 fn push_string(s: &str, strings: Strings, out: &mut Vec<u8>) {
     let chars: Vec<char> = s.chars().collect();
     let escape_at = |j: usize| matches!(chars.get(j), Some('U' | 'M')) && chars.get(j + 1) == Some(&'+');

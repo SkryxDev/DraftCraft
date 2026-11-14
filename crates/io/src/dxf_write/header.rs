@@ -46,6 +46,10 @@ const HEADER_VARS: &[(&str, i32)] = &[
     ("INSUNITS", 70),
     ("MEASUREMENT", 70),
     ("PSLTSCALE", 70),
+    // Dimensions' associativity and hidden text in plots: the DWG header and its variables
+    // dictionary carry them too.
+    ("DIMASSOC", 280),
+    ("HIDETEXT", 280),
     // The geographic location (GEOGRAPHICLOCATION): degrees, and the north direction in radians.
     ("LATITUDE", 40),
     ("LONGITUDE", 40),
@@ -122,7 +126,7 @@ pub(super) fn header_vars(w: &mut W, d: &Drawing) {
                     w.f(c, f);
                 }
             }
-            (c @ (62 | 70 | 290 | 370), v) => {
+            (c @ (62 | 70 | 280 | 290 | 370), v) => {
                 if let Some(i) = v.as_i64() {
                     w.s(9, format!("${name}"));
                     w.i(c, i);

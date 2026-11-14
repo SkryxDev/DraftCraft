@@ -806,6 +806,11 @@ fn viewport_freeze_edited_in_autocad_is_read_as_edited() {
     assert_eq!(viewport_frozen(&read_dxf(join(&zero).as_bytes()).unwrap(), 2), ["0"]);
 }
 
+/// A DWG file as DraftCraft reads it, saved as DXF: what the DWG holds, in groups.
+fn dwg_as_dxf(dwg: &[u8]) -> String {
+    String::from_utf8(write(&read(dwg, "t.dwg").unwrap(), "t.dxf").unwrap()).unwrap()
+}
+
 #[test]
 fn viewport_frozen_layers_survive_dwg() {
     let (d, _) = frozen_vp_dxf();
@@ -813,7 +818,7 @@ fn viewport_frozen_layers_survive_dwg() {
     let back = read(&dwg, "t.dwg").unwrap();
     assert_eq!(viewport_frozen(&back, 2), vec!["Walls".to_string(), "A B".to_string()]);
     // The DWG holds them in group 331, what AutoCAD reads.
-    let p = pairs(&String::from_utf8(draftcraft_dwg::acadrust::dwg_to_dxf(&dwg).unwrap()).unwrap());
+    let p = pairs(&dwg_as_dxf(&dwg));
     assert_eq!(frozen_331(&p), [layer_handle(&p, "Walls"), layer_handle(&p, "A B")]);
 }
 
@@ -955,8 +960,7 @@ fn generated_arrowhead_blocks_are_not_kept_as_user_blocks() {
     for (_, name) in crate::dxf_ext::ARROWS.iter().filter(|(k, _)| *k != draftcraft_render::Arrowhead::ClosedFilled) {
         assert!(dxf.contains(&format!("\r\n{name}\r\n")), "{name} is written");
     }
-    let dwg = draftcraft_dwg::acadrust::dxf_to_dwg(dxf.as_bytes()).unwrap();
-    let from_dwg = read_dxf(&draftcraft_dwg::acadrust::dwg_to_dxf(&dwg).unwrap()).unwrap();
+    let from_dwg = read(&write(&d, "t.dwg").unwrap(), "t.dwg").unwrap();
     for (back, what) in [(read_dxf(dxf.as_bytes()).unwrap(), "DXF"), (from_dwg, "DWG")] {
         assert!(back.blocks.keys().all(|k| !k.starts_with('_')), "{what}: {:?}", back.blocks.keys().collect::<Vec<_>>());
         assert!(roundtrip(&back).blocks.keys().all(|k| !k.starts_with('_')), "{what}: second save");
@@ -987,8 +991,7 @@ fn file_arrowhead_blocks_with_standard_names_are_kept() {
     d.dim_styles.push(DimStyle { name: "Dots".into(), arrow_block1: "_Dot".into(), arrow_block2: "_DotSmall".into(), ..DimStyle::default() });
     let kinds = |d: &Drawing, name: &str| d.block(name).map(|b| b.entities.iter().map(|e| e.kind.clone()).collect::<Vec<_>>()).unwrap_or_default();
     let dxf = write_dxf(&d);
-    let dwg = draftcraft_dwg::acadrust::dxf_to_dwg(dxf.as_bytes()).unwrap();
-    let from_dwg = read_dxf(&draftcraft_dwg::acadrust::dwg_to_dxf(&dwg).unwrap()).unwrap();
+    let from_dwg = read(&write(&d, "t.dwg").unwrap(), "t.dwg").unwrap();
     for (back, what) in [(read_dxf(dxf.as_bytes()).unwrap(), "DXF"), (from_dwg, "DWG")] {
         for name in ["_Dot", "_DotSmall"] {
             assert_eq!(kinds(&back, name), kinds(&d, name), "{what}: {name}");
@@ -1054,51 +1057,22 @@ fn many_entities(n: usize) -> Drawing {
     d
 }
 
-/// An AutoCAD 2010 (AC1024) DWG of `n` entities, made through the DWG bridge.
-#[cfg(not(target_arch = "wasm32"))]
-fn ac1024_dwg(n: usize) -> Vec<u8> {
-    let dxf = write_dxf(&many_entities(n)).replacen("AC1015", "AC1024", 1);
-    let dwg = draftcraft_dwg::acadrust::dxf_to_dwg(dxf.as_bytes()).unwrap();
-    assert_eq!(draftcraft_dwg::version(&dwg).as_deref(), Some("AC1024"));
-    dwg
-}
-
-/// Issue #57: an AutoCAD 2010 DWG with tens of thousands of entities opens completely, and its
-/// DXF rendition stays far inside the limits (about 6 bytes of DXF and 0.4 group codes per DWG
-/// byte), so a 10 MB file is nowhere near them.
+/// Issue #57: an AutoCAD 2010 (AC1024) DWG with tens of thousands of entities opens completely.
 #[cfg(not(target_arch = "wasm32"))]
 #[test]
 fn ac1024_dwg_with_many_entities_opens() {
     let n = 30_000;
-    let dwg = ac1024_dwg(n);
-    let dxf = draftcraft_dwg::acadrust::dwg_to_dxf(&dwg).unwrap();
-    let tags = draftcraft_dxf::parse(&dxf).unwrap().len();
-    assert!(dxf.len() < dwg.len() * 20, "DXF {} bytes from {} DWG bytes", dxf.len(), dwg.len());
-    assert!(tags < dwg.len(), "{tags} group codes from {} DWG bytes", dwg.len());
+    let opts = SaveOptions { version: Some(draftcraft_dxf::Version::R2010), binary: false };
+    let dwg = write_with(&many_entities(n), "big.dwg", &opts).unwrap();
+    assert_eq!(draftcraft_dwg::version(&dwg).as_deref(), Some("AC1024"));
     let d = read(&dwg, "big.dwg").unwrap();
     assert_eq!(d.entity_count(), n);
 }
 
-/// Issue #57: oversized input is rejected early, with a message naming the limit, never a panic.
-/// A conversion that runs away (a damaged or misread DWG can make the reader produce a drawing
-/// thousands of times larger than the file) stops at the DXF size limit instead of filling memory
-/// and failing later with "file too large"; the DWG size is checked before reading; the DXF
-/// group-code count before parsing.
-#[cfg(not(target_arch = "wasm32"))]
+/// Issue #57: oversized input is rejected early, with a message naming the limit, never a panic:
+/// the DXF group-code count is checked before parsing.
 #[test]
-fn oversized_dwg_and_dxf_are_rejected_early() {
-    let dwg = ac1024_dwg(3000);
-    let full = draftcraft_dwg::acadrust::dwg_to_dxf(&dwg).unwrap().len();
-    assert!(full > 400_000, "{full}");
-    let limits = draftcraft_dwg::Limits { max_dxf_bytes: 300_000, ..draftcraft_dwg::Limits::DEFAULT };
-    let e = draftcraft_dwg::acadrust::dwg_to_dxf_with(&dwg, limits).unwrap_err();
-    assert!(e.starts_with("DWG: converting this 0."), "{e}");
-    assert!(e.contains("MB file produced more than 0.3 MB of drawing data (the limit)"), "{e}");
-
-    let limits = draftcraft_dwg::Limits { max_dwg_bytes: 100_000, ..draftcraft_dwg::Limits::DEFAULT };
-    let e = draftcraft_dwg::acadrust::dwg_to_dxf_with(&dwg, limits).unwrap_err();
-    assert!(e.starts_with("DWG: the file is 0.") && e.ends_with("MB, larger than the 0.1 MB DraftCraft opens"), "{e}");
-
+fn oversized_dxf_is_rejected_early() {
     // Lines that aren't even group codes: the size is reported before anything is parsed.
     let text = "not a group code\nx\n".repeat(60);
     let e = draftcraft_dxf::parse_with_limit(text.as_bytes(), 50).unwrap_err();
@@ -1658,7 +1632,7 @@ fn reads_utf8_and_code_page_text() {
     assert_eq!(value(&file("AC1015", b"Caf\xe9 \xd8 \\U+56FE\\U+53F7")), "Café Ø 图号");
 }
 
-/// Saving as DWG goes through this DXF and acadrust, which decodes the escapes.
+/// A DWG save stores the text itself, not the DXF escapes, and reads back the same.
 #[cfg(not(target_arch = "wasm32"))]
 #[test]
 fn dwg_roundtrip_keeps_non_ascii_text() {
@@ -1772,17 +1746,15 @@ fn extension_sample_roundtrips_and_can_be_exported() {
     assert_eq!(kinds(&back), kinds(&d));
 }
 
-/// DXF → DWG (acadrust) → DXF keeps what the DWG bridge supports: dimension styles with
-/// arrow blocks, override and associativity xdata, the constraint XRECORD, tables and text
-/// style flags. (TABLESTYLE objects do not survive the bridge.)
+/// DXF → DWG → DXF keeps the extension data: dimension styles with arrow blocks, override and
+/// associativity xdata, the constraint XRECORD, tables, table styles and text style flags.
 #[cfg(not(target_arch = "wasm32"))]
 #[test]
 fn dwg_roundtrip_keeps_extension_data() {
     let d = extension_sample();
     let back = read(&write(&d, "x.dwg").unwrap(), "x.dwg").unwrap();
-    // The bridge loses DIMFXL and DIMJOGANG (0 and its 5° minimum come back).
-    let norm = |s: Option<&DimStyle>| s.cloned().map(|s| DimStyle { fixed_ext_length: 1.0, jog_angle: 45.0, ..s });
-    assert_eq!(norm(back.dim_style("Mech")), norm(d.dim_style("Mech")));
+    assert_eq!(back.dim_style("Mech"), d.dim_style("Mech"));
+    assert_eq!(back.table_styles, d.table_styles);
     assert_eq!(back.constraints, d.constraints);
     assert_eq!(back.parametric, d.parametric);
     let dims =
@@ -1929,8 +1901,7 @@ fn arc_length_dimension_keeps_its_kind_and_centre_on_roundtrip() {
         _ => panic!("not a dimension"),
     }
     // And through DWG.
-    let dwg = draftcraft_dwg::acadrust::dxf_to_dwg(text.as_bytes()).unwrap();
-    let back = read_dxf(&draftcraft_dwg::acadrust::dwg_to_dxf(&dwg).unwrap()).unwrap();
+    let back = read(&write(&d, "t.dwg").unwrap(), "t.dwg").unwrap();
     let dims: Vec<_> = back.model.iter().filter_map(|e| if let EntityKind::Dimension(x) = &e.kind { Some(x.clone()) } else { None }).collect();
     assert_eq!(dims.len(), 1);
     assert!(matches!(dims[0].kind, DimKind::ArcLength), "{:?}", dims[0].kind);
@@ -2751,6 +2722,57 @@ fn foreign_table_reads_cell_text_height_and_keeps_style_scale() {
     let t2 = first(&back, |k| if let EntityKind::Table(x) = k { Some(x.clone()) } else { None });
     assert_eq!(t2.cells[0][0].text_height, Some(150.0));
     assert_eq!(t2.cells[0][1].text_height, None);
+}
+
+/// LTYPE group 50, an embedded shape's or text's rotation, is in degrees in AutoCAD's files (its
+/// DXF of ZIGZAG and BATTING has 180 where its DWG of the same drawing has pi). A file an earlier
+/// DraftCraft wrote (its application registered, its linetypes unmarked) has radians; DraftCraft
+/// now writes degrees and marks the linetype.
+#[test]
+fn linetype_rotations_are_degrees_as_autocad_writes_them() {
+    let dxf = |apps: &str, rotation: &str| {
+        format!(
+            "0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLTYPE\n0\nLTYPE\n2\nZIGZAG\n70\n0\n3\nzig\n72\n65\n73\n2\n40\n0.4\n\
+             49\n0.0001\n74\n0\n49\n-0.2\n74\n2\n75\n0\n340\n0\n46\n0.1\n50\n{rotation}\n44\n0\n45\n0\n9\nX\n0\nENDTAB\n\
+             0\nTABLE\n2\nAPPID\n{apps}0\nENDTAB\n0\nENDSEC\n0\nEOF\n"
+        )
+    };
+    let rotation = |text: &str| {
+        let d = read_dxf(text.as_bytes()).unwrap();
+        let lt = d.linetypes.iter().find(|l| l.name == "ZIGZAG").cloned().unwrap();
+        lt.pattern.iter().find(|e| e.text.is_some()).map(|e| e.rotation).unwrap()
+    };
+    let near = |a: f64, b: f64| (a - b).abs() < 1e-12;
+    // AutoCAD's: degrees.
+    assert!(near(rotation(&dxf("0\nAPPID\n2\nACAD\n70\n0\n", "180.0")), std::f64::consts::PI));
+    // An earlier DraftCraft's: radians.
+    let old = dxf("0\nAPPID\n2\nACAD\n70\n0\n0\nAPPID\n2\nDRAFTCRAFT\n70\n0\n", "3.141592653589793");
+    assert!(near(rotation(&old), std::f64::consts::PI));
+    // Written now: degrees and the mark, read back as it was.
+    let d = read_dxf(old.as_bytes()).unwrap();
+    let written = write_dxf(&d);
+    assert!(written.contains("LTYPE_DEGREES"), "the linetype is marked");
+    let lines: Vec<&str> = written.lines().map(str::trim).collect();
+    let fifty = lines.windows(2).find(|w| w[0] == "50" && w[1].starts_with("180")).is_some();
+    assert!(fifty, "group 50 in degrees");
+    assert!(near(rotation(&written), std::f64::consts::PI));
+}
+
+/// AutoCAD's table cells of other values than text (ACAD_TABLE A35 of ACadSharp's samples, saved
+/// by AutoCAD): the value block holds the value and the text AutoCAD shows for it (302), which the
+/// cell reads. A text value keeps its own string (1).
+#[test]
+fn table_cells_of_numbers_and_dates_show_autocads_formatted_text() {
+    let dxf = "0\nSECTION\n2\nENTITIES\n0\nACAD_TABLE\n100\nAcDbTable\n91\n1\n92\n4\n141\n1\n142\n2\n142\n2\n142\n2\n142\n2\n\
+        171\n1\n301\nCELL_VALUE\n93\n6\n90\n2\n140\n0.5\n94\n0\n300\n\n302\n0.500000\n304\nACVALUE_END\n\
+        171\n1\n301\nCELL_VALUE\n93\n4\n90\n2\n140\n35.0\n94\n32\n300\n%lu2%pr2%ps[,%]\n302\n35.00%\n304\nACVALUE_END\n\
+        171\n1\n301\nCELL_VALUE\n93\n6\n90\n8\n92\n16\n310\nE8070B0005000F000000000000000000\n94\n0\n300\n\n302\n11/15/2024\n304\nACVALUE_END\n\
+        171\n1\n301\nCELL_VALUE\n93\n6\n90\n4\n1\nThis is my content\n94\n0\n300\n\n302\nThis is my content\n304\nACVALUE_END\n\
+        0\nENDSEC\n0\nEOF\n";
+    let d = read_dxf(dxf.as_bytes()).unwrap();
+    let t = first(&d, |k| if let EntityKind::Table(x) = k { Some(x.clone()) } else { None });
+    let texts: Vec<&str> = t.cells[0].iter().map(|c| c.text.as_str()).collect();
+    assert_eq!(texts, ["0.500000", "35.00%", "11/15/2024", "This is my content"]);
 }
 
 /// Issue #1209: a file that declares no units ($INSUNITS absent or 0) stays unitless when written

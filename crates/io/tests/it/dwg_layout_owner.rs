@@ -2,8 +2,6 @@
 //! by their own block (entity mode 0 and its handle). Written as "paper space" (mode 1), AutoCAD
 //! put them on the first layout and left theirs empty.
 
-use std::io::Cursor;
-
 use draftcraft_doc::{Circle, Common, Drawing, EntityKind, Layout, Line, Space};
 use draftcraft_geom::Vec3;
 use draftcraft_io::{SaveOptions, Version, read, write_with};
@@ -21,29 +19,29 @@ fn entities_of_a_second_layout_are_owned_by_its_block() {
     d.add(&Space::Paper("SHEET_A".into()), Common::default(), line(40.0)).unwrap();
     let dwg = write_with(&d, "case.dwg", &SaveOptions { version: Some(Version::R2018), binary: false }).unwrap();
 
-    // As written: entity mode and owner of each entity.
-    let doc = acadrust::DwgReader::from_stream(Cursor::new(dwg.clone())).read().unwrap();
-    let block_of = |h: acadrust::Handle| doc.block_records.iter().find(|b| b.handle == h).map(|b| b.name.to_ascii_uppercase());
-    let sheet_a = doc
+    // As written: entity mode and owner of each entity, as the object records give them.
+    use draftcraft_dwg::records::model::{NonGraphic, ObjectKind, Space as Mode};
+    let file = draftcraft_dwg::read_bytes(&dwg).unwrap();
+    let sheet_a = file
         .objects
-        .iter()
-        .find_map(|(_, o)| match o {
-            acadrust::objects::ObjectType::Layout(l) if l.name == "SHEET_A" => Some(l.block_record),
+        .values()
+        .find_map(|o| match &o.kind {
+            ObjectKind::NonGraphic(NonGraphic::Layout(l)) if l.name == "SHEET_A" => Some(l.block),
             _ => None,
         })
         .unwrap();
     let mut on_sheet_a = 0;
-    for e in doc.entities() {
-        let c = e.common();
-        let block = block_of(c.owner_handle).unwrap_or_default();
-        if c.owner_handle == sheet_a {
+    let mut on_first = 0;
+    // The lines only: each layout's viewport is owned the same way.
+    for (o, c) in file.objects.values().filter(|o| o.type_name == "LINE").filter_map(|o| o.entity.as_ref().map(|c| (o, c))) {
+        if c.space == Mode::Owned && o.owner == sheet_a {
             on_sheet_a += 1;
-            assert_eq!(c.entity_mode, Some(0), "an entity of SHEET_A ({block}) is owned by its block");
-        } else if block == "*PAPER_SPACE" {
-            assert_eq!(c.entity_mode, Some(1), "the first layout's entities stay paper space");
+        } else if c.space == Mode::Paper {
+            on_first += 1;
         }
     }
-    assert_eq!(on_sheet_a, 2);
+    assert_eq!(on_sheet_a, 2, "the entities of SHEET_A are owned by its block");
+    assert_eq!(on_first, 1, "the first layout's entities stay paper space");
 
     // Read back, each layout has its own.
     let back = read(&dwg, "case.dwg").unwrap();

@@ -46,6 +46,12 @@ impl ObjW {
         ObjW { ver, own: own.0, dat: BitWriter::new(), strs: BitWriter::new(), has_strings: false, hdl: BitWriter::new() }
     }
 
+    /// The object's three streams as written so far: fields, text (and whether it has any),
+    /// references.
+    pub(crate) fn into_streams(self) -> (BitWriter, BitWriter, bool, BitWriter) {
+        (self.dat, self.strs, self.has_strings, self.hdl)
+    }
+
     /// TV: from R2007 in the string stream, as UTF-16.
     pub fn tv(&mut self, s: &str) {
         if self.ver.has_string_stream() {
@@ -1668,10 +1674,12 @@ fn xrecord_bytes(items: &[(u16, XrValue)], ver: DwgVersion) -> Vec<u8> {
                         b.extend_from_slice(&u.to_le_bytes());
                     }
                 } else {
+                    // A 16-bit length, the code page, the bytes.
                     let bytes: Vec<u8> = s.chars().map(|c| c as u32 as u8).collect();
-                    b.push(bytes.len().min(255) as u8);
+                    let n = bytes.len().min(usize::from(u16::MAX));
+                    b.extend_from_slice(&(n as u16).to_le_bytes());
                     b.push(30);
-                    b.extend_from_slice(&bytes[..bytes.len().min(255)]);
+                    b.extend_from_slice(&bytes[..n]);
                 }
             }
             XrValue::Point(p) => {

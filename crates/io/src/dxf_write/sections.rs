@@ -59,12 +59,19 @@ fn write_tables(w: &mut W, plan: TableWritePlan<'_>) -> HashMap<String, String> 
             ltype_style_refs.push((w.t.len(), el.style.clone(), kind == 4));
             w.s(340, "0");
             w.f(46, el.scale);
-            w.f(50, el.rotation);
+            // Degrees, as AutoCAD writes and reads them (DraftCraft wrote radians before marking
+            // its linetypes with LTYPE_DEGREES).
+            w.f(50, el.rotation.to_degrees());
             w.f(44, el.offset.x);
             w.f(45, el.offset.y);
             if let Some(t) = &el.text {
                 w.s(9, t.clone());
             }
+        }
+        // The rotations are degrees: said for DraftCraft's reader, as files before had radians.
+        if lt.pattern.iter().any(|el| el.text.is_some() || el.shape.is_some()) {
+            w.s(1001, dxf_ext::APP);
+            w.s(1000, dxf_ext::LTYPE_DEGREES);
         }
     }
     w.s(0, "ENDTAB");
@@ -245,7 +252,8 @@ fn write_dimstyles(w: &mut W, d: &Drawing, cx: &mut Ctx, version: Version) {
         w.i(70, 0);
         let v = serde_json::to_value(s).unwrap_or_default();
         let defaults = serde_json::to_value(DimStyle::default()).unwrap_or_default();
-        let mut newer = W { t: Vec::new(), next: 0, pstyles: HashMap::new(), layers: HashMap::new(), reactors: HashMap::new() };
+        let mut newer =
+            W { t: Vec::new(), next: 0, pstyles: HashMap::new(), layers: HashMap::new(), reactors: HashMap::new(), taken: Default::default() };
         for (field, code, kind) in dxf_ext::DIM_CODES {
             let Some(enc) = v.get(*field).and_then(|x| cx.encode(*kind, x)) else { continue };
             // DIMPOST is written even when empty: a reader that defaults a missing one to "<>"
@@ -921,14 +929,18 @@ pub(super) fn tags_for(d: &Drawing, version: Version, target: Version, frozen_34
     // XCLIP boundaries go into the foreign data the raw writer places on the references.
     let clipped = crate::dxf_clip::prepare(d);
     let d: &Drawing = clipped.as_ref().unwrap_or(d);
-    // Structural handles start above every entity handle.
-    let mut w = W {
-        t: Vec::new(),
-        next: d.handseed.max(0x100).saturating_add(0x1000),
-        pstyles: HashMap::new(),
-        layers: HashMap::new(),
-        reactors: hatch_reactors(d),
-    };
+    // Structural handles start above every entity handle, and skip the handles entities read
+    // from a file hold up there: a dimension block's geometry keeps the handles it was saved with
+    // (#495), which the previous save numbered from this same start.
+    let next = d.handseed.max(0x100).saturating_add(0x1000);
+    let taken = std::iter::once(&d.model)
+        .chain(d.layouts.iter().map(|l| &l.entities))
+        .flat_map(|s| s.iter())
+        .chain(d.blocks.values().flat_map(|b| b.entities.iter()))
+        .map(|e| e.handle.0)
+        .filter(|&h| h >= next)
+        .collect();
+    let mut w = W { t: Vec::new(), next, pstyles: HashMap::new(), layers: HashMap::new(), reactors: hatch_reactors(d), taken };
     // Pre-allocate handles for block records.
     let paper_layouts = d.paper_space_layouts();
     let ms_br = w.h();
@@ -1154,7 +1166,9 @@ pub(super) fn tags_for(d: &Drawing, version: Version, target: Version, frozen_34
     // Only a DXF declares the version it is written for: the DWG bridge writes R2000 text for the
     // DWG writer, which keeps SAT-text solids (#2334).
     crate::dxf_raw::finish(&mut w.t, d, &w.reactors, version >= Version::R2013);
-    crate::dxf_raw::data_store(&mut w.t, d, target >= Version::R2013);
+    // A DWG of AutoCAD 2004 to 2010 (`dwg_records` declares 2000 for any DWG) holds the binary
+    // ACIS in the entity itself: the DWG writer takes it from the section.
+    crate::dxf_raw::data_store(&mut w.t, d, target >= Version::R2013 || target > version);
     add_class_instance_counts(&mut w.t, target);
     mark_xrefs(&mut w.t, d);
     w.t

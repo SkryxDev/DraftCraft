@@ -796,10 +796,9 @@ pub fn not_saved(d: &Drawing) -> std::collections::BTreeMap<String, usize> {
 /// store section, which is written back with the drawing (`Foreign::data_store`).
 const MODELER_TYPES: [&str; 3] = ["3DSOLID", "REGION", "BODY"];
 
-/// Entity types DraftCraft doesn't model that the DWG bridge writes all the same: acadrust reads
-/// them from our DXF into entities of its own and writes them to DWG of every version we save,
-/// an OLE object with its frame and its embedded object's bytes unchanged. Matched exactly: the
-/// bridge gets the type as stored, and acadrust knows only this spelling of it.
+/// Entity types DraftCraft doesn't model that the DWG writer writes all the same, in every version
+/// we save: an OLE object with its frame and its embedded object's bytes unchanged. Matched
+/// exactly: the writer gets the type as stored, and knows only this spelling of it.
 const DWG_WRITES: [&str; 1] = ["OLE2FRAME"];
 
 /// [`not_saved`] for a file saved as `version`. From 2013 on, a 3D solid, region or body the data

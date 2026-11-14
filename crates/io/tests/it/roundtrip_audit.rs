@@ -984,9 +984,7 @@ fn hostile_raw_data_never_panics() {
     }
 }
 
-/// Through the DWG bridge (acadrust): what the DWG writer and reader keep of the same data.
-/// Entities and objects of custom classes, xdata on table records and blocks, entities' colour
-/// book names and reactors are not kept there (acadrust gaps); the rest is.
+/// Through DWG: what the DWG writer and reader keep of the same data.
 #[cfg(not(target_arch = "wasm32"))]
 #[test]
 fn dwg_keeps_extension_dictionaries_xrecords_and_entity_xdata() {

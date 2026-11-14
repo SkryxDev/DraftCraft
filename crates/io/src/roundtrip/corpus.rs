@@ -283,10 +283,10 @@ pub fn check_bytes(bytes: &[u8], rel: &str, opts: &CorpusOptions) -> FileReport 
     }
     let start = Instant::now();
     let name = format!("source.{}", format.ext());
-    let opened = guard(|| crate::read_source(bytes, std::path::Path::new(&name)));
+    let opened = guard(|| crate::read(bytes, &name));
     f.open_seconds = start.elapsed().as_secs_f64();
-    let (d, dxf) = match opened {
-        Ok(Ok(x)) => x,
+    let d = match opened {
+        Ok(Ok(d)) => d,
         Ok(Err(e)) => {
             f.open_error = Some(e.to_string());
             return f;
@@ -301,9 +301,9 @@ pub fn check_bytes(bytes: &[u8], rel: &str, opts: &CorpusOptions) -> FileReport 
     }
     f.open_notes = notes(&d);
     f.drawing_census = guard(|| census_of(&d)).ok();
-    if opts.census {
-        let source = dxf.as_deref().unwrap_or(bytes);
-        match guard(|| census(source)) {
+    // The groups are counted in DXF files; a DWG file's objects have no groups to count.
+    if opts.census && format == Format::Dxf {
+        match guard(|| census(bytes)) {
             Ok(Some(c)) => {
                 if let Ok(read) = guard(|| compare_census(&c, &d, &opts.compare)) {
                     f.read = read;

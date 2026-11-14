@@ -1,8 +1,8 @@
 //! Open-speed benchmark for the two DWG readers (`docs/dwg.md`).
 //!
 //! Builds a drawing of lines, arcs, circles and text (200,000 entities by default), saves it as
-//! a 2018 DWG, then opens it with acadrust and with DraftCraft's own reader and says how long
-//! each took and whether every entity the native reader maps came out the same.
+//! a 2018 DWG, then opens it with the direct reader and with the first native reader and says how
+//! long each took and whether every entity the native reader maps came out the same.
 //!
 //! ```text
 //! cargo run --release -p draftcraft-io --example dwg_bench -- [entities] [--keep out.dwg]
@@ -64,7 +64,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let t = Instant::now();
-    let a = read_dwg_with(&dwg, DwgReader::Acadrust)?;
+    let a = read_dwg_with(&dwg, DwgReader::Direct)?;
     let ta = ms(t);
     let t = Instant::now();
     let n2 = read_dwg_with(&dwg, DwgReader::Native)?;
@@ -72,7 +72,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let native: HashMap<u64, _> = n2.model.iter().map(|e| (e.handle.0, e.clone())).collect();
     let same = a.model.iter().filter(|e| native.get(&e.handle.0).is_some_and(|x| x.kind == e.kind && x.common == e.common)).count();
-    println!("open, acadrust: {ta:>7.0} ms");
+    println!("open, direct:   {ta:>7.0} ms");
     println!("open, native:   {tn:>7.0} ms  ({:.1}x)", ta / tn.max(1e-9));
     println!("identical entities: {same} of {}", a.model.len());
     Ok(())
