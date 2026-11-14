@@ -70,6 +70,7 @@ pub mod theme;
 pub mod updates_ui;
 pub mod viewcube;
 pub mod vpscale;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod window_frame;
 pub mod workspaces;
 
@@ -280,8 +281,7 @@ pub struct CadApp {
     /// Drawings being read on worker threads ([`opening`]).
     pub opening: opening::Opening,
     pub integrated_titlebar: bool,
-    /// DraftCraft draws the window's title bar, with the menu bar in it ([`window_frame`]): Windows,
-    /// and the browser, where the same row sits at the top of the page.
+    /// DraftCraft draws the window's title bar, with the menu bar in it ([`window_frame`]): Windows.
     pub own_window_frame: bool,
     control_rx: Option<Receiver<ControlRequest>>,
     /// Fresh surface and identity snapshot (see [`capture`]).
@@ -381,7 +381,7 @@ impl CadApp {
             status: None,
             opening: opening::Opening::default(),
             integrated_titlebar: false,
-            own_window_frame: cfg!(target_arch = "wasm32"),
+            own_window_frame: false,
             control_rx: None,
             capture_geometry: None,
             capture_epoch: 0,
@@ -934,6 +934,7 @@ impl CadApp {
         let t0 = now_ms();
         control::begin_frame(ui.ctx());
         let t = theme::Tokens::get();
+        #[cfg(not(target_arch = "wasm32"))]
         if self.own_window_frame {
             window_frame::title_bar(self, ui);
         }
