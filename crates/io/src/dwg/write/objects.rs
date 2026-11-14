@@ -11,7 +11,9 @@ use super::rec::{Groups, Rec, hex, text};
 
 /// A writer for the object `r` as the DWG type `code`, with what every object starts with.
 pub(super) fn begin(cx: &Cx<'_>, code: u16, r: &Rec<'_>) -> ObjectWriter {
-    cx.writer(code, r)
+    let mut w = cx.writer(code, r);
+    w.object(r.owner, &r.reactors, r.xdict);
+    w
 }
 
 /// One object. `None` for a type the writer has no encoding for.
@@ -25,12 +27,10 @@ pub(super) fn object(cx: &Cx<'_>, r: &Rec<'_>) -> Option<ObjectWriter> {
             w.bl(u32::try_from(data.len()).ok()?);
             w.bytes(&data);
             w.bs(u16::try_from(g.i_or(280, 1)).unwrap_or(1));
-            w.object(r.owner, &r.reactors, r.xdict);
             w
         }
         "ACDBPLACEHOLDER" => {
-            let mut w = begin(cx, 0x50, r);
-            w.object(r.owner, &r.reactors, r.xdict);
+            let mut w = begin(cx, cx.type_code("ACDBPLACEHOLDER", 0x50), r);
             w
         }
         "DICTIONARYVAR" => {
@@ -38,7 +38,6 @@ pub(super) fn object(cx: &Cx<'_>, r: &Rec<'_>) -> Option<ObjectWriter> {
             let g = r.sub("DictionaryVariables");
             w.rc(u8::try_from(g.i(280)).unwrap_or(0));
             w.text(g.s(1));
-            w.object(r.owner, &r.reactors, r.xdict);
             w
         }
         "SCALE" => {
@@ -49,7 +48,6 @@ pub(super) fn object(cx: &Cx<'_>, r: &Rec<'_>) -> Option<ObjectWriter> {
             w.bd(g.f_or(140, 1.0));
             w.bd(g.f_or(141, 1.0));
             w.b(g.i(290) != 0);
-            w.object(r.owner, &r.reactors, r.xdict);
             w
         }
         "GROUP" => {
@@ -60,7 +58,6 @@ pub(super) fn object(cx: &Cx<'_>, r: &Rec<'_>) -> Option<ObjectWriter> {
             w.bs(u16::try_from(g.i(70)).unwrap_or(0));
             w.bs(u16::try_from(g.i_or(71, 1)).unwrap_or(1));
             w.bl(u32::try_from(members.len()).unwrap_or(0));
-            w.object(r.owner, &r.reactors, r.xdict);
             for m in members {
                 w.reference(Ref::HardPointer, m);
             }
@@ -85,7 +82,6 @@ fn dictionary(cx: &Cx<'_>, r: &Rec<'_>) -> Option<ObjectWriter> {
     for (name, _) in &list {
         w.text(name);
     }
-    w.object(r.owner, &r.reactors, r.xdict);
     // Entries are soft-owner references even in a dictionary that owns them hard, as AutoCAD
     // writes both.
     for (_, h) in &list {
@@ -155,7 +151,7 @@ fn xrecord_data(cx: &Cx<'_>, w: &ObjectWriter, g: Groups<'_>) -> Vec<u8> {
 /// LAYOUT: its page setup, then the layout's own fields.
 fn layout(cx: &Cx<'_>, r: &Rec<'_>) -> ObjectWriter {
     let ver = cx.ver;
-    let mut w = begin(cx, 0x52, r);
+    let mut w = begin(cx, cx.type_code("LAYOUT", 0x52), r);
     let p = r.sub("AcDbPlotSettings");
     let l = r.sub("AcDbLayout");
     let short = |v: i64| u16::try_from(v).unwrap_or(0);
@@ -206,7 +202,6 @@ fn layout(cx: &Cx<'_>, r: &Rec<'_>) -> ObjectWriter {
     if ver >= V::R2004 {
         w.bl(u32::try_from(viewports.len()).unwrap_or(0));
     }
-    w.object(r.owner, &r.reactors, r.xdict);
     if ver >= V::R2004 {
         w.reference(Ref::HardPointer, 0);
     }
@@ -267,7 +262,6 @@ fn mline_style(cx: &Cx<'_>, r: &Rec<'_>) -> ObjectWriter {
             w.bs(index);
         }
     }
-    w.object(r.owner, &r.reactors, r.xdict);
     if cx.ver >= V::R2018 {
         for e in &elements {
             let name = e.s(6);

@@ -34,6 +34,7 @@ fn is_layer_linetype(name: &str) -> bool {
 pub(super) fn control(cx: &Cx<'_>, t: &Table<'_>) -> Option<ObjectWriter> {
     let (code, _) = types(t.name)?;
     let mut w = cx.writer(code, &t.head);
+    w.object(0, &t.head.reactors, t.head.xdict);
     let apart = |r: &Rec<'_>| match code {
         0x30 => r.handle == cx.model || r.handle == cx.paper,
         0x38 => is_layer_linetype(r.all().s(2)),
@@ -45,7 +46,6 @@ pub(super) fn control(cx: &Cx<'_>, t: &Table<'_>) -> Option<ObjectWriter> {
         // The dimension style table counts its records again, and points at each.
         w.rc(u8::try_from(entries.len().min(255)).unwrap_or(u8::MAX));
     }
-    w.object(0, &t.head.reactors, t.head.xdict);
     for e in &entries {
         w.reference(Ref::SoftOwner, *e);
     }
@@ -76,7 +76,10 @@ fn record_name(w: &mut ObjectWriter, name: &str, flags: i64) {
     if w.has_string_stream() {
         w.bs(0);
     } else {
-        w.b(flags & 64 != 0);
+        // "Referenced when the drawing was last saved": AutoCAD's files have it set on every
+        // record, whatever their DXF says.
+        let _ = flags & 64;
+        w.b(true);
         w.bs(0);
         w.b(flags & 16 != 0);
     }
@@ -87,12 +90,13 @@ pub(super) fn record(cx: &Cx<'_>, t: &Table<'_>, r: &Rec<'_>) -> Option<ObjectWr
     let (_, code) = types(t.name)?;
     let mut w = cx.writer(code, r);
     let g = r.all();
-    let control = t.head.handle;
+    // The record's owner is its table (which a record names itself, when it does).
+    let control = if r.owner != 0 { r.owner } else { t.head.handle };
+    w.object(control, &r.reactors, r.xdict);
     match code {
         0x43 => {
             record_name(&mut w, g.s(2), g.i(70));
             w.rc(0);
-            w.object(control, &r.reactors, r.xdict);
             w.reference(Ref::HardPointer, 0);
         }
         0x33 => layer(cx, &mut w, r, control),
@@ -108,7 +112,6 @@ pub(super) fn record(cx: &Cx<'_>, t: &Table<'_>, r: &Rec<'_>) -> Option<ObjectWr
             w.bd(g.f_or(42, 0.2));
             w.text(g.s(3));
             w.text(g.s(4));
-            w.object(control, &r.reactors, r.xdict);
             w.reference(Ref::HardPointer, 0);
         }
         0x39 => linetype(cx, &mut w, r, control),
@@ -123,7 +126,6 @@ pub(super) fn record(cx: &Cx<'_>, t: &Table<'_>, r: &Rec<'_>) -> Option<ObjectWr
             w.bs(u16::try_from(g.i(79)).unwrap_or(0));
             // No origins for the six orthographic views of this UCS.
             w.bs(0);
-            w.object(control, &r.reactors, r.xdict);
             w.reference(Ref::HardPointer, 0);
             w.reference(Ref::HardPointer, cx.known(g.h(346)));
             w.reference(Ref::HardPointer, 0);
@@ -164,7 +166,6 @@ fn layer(cx: &Cx<'_>, w: &mut ObjectWriter, r: &Rec<'_>, control: u64) {
             None => w.color(c),
         }
     }
-    w.object(control, &r.reactors, r.xdict);
     w.reference(Ref::HardPointer, 0);
     w.reference(Ref::HardPointer, cx.known(g.h(390)));
     if cx.ver >= V::R2007 {
@@ -236,7 +237,6 @@ fn linetype(cx: &Cx<'_>, w: &mut ObjectWriter, r: &Rec<'_>, control: u64) {
     if !wide || any_text {
         w.bytes(&area);
     }
-    w.object(control, &r.reactors, r.xdict);
     w.reference(Ref::HardPointer, 0);
     for d in &list {
         w.reference(Ref::HardPointer, cx.known(d.g.h(340)));
@@ -253,7 +253,7 @@ fn block_header(cx: &Cx<'_>, w: &mut ObjectWriter, r: &Rec<'_>, control: u64) {
     let (xref, overlay) = (flags & 4 != 0, flags & 8 != 0);
     let owned: &[u64] = cx.owned.get(&r.handle).map_or(&[], Vec::as_slice);
     let has_attributes = cx.doc.blocks.iter().find(|d| d.begin.owner == r.handle).is_some_and(|d| d.entities.iter().any(|e| e.kind == "ATTDEF"));
-    record_name(w, name, 0);
+    record_name(w, cx.block_names.get(&r.handle).map_or(name, String::as_str), 0);
     w.b(flags & 1 != 0);
     w.b(has_attributes || flags & 2 != 0);
     w.b(xref);
@@ -277,7 +277,6 @@ fn block_header(cx: &Cx<'_>, w: &mut ObjectWriter, r: &Rec<'_>, control: u64) {
         w.b(g.i_or(280, 1) != 0);
         w.rc(u8::try_from(g.i(281)).unwrap_or(0));
     }
-    w.object(control, &r.reactors, r.xdict);
     w.reference(Ref::HardPointer, 0);
     let (first, last) = cx.block_ends.get(&r.handle).copied().unwrap_or((0, 0));
     w.reference(Ref::HardOwner, first);
@@ -383,7 +382,6 @@ fn dim_style(cx: &Cx<'_>, w: &mut ObjectWriter, r: &Rec<'_>, control: u64) {
     w.bs(int(371));
     w.bs(int(372));
     w.b(false);
-    w.object(control, &r.reactors, r.xdict);
     w.reference(Ref::HardPointer, 0);
     let style = match g.h(340) {
         0 => cx.style("STANDARD"),
@@ -451,7 +449,6 @@ fn view(cx: &Cx<'_>, w: &mut ObjectWriter, r: &Rec<'_>, control: u64) {
     if ver >= V::R2007 {
         w.b(g.i(73) != 0);
     }
-    w.object(control, &r.reactors, r.xdict);
     w.reference(Ref::HardPointer, 0);
     if ver >= V::R2007 {
         w.reference(Ref::SoftPointer, cx.known(g.h(332)));
@@ -521,7 +518,6 @@ fn vport(cx: &Cx<'_>, w: &mut ObjectWriter, r: &Rec<'_>, control: u64) {
         w.bs(u16::try_from(g.i_or(60, 3)).unwrap_or(3));
         w.bs(u16::try_from(g.i_or(61, 5)).unwrap_or(5));
     }
-    w.object(control, &r.reactors, r.xdict);
     w.reference(Ref::HardPointer, 0);
     if ver >= V::R2007 {
         w.reference(Ref::SoftPointer, cx.known(g.h(332)));

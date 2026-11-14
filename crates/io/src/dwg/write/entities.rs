@@ -12,7 +12,12 @@ use super::rec::{Groups, Rec};
 /// A writer for the entity `r` as the DWG type `code`, with what every entity starts with.
 pub(super) fn begin(cx: &Cx<'_>, code: u16, r: &Rec<'_>) -> ObjectWriter {
     let mut w = cx.writer(code, r);
-    w.entity(&entity_start(cx, r));
+    let mut start = entity_start(cx, r);
+    // A block's BLOCK and ENDBLK are in no chain of entities: they name no neighbours.
+    if cx.ver <= V::R2000 && matches!(code, 0x04 | 0x05) {
+        start.links = Some((0, 0));
+    }
+    w.entity(&start);
     w
 }
 
@@ -56,11 +61,11 @@ pub(super) fn entity(cx: &Cx<'_>, r: &Rec<'_>) -> Option<ObjectWriter> {
     let g = r.own();
     Some(match r.kind {
         "BLOCK" => {
-            let mut w = begin_owned(cx, 0x04, r);
+            let mut w = begin(cx, 0x04, r);
             w.text(r.sub("AcDbBlockBegin").s(2));
             w
         }
-        "ENDBLK" => begin_owned(cx, 0x05, r),
+        "ENDBLK" => begin(cx, 0x05, r),
         "SEQEND" => begin_owned(cx, 0x06, r),
         "LINE" => {
             let mut w = begin(cx, 0x13, r);
@@ -202,7 +207,9 @@ fn text_fields(cx: &Cx<'_>, w: &mut ObjectWriter, g: Groups<'_>, valign: i64) ->
         w.dd(align[0], insert[0]);
         w.dd(align[1], insert[1]);
     }
-    w.extrusion(g.extrusion());
+    // AutoCAD writes a text's extrusion in full, even (0, 0, 1).
+    w.b(false);
+    w.bd3(g.extrusion());
     w.thickness(g.f(39));
     if flags & 0x04 == 0 {
         w.rd(oblique);

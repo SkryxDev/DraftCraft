@@ -288,8 +288,8 @@ impl ObjectWriter {
         if ver <= V::R2000
             && let Some((prev, next)) = e.links
         {
-            self.reference(Ref::SoftPointer, prev);
-            self.reference(Ref::SoftPointer, next);
+            self.relative(prev);
+            self.relative(next);
         }
         if ver >= V::R2004 && e.color_book != 0 {
             self.reference(Ref::HardPointer, e.color_book);
@@ -563,7 +563,8 @@ impl ObjectWriter {
         let end = w.position();
         w.append(&self.hdl);
         while !w.position().is_multiple_of(8) {
-            w.b(ver >= V::R2010);
+            // AutoCAD fills the last byte with 1 bits.
+            w.b(true);
         }
         let total = w.position();
         frame(ver, &w.into_bytes(), (total - end) as u64)

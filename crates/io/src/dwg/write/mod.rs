@@ -97,6 +97,9 @@ pub(super) struct Cx<'a> {
     pub layouts: HashMap<u64, u64>,
     /// Every handle the drawing has an object for.
     pub handles: std::collections::HashSet<u64>,
+    /// The name a block record is stored under, where it is not its own: DWG stores anonymous
+    /// blocks unnumbered (`*D`, `*U`).
+    pub block_names: HashMap<u64, String>,
     /// The type of each entity, by handle.
     pub kinds: HashMap<u64, &'a str>,
 }
@@ -132,6 +135,11 @@ impl Cx<'_> {
     pub fn class(&self, dxf_name: &str) -> Option<u16> {
         self.classes.get(&dxf_name.to_ascii_uppercase()).copied()
     }
+    /// The type number of a type the format has a number for (`fixed`), unless the file
+    /// declares it as a class.
+    pub fn type_code(&self, dxf_name: &str, fixed: u16) -> u16 {
+        self.class(dxf_name).unwrap_or(fixed)
+    }
 }
 
 fn index<'a>(doc: &Doc<'a>, table: &str) -> HashMap<String, u64> {
@@ -152,14 +160,16 @@ pub(super) struct Objects<'a> {
     pub unwritten: Unwritten,
 }
 
-/// The classes of the file: the drawing's, numbered from 500 in order.
-fn classes(doc: &Doc<'_>) -> Vec<Class> {
-    doc.classes
+/// The classes of the file: the drawing's, numbered from 500 in order. An AutoCAD 2000 file
+/// also declares the placeholder and the layout as classes (from 2004 they are types of the
+/// format), as AutoCAD's own 2000 files do.
+fn classes(doc: &Doc<'_>, ver: V) -> Vec<Class> {
+    let mut list: Vec<Class> = doc
+        .classes
         .iter()
-        .take(usize::from(u16::MAX) - 500)
-        .enumerate()
-        .map(|(i, c)| Class {
-            number: 500 + u16::try_from(i).unwrap_or(0),
+        .take(usize::from(u16::MAX) - 600)
+        .map(|c| Class {
+            number: 0,
             dxf_name: c.dxf_name.to_string(),
             cpp_name: c.cpp_name.to_string(),
             app_name: c.app_name.to_string(),
@@ -169,7 +179,28 @@ fn classes(doc: &Doc<'_>) -> Vec<Class> {
             is_entity: c.is_entity,
             versions: compose::class_versions(c.dxf_name),
         })
-        .collect()
+        .collect();
+    if ver <= V::R2000 {
+        for (dxf_name, cpp_name) in [("ACDBPLACEHOLDER", "AcDbPlaceHolder"), ("LAYOUT", "AcDbLayout")] {
+            if !list.iter().any(|c| c.dxf_name.eq_ignore_ascii_case(dxf_name)) {
+                list.push(Class {
+                    number: 0,
+                    dxf_name: dxf_name.to_string(),
+                    cpp_name: cpp_name.to_string(),
+                    app_name: "ObjectDBX Classes".to_string(),
+                    proxy_flags: 0,
+                    instance_count: 0,
+                    was_zombie: false,
+                    is_entity: false,
+                    versions: (0, 0),
+                });
+            }
+        }
+    }
+    for (i, c) in list.iter_mut().enumerate() {
+        c.number = 500 + u16::try_from(i).unwrap_or(0);
+    }
+    list
 }
 
 fn context<'a>(doc: &'a Doc<'a>, ver: V) -> Cx<'a> {
@@ -189,7 +220,7 @@ fn context<'a>(doc: &'a Doc<'a>, ver: V) -> Cx<'a> {
         apps: index(doc, "APPID"),
         blocks,
         ucss: index(doc, "UCS"),
-        classes: classes(doc).into_iter().map(|c| (c.dxf_name.to_ascii_uppercase(), c.number)).collect(),
+        classes: classes(doc, ver).into_iter().map(|c| (c.dxf_name.to_ascii_uppercase(), c.number)).collect(),
         model,
         paper,
         controls,
@@ -202,6 +233,7 @@ fn context<'a>(doc: &'a Doc<'a>, ver: V) -> Cx<'a> {
         layouts: HashMap::new(),
         handles: std::collections::HashSet::new(),
         kinds: HashMap::new(),
+        block_names: HashMap::new(),
     };
     common::structure(&mut cx);
     cx
@@ -265,7 +297,7 @@ pub fn write(tags: &[Tag], ver: V, info: &FileInfo<'_>) -> Result<(Vec<u8>, Unwr
     };
     let properties = Properties { last_saved_by: header::text(&doc, "LASTSAVEDBY").to_string(), ..Properties::default() };
     let fonts: Vec<(String, u64)> = doc.table("STYLE").map(|t| t.records.iter().map(|r| (r.all().s(3).to_string(), r.handle)).collect()).unwrap_or_default();
-    let class_list = classes(&doc);
+    let class_list = classes(&doc, ver);
     let parts = Parts {
         version: ver,
         codepage: cx.codepage,

@@ -235,12 +235,44 @@ pub(super) fn structure(cx: &mut Cx<'_>) {
         cx.root = root.handle;
         cx.named = entries(root).into_iter().map(|(n, h)| (n.to_ascii_uppercase(), h)).collect();
     }
+    anonymous_names(cx);
     if let Some(t) = doc.table("BLOCK_RECORD") {
         for r in &t.records {
             let layout = r.all().h(340);
             if layout != 0 {
                 cx.layouts.insert(r.handle, layout);
             }
+        }
+    }
+}
+
+/// The names anonymous blocks are stored under. DWG stores them unnumbered (`*D` for `*D0`) and
+/// a reader numbers them again, per prefix, in table order. So the number is left out only for a
+/// prefix whose blocks are numbered 0, 1, 2… in that order: reading gives each its name back.
+fn anonymous_names(cx: &mut Cx<'_>) {
+    let Some(table) = cx.doc.table("BLOCK_RECORD") else { return };
+    let anonymous: std::collections::HashSet<u64> =
+        cx.doc.blocks.iter().filter(|b| b.begin.sub("AcDbBlockBegin").i(70) & 1 != 0).map(|b| b.begin.owner).collect();
+    // Per prefix: the records and whether their numbers count up from 0.
+    let mut by_prefix: std::collections::HashMap<String, (Vec<u64>, bool)> = std::collections::HashMap::new();
+    for r in &table.records {
+        let name = r.all().s(2);
+        let digits = name.len() - name.trim_end_matches(|c: char| c.is_ascii_digit()).len();
+        let prefix = name.get(..name.len() - digits).unwrap_or("");
+        let lettered = prefix.len() >= 2 && prefix.starts_with('*') && prefix.chars().skip(1).all(|c| c.is_ascii_alphabetic());
+        if !lettered || !anonymous.contains(&r.handle) {
+            continue;
+        }
+        let e = by_prefix.entry(prefix.to_ascii_uppercase()).or_insert((Vec::new(), true));
+        let number = name.get(name.len() - digits..).and_then(|d| d.parse::<usize>().ok());
+        e.1 &= digits > 0 && number == Some(e.0.len()) && !name.get(name.len() - digits..).is_some_and(|d| d.len() > 1 && d.starts_with('0'));
+        e.0.push(r.handle);
+    }
+    for r in &table.records {
+        let name = r.all().s(2);
+        let prefix = name.trim_end_matches(|c: char| c.is_ascii_digit());
+        if by_prefix.get(&prefix.to_ascii_uppercase()).is_some_and(|(list, counted)| *counted && list.contains(&r.handle)) {
+            cx.block_names.insert(r.handle, prefix.to_string());
         }
     }
 }
