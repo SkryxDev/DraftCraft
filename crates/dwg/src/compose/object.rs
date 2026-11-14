@@ -70,6 +70,9 @@ pub struct EntityStart<'a> {
     /// entity names its neighbours): `None` when they are the objects with the handles just
     /// below and above this one's.
     pub links: Option<(u64, u64)>,
+    /// The entity keeps data in the file's data store section (AutoCAD 2013 on): a solid's,
+    /// region's or body's modeler description. AutoCAD looks for a record only when this is set.
+    pub data_store: bool,
 }
 
 impl Default for EntityStart<'_> {
@@ -92,6 +95,7 @@ impl Default for EntityStart<'_> {
             invisible: false,
             lineweight: 29,
             links: None,
+            data_store: false,
         }
     }
 }
@@ -248,7 +252,7 @@ impl ObjectWriter {
             self.dat.b(e.xdictionary == 0);
         }
         if ver >= V::R2013 {
-            self.dat.b(false);
+            self.dat.b(e.data_store);
         }
         if ver <= V::R2000 {
             self.dat.b(e.links.is_none());

@@ -255,6 +255,7 @@ fn autocads_files_compose_again() {
             app_name: "DraftCraft",
             app_version: "3.0.0",
             fonts: &[("txt".into(), 0xF)],
+            data_store: None,
         };
         let out = compose(&parts).unwrap_or_else(|e| panic!("{name}: {e}"));
         let again = crate::file::DwgFile::open(&out).unwrap_or_else(|e| panic!("{name}: {e}"));

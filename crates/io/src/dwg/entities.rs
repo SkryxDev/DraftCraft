@@ -2471,11 +2471,12 @@ const MAX_ACIS_TEXT: usize = 256 << 20;
 /// text up to AutoCAD 2010. The drawing keeps the entity as the groups a DXF file has: each line
 /// of the text a group 1, a line longer than 255 characters continued in groups 3. The text is
 /// stored scrambled in both formats, the same way, and is kept as stored.
-/// `None` for the forms not read yet: the binary description, and the files from AutoCAD 2013
-/// on, which keep the description in a section of its own.
+/// From AutoCAD 2013 the description is in the data store section (read with the drawing, see
+/// `super::read`), and the entity keeps group 290 and its GUID (group 2).
+/// `None` for the form not read yet: the binary description of 2004 to 2010.
 fn modeler(r: &mut ObjectReader, dxf_type: &'static str) -> DwgResult<Option<Shape>> {
     if r.version() >= V::R2013 {
-        return Ok(None);
+        return modern_modeler(r, dxf_type).map(Some);
     }
     let tag = |code: i32, value: String| RawTag { code, value };
     let mut t = vec![tag(100, "AcDbModelerGeometry".into())];
@@ -2508,6 +2509,81 @@ fn modeler(r: &mut ObjectReader, dxf_type: &'static str) -> DwgResult<Option<Sha
         }
     }
     Ok(Some(Shape { body: Body::Unknown(dxf_type, t), thickness: 0.0, normal: UP }))
+}
+
+/// Most wires, or points of one wire, read from a modeler entity's wireframe block.
+const MAX_WIRES: u32 = 1 << 20;
+
+/// A modeler entity of AutoCAD 2013 and later: two flags, the wireframe block (a point, the
+/// isoline count, the wires and the silhouettes, skipped: DraftCraft keeps the description, and
+/// AutoCAD draws from it), its end, a count, group 290 and the GUID; then, for a 3D solid, its
+/// history (not kept: the history objects aren't).
+fn modern_modeler(r: &mut ObjectReader, dxf_type: &'static str) -> DwgResult<Shape> {
+    let _described_elsewhere = r.b()?;
+    let wireframe = r.b()?;
+    if wireframe {
+        let _point = r.bd3()?;
+        let _isolines = r.bl()?;
+        if r.b()? {
+            let wires = r.bl()?;
+            skip_wires(r, wires)?;
+        }
+        let silhouettes = r.bl()?;
+        for _ in 0..r.count(silhouettes.min(MAX_WIRES), 8, "silhouette")? {
+            let _viewport = r.bl()?;
+            let _target = r.bd3()?;
+            let _direction = r.bd3()?;
+            let _up = r.bd3()?;
+            let _perspective = r.b()?;
+            let wires = r.bl()?;
+            skip_wires(r, wires)?;
+        }
+    }
+    let _end = r.b()?;
+    let _count = r.bl()?;
+    let flag = r.b()?;
+    let a = r.bl()?;
+    let b = r.bs()?;
+    let c = r.bs()?;
+    let mut tail = [0u8; 8];
+    for t in &mut tail {
+        *t = r.rc()?;
+    }
+    let tag = |code: i32, value: String| RawTag { code, value };
+    let guid = format!(
+        "{{{a:08x}-{b:04x}-{c:04x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}}}",
+        tail[0], tail[1], tail[2], tail[3], tail[4], tail[5], tail[6], tail[7]
+    );
+    let mut t = vec![tag(100, "AcDbModelerGeometry".into()), tag(290, u8::from(flag).to_string()), tag(2, guid)];
+    if dxf_type == "3DSOLID" {
+        t.extend([tag(100, "AcDb3dSolid".into()), tag(350, "0".into())]);
+    }
+    Ok(Shape { body: Body::Unknown(dxf_type, t), thickness: 0.0, normal: UP })
+}
+
+/// Step over `n` wires of a wireframe block: type, selection marker, colour, ACIS index, points,
+/// and a transform when one is present.
+fn skip_wires(r: &mut ObjectReader, n: u32) -> DwgResult<()> {
+    for _ in 0..r.count(n.min(MAX_WIRES), 8, "wire")? {
+        let _kind = r.rc()?;
+        let _marker = r.bl()?;
+        let _color = r.bs()?;
+        let _index = r.bl()?;
+        let points = r.bl()?;
+        for _ in 0..r.count(points.min(MAX_WIRES), 6, "wire point")? {
+            let _p = r.bd3()?;
+        }
+        if r.b()? {
+            for _ in 0..4 {
+                let _axis = r.bd3()?;
+            }
+            let _scale = r.bd()?;
+            let _rotation = r.b()?;
+            let _reflection = r.b()?;
+            let _shear = r.b()?;
+        }
+    }
+    Ok(())
 }
 
 /// OLE2FRAME (§20.4.74): an embedded or linked object. Its type, its space and its data, with

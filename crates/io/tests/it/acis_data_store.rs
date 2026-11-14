@@ -89,7 +89,6 @@ fn dxf_keeps_the_data_store_and_drops_records_of_deleted_entities() {
 }
 
 #[test]
-#[ignore = "DraftCraft's DWG writer doesn't write the data store section (AcDsPrototype_1b) yet: it waits for an AutoCAD file to check it against (docs/dwg-writer-handoff.md)"]
 fn dwg_keeps_the_solids_geometry() {
     let d = draftcraft_io::read_dxf(dxf().as_bytes()).unwrap();
     let dwg = draftcraft_io::write(&d, "x.dwg").unwrap();
@@ -101,6 +100,27 @@ fn dwg_keeps_the_solids_geometry() {
     // And reopening it in DraftCraft keeps them for the next save.
     let again = draftcraft_io::read(&dwg, "x.dwg").unwrap();
     assert_eq!(again.foreign.data_store_entities().len(), 2);
+}
+
+/// In DWG 2013 and 2018 a solid tells AutoCAD its description is in the data store: the "has
+/// data store data" bit of its common entity data. Without it AutoCAD opens the file with every
+/// solid's body missing (AUDIT: "ASM body missing"), though the section holds them.
+#[test]
+fn dwg_solids_point_at_their_data_store_records() {
+    let d = draftcraft_io::read_dxf(dxf().as_bytes()).unwrap();
+    for v in [draftcraft_io::Version::R2013, draftcraft_io::Version::R2018] {
+        let dwg = draftcraft_io::write_with(&d, "x.dwg", &draftcraft_io::SaveOptions { version: Some(v), binary: false }).unwrap();
+        let file = draftcraft_dwg::file::DwgFile::open(&dwg).unwrap();
+        assert!(file.section("AcDb:AcDsPrototype_1b").is_some(), "{v:?} has the section");
+        let mut marked: Vec<(String, u64)> = Vec::new();
+        for o in file.objects() {
+            let r = file.read_object(&o).unwrap();
+            if r.has_data_store_record() {
+                marked.push((o.type_name.clone(), o.handle));
+            }
+        }
+        assert_eq!(marked, vec![("3DSOLID".to_string(), 0x2A), ("3DSOLID".to_string(), 0x2B)], "{v:?}");
+    }
 }
 
 /// A solid with SAT-text ACIS data (an R2000-style file) can't be written to a DXF of 2013 or
@@ -221,4 +241,29 @@ fn a_dwg_keeps_a_sat_text_region_only_before_2013() {
     };
     assert!(holds_sat(draftcraft_io::Version::R2010), "2010 keeps the SAT text");
     assert!(!holds_sat(draftcraft_io::Version::R2018), "2018 comes back without it");
+}
+
+/// A drawing with solids written as DWG 2013 and 2018, to open in AutoCAD: `DWG_DS_IN` names the
+/// drawing (DXF or DWG), `DWG_DS_OUT` the folder. It also checks that the files read back with
+/// the same geometry, and that a DWG read keeps what the DXF of the same drawing keeps.
+#[test]
+#[ignore]
+fn write_solids_for_autocad() {
+    let (Ok(input), Ok(out)) = (std::env::var("DWG_DS_IN"), std::env::var("DWG_DS_OUT")) else { return };
+    let d = draftcraft_io::read(&std::fs::read(&input).unwrap(), &input).unwrap();
+    let mut want = asm_data(&String::from_utf8(draftcraft_io::write(&d, "x.dxf").unwrap()).unwrap());
+    want.sort();
+    let sizes: Vec<(String, usize)> = want.iter().map(|(h, x)| (h.clone(), x.len() / 2)).collect();
+    println!("{input}: records {sizes:?}");
+    for (v, name) in [(draftcraft_io::Version::R2013, "2013"), (draftcraft_io::Version::R2018, "2018")] {
+        let dwg = draftcraft_io::write_with(&d, "x.dwg", &draftcraft_io::SaveOptions { version: Some(v), binary: false }).unwrap();
+        let path = std::path::Path::new(&out).join(format!("solids-dc-{name}.dwg"));
+        std::fs::write(&path, &dwg).unwrap();
+        let mut got = asm_data(&crate::dwg_as_dxf(&dwg));
+        got.sort();
+        let sizes = |v: &[(String, String)]| v.iter().map(|(h, x)| (h.clone(), x.len() / 2)).collect::<Vec<_>>();
+        assert_eq!(sizes(&got), sizes(&want), "{name}");
+        assert!(got == want, "{name}: the same handles and sizes, different bytes");
+        println!("{}: {} bytes", path.display(), dwg.len());
+    }
 }

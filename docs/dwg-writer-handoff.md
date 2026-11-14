@@ -44,7 +44,8 @@ holds what the DXF of the same drawing holds, and what a command adds to one is 
 | `crates/io/src/dwg/write/annotation.rs` | MTEXT, DIMENSION, SPLINE, HATCH, LEADER, TOLERANCE, VIEWPORT, MLINE, IMAGE, WIPEOUT |
 | `crates/io/src/dwg/write/objects.rs` | DICTIONARY, ACDBDICTIONARYWDFLT, XRECORD, ACDBPLACEHOLDER, DICTIONARYVAR, SCALE, GROUP, LAYOUT, MLINESTYLE, WIPEOUTVARIABLES, TABLESTYLE, MLEADERSTYLE, MATERIAL, VISUALSTYLE, CELLSTYLEMAP, section and detail view styles, DIMASSOC, IMAGEDEF, IMAGEDEF_REACTOR, RASTERVARIABLES, SPATIAL_FILTER, PDFDEFINITION, in every version |
 | `crates/io/src/dwg/write/header.rs` | header variables from their DXF form to DWG's |
-| `crates/io/src/dwg/write/mleader.rs`, `table.rs`, `solid.rs`, `dynblock.rs` | multileaders, tables, ACIS solids up to 2010, dynamic block objects |
+| `crates/io/src/dwg/write/mleader.rs`, `table.rs`, `solid.rs`, `dynblock.rs` | multileaders, tables, ACIS solids (from 2013 with their description in the data store), dynamic block objects |
+| `crates/dwg/src/datastore.rs`, `crates/io/src/dwg/data_store.rs` | the data store section of 2013 and later (`AcDb:AcDsPrototype_1b`), where solids, regions and bodies keep their modeler description: read to records and written as AutoCAD lays out a new one; the records as the DXF's ACDSDATA groups |
 | `crates/io/src/dwg/write/variables.rs` | AutoCAD's variable dictionary, added when the drawing has none |
 | `crates/io/src/dwg/write/preview.rs` | the picture file browsers and the open dialog show |
 
@@ -97,7 +98,15 @@ set; an AutoCAD 2018 MTEXT ends with a null reference.
    length and jogged radius dimensions, which AutoCAD lists as its own types), hatches 2007 and
    2018 (patterns, gradients, solid fill with a hole), mlines 2013, regions 2007, viewports 2007
    and 2018 (the layout viewports show the model). AutoCAD's own save of our mi201 2018 file
-   reads in DraftCraft the same as ours. The image files were not checked.
+   reads in DraftCraft the same as ours. The image files were not checked. Solids and regions
+   in 2013 and 2018 (four bodies, one of 2.9 MB in blob pages, with and without history) open
+   with every body drawn and AUDIT 0. What that needed, found this way: an entity whose
+   description is in the data store has the "data store" bit of its common entity data set
+   (`EntityStart::data_store`); without it AutoCAD reports "ASM body missing" for every solid,
+   though the section holds them. AutoCAD's own 2018 files store the description as
+   `ASM BinaryFile4` (version 22300) where its DXF and 2013 files have `ACIS BinaryFile` (21800);
+   AutoCAD reads the DXF form in a 2018 file, so the writer keeps it as the drawing has it. The
+   solids' history objects (ACSH_ types) are not written: AutoCAD opens the solids without it.
 2. Dynamic-block parameters and actions made in the Block Editor are written to DWG: the Block
    Editor keeps the evaluation graph's node list (`rebuild_graph` in
    `crates/doc/src/dynblock/author.rs`), and `crates/engine/tests/dynblock_authoring.rs` saves

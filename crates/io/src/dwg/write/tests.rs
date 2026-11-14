@@ -4,6 +4,7 @@
 use super::*;
 use draftcraft_dwg::file::DwgFile;
 
+/// A file of the mi201 corpus, or any file by its absolute path.
 fn mi201(name: &str) -> Vec<u8> {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/mi201").join(name);
     std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
@@ -131,7 +132,21 @@ fn hex_of(b: &[u8]) -> String {
 fn probe() {
     let only = std::env::var("DWG_PROBE").unwrap_or_default();
     let only_ver = std::env::var("DWG_PROBE_VER").unwrap_or_default();
-    for (dxf, dwg, ver) in PAIRS {
+    // `DWG_PROBE_PAIR=/abs/file.dxf:/abs/file.dwg:r2018` compares another pair AutoCAD saved.
+    let pair = std::env::var("DWG_PROBE_PAIR").unwrap_or_default();
+    let mut pairs: Vec<(&str, &str, V)> = PAIRS.to_vec();
+    if let [dxf, dwg, ver] = pair.split(':').collect::<Vec<_>>()[..] {
+        let ver = match ver {
+            "r2013" => V::R2013,
+            "r2010" => V::R2010,
+            "r2007" => V::R2007,
+            "r2004" => V::R2004,
+            "r2000" => V::R2000,
+            _ => V::R2018,
+        };
+        pairs = vec![(dxf, dwg, ver)];
+    }
+    for (dxf, dwg, ver) in pairs {
         if !only_ver.is_empty() && !dwg.contains(&only_ver) {
             continue;
         }

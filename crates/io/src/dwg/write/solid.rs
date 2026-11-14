@@ -4,7 +4,8 @@
 //! in its groups 1 and 3, scrambled the same way in both formats (`super::super::entities`
 //! reads it back as stored); or, from AutoCAD 2004, as the binary form (format 2) a data store
 //! record holds. A wireframe block follows, empty: AutoCAD draws the shape from the description.
-//! From AutoCAD 2013 the description lives in the file's data store section, not here.
+//! From AutoCAD 2013 the description lives in the file's data store section (written by
+//! `draftcraft_dwg::datastore`), and the entity holds the wireframe block and its GUID (group 2).
 
 use draftcraft_dwg::DwgVersion as V;
 use draftcraft_dwg::compose::{ObjectWriter, Ref};
@@ -25,8 +26,9 @@ pub(super) fn modeler(cx: &Cx<'_>, r: &Rec<'_>, code: u16) -> Option<ObjectWrite
     let sat = sat_text(&g);
     let sab = cx.doc.data_store.get(&r.handle).filter(|_| sat.is_none());
     if cx.ver >= V::R2013 {
-        // The data store section is not written yet: the shape would be lost.
-        return None;
+        // The description goes in the data store: without a record there, the shape would be
+        // lost (SAT text has no place in these files).
+        return sab.map(|_| modern(cx, r, code, &g));
     }
     let mut w = begin(cx, code, r);
     match (&sat, sab) {
@@ -69,6 +71,61 @@ pub(super) fn modeler(cx: &Cx<'_>, r: &Rec<'_>, code: u16) -> Option<ObjectWrite
         w.reference(Ref::SoftPointer, history);
     }
     Some(w)
+}
+
+/// A modeler entity of AutoCAD 2013 and later, as AutoCAD writes it: its description in the data
+/// store, a wireframe block with no wires (AutoCAD draws from the description), no further
+/// modeler data, no materials, group 290 and the GUID of group 2, then (a 3D solid) its history.
+fn modern(cx: &Cx<'_>, r: &Rec<'_>, code: u16, g: &Groups<'_>) -> ObjectWriter {
+    // The entity tells AutoCAD its description is in the data store.
+    let mut w = cx.writer(code, r);
+    let mut start = super::common::entity_start(cx, r);
+    start.data_store = true;
+    w.entity(&start);
+    // The description is elsewhere; a wireframe block follows.
+    w.b(true);
+    w.b(true);
+    w.bd3([0.0; 3]);
+    w.bl(4);
+    w.b(true);
+    // No wires, no silhouettes.
+    w.bl(0);
+    w.bl(0);
+    w.b(true);
+    w.bl(0);
+    w.b(g.0.iter().find(|t| t.code == 290).is_none_or(|_| g.i(290) != 0));
+    let (a, b, c, d) = guid(g.s(2));
+    w.bl(a);
+    w.bs(b);
+    w.bs(c);
+    for x in d {
+        w.rc(x);
+    }
+    w.bl(0);
+    if r.kind == "3DSOLID" {
+        w.reference(Ref::SoftPointer, cx.known(r.sub("AcDb3dSolid").h(350)));
+    }
+    w
+}
+
+/// A GUID as `{xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}` in its four stored parts; zero when the
+/// text is not one.
+pub(crate) fn guid(text: &str) -> (u32, u16, u16, [u8; 8]) {
+    let hex: String = text.chars().filter(char::is_ascii_hexdigit).collect();
+    let part = |from: usize, len: usize| hex.get(from..from + len).and_then(|h| u64::from_str_radix(h, 16).ok());
+    if hex.len() != 32 {
+        return (0, 0, 0, [0; 8]);
+    }
+    let mut tail = [0u8; 8];
+    for (i, t) in tail.iter_mut().enumerate() {
+        *t = part(16 + 2 * i, 2).and_then(|v| u8::try_from(v).ok()).unwrap_or(0);
+    }
+    (
+        part(0, 8).and_then(|v| u32::try_from(v).ok()).unwrap_or(0),
+        part(8, 4).and_then(|v| u16::try_from(v).ok()).unwrap_or(0),
+        part(12, 4).and_then(|v| u16::try_from(v).ok()).unwrap_or(0),
+        tail,
+    )
 }
 
 /// The SAT text of the modeler groups (format 1): each group 1 a line, continued by groups 3,

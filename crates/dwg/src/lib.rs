@@ -18,6 +18,7 @@
 pub mod bits;
 pub mod compose;
 pub mod crc;
+pub mod datastore;
 pub mod file;
 pub mod lz77;
 pub mod read;

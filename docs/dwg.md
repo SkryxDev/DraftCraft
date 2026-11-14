@@ -98,7 +98,7 @@ DraftCraft writes every version itself, and acadrust is gone. What remains:
 
 | Step | What | Shows today as |
 |---|---|---|
-| 12c | What a real file still leaves in the read note: the solid modeler's binary description (2004 and later) and the 2013-and-later data store (ACDSDATA) of 3DSOLID, REGION and BODY; dynamic-block objects (the evaluation graph, parameters, actions and grips); MESH and SHAPE; draw order (SORTENTSTABLE); MATERIAL, VISUALSTYLE and the section and detail view styles before 2013; CELLSTYLEMAP, TABLECONTENT and TABLEGEOMETRY; an entity's plot style | Named in the read note of the file, by type; four io tests fail on them (`acis_data_store` × 2, `dynblock_read` × 2) |
+| 12c | What a real file still leaves in the read note: the solid modeler's binary description (2004 to 2010) of 3DSOLID, REGION and BODY, and the solids' history objects (ACSH_ types; the 2013-and-later data store, ACDSDATA, is read and written: `crates/dwg/src/datastore.rs`); dynamic-block objects (the evaluation graph, parameters, actions and grips); MESH and SHAPE; draw order (SORTENTSTABLE); MATERIAL, VISUALSTYLE and the section and detail view styles before 2013; CELLSTYLEMAP, TABLECONTENT and TABLEGEOMETRY; an entity's plot style | Named in the read note of the file, by type; four io tests fail on them (`acis_data_store` × 2, `dynblock_read` × 2) |
 | 14 | The switch-over: the direct reader as the default, the old paths removed | done |
 | 15–16 | DraftCraft's own DWG writer (objects, sections and container, a read-back check on every save) | done |
 | 17 | The other save versions: 2000, 2004, 2007, 2010, 2013 | done |
