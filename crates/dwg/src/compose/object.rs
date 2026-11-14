@@ -523,6 +523,24 @@ impl ObjectWriter {
     pub fn color_index(&mut self, index: i16) {
         self.dat.bs(index.cast_unsigned());
     }
+    /// The fields and references of an object the codec keeps as its DXF groups (table and
+    /// multileader styles, materials, visual styles, section and detail view styles, dimension
+    /// associations, image definitions): `items` are its groups from the first subclass marker
+    /// on, in DXF order, a point as one item; `text_styles` names the text styles a table style
+    /// refers to. An error for a type or a version the codec has no layout for, or groups that
+    /// don't fit the layout: nothing usable has been written then, and the object is left out.
+    pub fn grouped(&mut self, kind: &str, items: Vec<(u16, crate::file::XrValue)>, text_styles: &[(String, u64)]) -> crate::records::Result<()> {
+        use crate::read::model::{Groups, Handle};
+        let lookup = crate::read::styles::Lookup::from_text_styles(text_styles.iter().map(|(n, h)| (n.clone(), Handle(*h))).collect());
+        let mut w = crate::write::objects::ObjW::new(self.ver, Handle(self.handle));
+        crate::read::styles::encode_with(&mut w, &Groups { kind: kind.to_string(), items }, &lookup)?;
+        let (dat, strs, has_strings, hdl) = w.into_streams();
+        self.dat.append(&dat);
+        self.strs.append(&strs);
+        self.has_strings |= has_strings;
+        self.hdl.append(&hdl);
+        Ok(())
+    }
     /// How many bits of fields the object holds so far.
     pub fn position(&self) -> usize {
         self.dat.position()

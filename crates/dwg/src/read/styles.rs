@@ -687,13 +687,18 @@ fn encode_layout(w: &mut ObjW, g: &Groups, l: &Layout) -> Result<()> {
 /// Write a style object's type data and handles (after the common part
 /// and common handles).
 pub(crate) fn encode(w: &mut ObjW, g: &Groups, d: &Drawing) -> Result<()> {
+    encode_with(w, g, &Lookup::new(d))
+}
+
+/// [`encode`] with the text styles given.
+pub(crate) fn encode_with(w: &mut ObjW, g: &Groups, lookup: &Lookup) -> Result<()> {
     if w.ver < since(&g.kind) {
         return Err(Error::unsupported(format!("{} before {:?}", g.kind, since(&g.kind))));
     }
     match g.kind.as_str() {
         "DIMASSOC" => encode_dimassoc(w, g),
         "MATERIAL" => encode_material(w, g),
-        "TABLESTYLE" => encode_tablestyle(w, g, &Lookup::new(d)),
+        "TABLESTYLE" => encode_tablestyle(w, g, lookup),
         k => match layout(k) {
             Some(l) => encode_layout(w, g, &l),
             None => Err(Error::unsupported(format!("{k} is kept for DXF only"))),

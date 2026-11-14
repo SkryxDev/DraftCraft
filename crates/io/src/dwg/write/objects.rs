@@ -64,6 +64,13 @@ pub(super) fn object(cx: &Cx<'_>, r: &Rec<'_>) -> Option<ObjectWriter> {
             w
         }
         "LAYOUT" => layout(cx, r),
+        "WIPEOUTVARIABLES" => {
+            let mut w = begin(cx, cx.class("WIPEOUTVARIABLES")?, r);
+            w.bs(u16::try_from(r.sub("AcDbWipeoutVariables").i(70)).unwrap_or(0));
+            w
+        }
+        "VISUALSTYLE" | "MATERIAL" | "TABLESTYLE" | "MLEADERSTYLE" | "ACDBSECTIONVIEWSTYLE" | "ACDBDETAILVIEWSTYLE" | "DIMASSOC" | "IMAGEDEF"
+        | "IMAGEDEF_REACTOR" | "RASTERVARIABLES" => grouped(cx, r)?,
         "MLINESTYLE" => mline_style(cx, r),
         _ => return None,
     })
@@ -269,4 +276,41 @@ fn mline_style(cx: &Cx<'_>, r: &Rec<'_>) -> ObjectWriter {
         }
     }
     w
+}
+
+/// An object the codec encodes from its DXF groups: the groups from the first subclass marker
+/// on, each as the value its code holds, a point's three groups as one.
+fn grouped(cx: &Cx<'_>, r: &Rec<'_>) -> Option<ObjectWriter> {
+    use draftcraft_dwg::file::{Handle, XrValue};
+    use draftcraft_dwg::records::geom::Vec3;
+    let mut w = begin(cx, cx.class(r.kind)?, r);
+    let start = r.tags.iter().position(|t| t.code == 100)?;
+    let tags = r.tags.get(start..)?;
+    let mut items: Vec<(u16, XrValue)> = Vec::with_capacity(tags.len());
+    let mut i = 0;
+    while let Some(t) = tags.get(i) {
+        i += 1;
+        let Some(code) = u16::try_from(t.code).ok() else { continue };
+        let value = match xr_type(code)? {
+            XrType::Str => XrValue::Str(text(t).to_string()),
+            XrType::Point => {
+                let y = tags.get(i).filter(|n| n.code == t.code + 10).map(Tag::f64);
+                let z = tags.get(i + 1).filter(|n| n.code == t.code + 20).map(Tag::f64);
+                i += usize::from(y.is_some()) + usize::from(y.is_some() && z.is_some());
+                XrValue::Point(Vec3::new(t.f64(), y.unwrap_or(0.0), z.unwrap_or(0.0)))
+            }
+            XrType::Real => XrValue::Real(t.f64()),
+            XrType::Int8 => XrValue::Int8(t.i64() as i8),
+            XrType::Int16 => XrValue::Int16(t.i64() as i16),
+            XrType::Int32 => XrValue::Int32(t.i64() as i32),
+            XrType::Int64 => XrValue::Int64(t.i64()),
+            XrType::Bool => XrValue::Bool(t.i64() != 0),
+            XrType::Bytes => XrValue::Bytes(bytes_of(text(t))),
+            XrType::Handle => XrValue::Handle(Handle(hex(text(t)))),
+        };
+        items.push((code, value));
+    }
+    let styles: Vec<(String, u64)> = cx.styles.iter().map(|(n, h)| (n.clone(), *h)).collect();
+    w.grouped(r.kind, items, &styles).ok()?;
+    Some(w)
 }

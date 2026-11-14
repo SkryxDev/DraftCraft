@@ -46,6 +46,12 @@ impl ObjW {
         ObjW { ver, own: own.0, dat: BitWriter::new(), strs: BitWriter::new(), has_strings: false, hdl: BitWriter::new() }
     }
 
+    /// The object's three streams as written so far: fields, text (and whether it has any),
+    /// references.
+    pub(crate) fn into_streams(self) -> (BitWriter, BitWriter, bool, BitWriter) {
+        (self.dat, self.strs, self.has_strings, self.hdl)
+    }
+
     /// TV: from R2007 in the string stream, as UTF-16.
     pub fn tv(&mut self, s: &str) {
         if self.ver.has_string_stream() {

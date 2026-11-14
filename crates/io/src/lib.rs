@@ -212,10 +212,15 @@ pub fn write_dwg_own(d: &Drawing, version: Version) -> Result<(Vec<u8>, dwg::wri
     dwg::write::write(&tags, ver, &info)
 }
 
-/// The DWG bridge reads our R2000 DXF and writes the DWG at `version`, in the DWG worker when
-/// there is one.
+/// The drawing as a DWG file of `version`: by DraftCraft's own writer. acadrust still writes
+/// AutoCAD 2007 files, and every version when `DRAFTCRAFT_DWG_WRITER=acadrust` asks for it (to
+/// compare, until it is removed).
 fn write_dwg(d: &Drawing, version: Version) -> Result<(Vec<u8>, draftcraft_dwg::acadrust::Unwritten)> {
-    draftcraft_dwg::acadrust::encode_noted(dxf_write::dwg_bridge(d, version).as_bytes(), version.code()).map_err(IoError::Format)
+    let acadrust = std::env::var("DRAFTCRAFT_DWG_WRITER").is_ok_and(|v| v.eq_ignore_ascii_case("acadrust"));
+    if acadrust || version == Version::R2007 {
+        return draftcraft_dwg::acadrust::encode_noted(dxf_write::dwg_bridge(d, version).as_bytes(), version.code()).map_err(IoError::Format);
+    }
+    write_dwg_own(d, version)
 }
 
 /// Like [`write`], but image formats (PNG, SVG, PDF) show `window` (a model-space rectangle in

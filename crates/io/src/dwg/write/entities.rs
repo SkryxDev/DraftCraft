@@ -8,6 +8,7 @@ use draftcraft_dwg::file::EntitySpace;
 use super::Cx;
 use super::common::entity_start;
 use super::rec::{Groups, Rec};
+use crate::dxf_read::mtext_dxf::decode_line;
 
 /// A writer for the entity `r` as the DWG type `code`, with what every entity starts with.
 pub(super) fn begin(cx: &Cx<'_>, code: u16, r: &Rec<'_>) -> ObjectWriter {
@@ -221,7 +222,7 @@ fn text_fields(cx: &Cx<'_>, w: &mut ObjectWriter, g: Groups<'_>, valign: i64) ->
     if flags & 0x10 == 0 {
         w.rd(width);
     }
-    w.text(g.s(1));
+    w.text(&decode_line(g.s(1)));
     let short = |v: i64| u16::try_from(v).unwrap_or(0);
     if flags & 0x20 == 0 {
         w.bs(short(generation));
@@ -264,7 +265,7 @@ fn attribute(cx: &Cx<'_>, r: &Rec<'_>) -> Option<ObjectWriter> {
         if ver >= V::R2010 {
             w.rc(0);
         }
-        w.text(a.s(3));
+        w.text(&decode_line(a.s(3)));
     }
     w.reference(Ref::HardPointer, style);
     Some(w)
