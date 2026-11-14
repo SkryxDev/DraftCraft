@@ -25,6 +25,7 @@ craft-pdf = { workspace = true, features = ["write", "raster"] }
 kurbo = "0.13"
 quick-xml = { workspace = true }
 image = { workspace = true }
+chrono = { workspace = true }
 
 [dev-dependencies]
 # Reads DraftCraft's DWG output as written (tests only; the same version as draftcraft-dwg's).

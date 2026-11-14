@@ -209,8 +209,28 @@ pub fn write_dwg_own(d: &Drawing, version: Version) -> Result<(Vec<u8>, dwg::wri
     let ver = dwg::write::version_of(version.code()).ok_or_else(|| IoError::Format(format!("DWG: no writer for {}", version.code())))?;
     let mut tags = dxf_write::dwg_records(d, version);
     dwg::write::add_variable_dictionary(&mut tags, d);
-    let info = dwg::write::FileInfo { app_name: "DraftCraft", app_version: env!("CARGO_PKG_VERSION"), ..dwg::write::FileInfo::default() };
-    dwg::write::write(&tags, ver, &info)
+    let preview = dwg::write::preview(d);
+    let info = dwg::write::FileInfo {
+        app_name: "DraftCraft",
+        app_version: env!("CARGO_PKG_VERSION"),
+        preview_png: preview.as_ref().map(|p| p.png.as_slice()),
+        preview_bmp: preview.as_ref().map(|p| p.bmp.as_slice()),
+    };
+    let (bytes, unwritten) = dwg::write::write(&tags, ver, &info)?;
+    check_dwg(&bytes, d, unwritten.values().sum())?;
+    Ok((bytes, unwritten))
+}
+
+/// A DWG file just written, read back before it is handed over: a file this program can't read
+/// again, or that reads as an empty drawing when it was given entities (more than the `left_out`
+/// the version can't hold), is never saved.
+fn check_dwg(bytes: &[u8], d: &Drawing, left_out: usize) -> Result<()> {
+    let back = read_dwg_with(bytes, DwgReader::Direct)
+        .map_err(|e| IoError::Format(format!("DWG: the file written doesn't read back ({e}), so it was not saved")))?;
+    if d.entity_count() > left_out && back.entity_count() == 0 {
+        return Err(IoError::Format("DWG: the file written reads back without its entities, so it was not saved".into()));
+    }
+    Ok(())
 }
 
 /// The drawing as a DWG file of `version`: by DraftCraft's own writer, or by acadrust when

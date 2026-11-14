@@ -483,21 +483,16 @@ pub(crate) fn app_info(name: &str, version: &str) -> Vec<u8> {
     o
 }
 
-/// A Julian date and time as `YYYY-MM-DDTHH:MM:SS`.
+/// A Julian date and time as `YYYY-MM-DDTHH:MM:SS` (empty for a day chrono can't place).
 fn iso_datetime(v: f64) -> String {
     let (day, ms) = julian(v);
-    // Days since 0000-03-01, then the civil calendar.
-    let z = day as i64 - 1_721_120;
-    let era = z.div_euclid(146_097);
-    let doe = z.rem_euclid(146_097);
-    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = doy - (153 * mp + 2) / 5 + 1;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 };
-    let y = yoe + era * 400 + i64::from(m <= 2);
-    let s = ms / 1000;
-    format!("{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}", s / 3600, s / 60 % 60, s % 60)
+    // Julian day 1721426 is 1 January of the year 1.
+    let date = i32::try_from(i64::from(day) - 1_721_425).ok().and_then(chrono::NaiveDate::from_num_days_from_ce_opt);
+    let time = chrono::NaiveTime::from_num_seconds_from_midnight_opt((ms / 1000).min(86_399), 0);
+    match (date, time) {
+        (Some(d), Some(t)) => d.and_time(t).format("%Y-%m-%dT%H:%M:%S").to_string(),
+        _ => String::new(),
+    }
 }
 
 fn xml_text(s: &str) -> String {

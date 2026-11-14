@@ -403,7 +403,8 @@ fn r2007(p: &Parts<'_>) -> Result<Vec<u8>> {
     // as AutoCAD's do.
     let seed = p.updated.to_bits() & 0x00FF_FFFF_FFFF_FFFF;
     let preview = |at: u64| preview(p, at);
-    let input = super::r2007::Input { codepage: p.codepage, maintenance: maintenance(p.version), seed, sections, preview: &preview, map_order: &MAP_ORDER };
+    let input =
+        super::r2007::Input { codepage: p.codepage, maintenance: maintenance(p.version), seed, sections, preview: &preview, map_order: &MAP_ORDER };
     super::r2007::compose(&input)
 }
 

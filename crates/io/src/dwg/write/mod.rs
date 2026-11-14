@@ -17,11 +17,14 @@ mod entities;
 mod header;
 mod mleader;
 mod objects;
+mod preview;
 mod rec;
 mod solid;
 mod table;
 mod tables;
 mod variables;
+
+pub use preview::{Preview, preview};
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
@@ -45,9 +48,22 @@ pub struct FileInfo<'a> {
     /// header (for the versions before AutoCAD 2013).
     pub preview_png: Option<&'a [u8]>,
     pub preview_bmp: Option<&'a [u8]>,
-    /// When the drawing was created and saved, as `YYYY-MM-DDTHH:MM:SS`.
-    pub created_iso: String,
-    pub updated_iso: String,
+}
+
+/// A Julian date (the drawing's TDCREATE, TDUPDATE) as `YYYY-MM-DDTHH:MM:SS`; empty for none.
+fn iso_date(julian: f64) -> String {
+    if !(julian.is_finite() && julian > 0.0) {
+        return String::new();
+    }
+    let day = julian.floor();
+    let seconds = ((julian - day) * 86_400.0).round().clamp(0.0, 86_399.0) as u32;
+    // Julian day 1721426 is 1 January of the year 1.
+    let date = i32::try_from(day as i64 - 1_721_425).ok().and_then(chrono::NaiveDate::from_num_days_from_ce_opt);
+    let time = chrono::NaiveTime::from_num_seconds_from_midnight_opt(seconds, 0);
+    match (date, time) {
+        (Some(d), Some(t)) => d.and_time(t).format("%Y-%m-%dT%H:%M:%S").to_string(),
+        _ => String::new(),
+    }
 }
 
 /// 8-bit text in the code page a file's number names, as the DXF writer stores strings before
@@ -520,8 +536,8 @@ pub fn write(tags: &[Tag], ver: V, info: &FileInfo<'_>) -> Result<(Vec<u8>, Unwr
         created: real("TDCREATE"),
         updated: real("TDUPDATE"),
         editing: real("TDINDWG"),
-        created_iso: &info.created_iso,
-        updated_iso: &info.updated_iso,
+        created_iso: &iso_date(real("TDCREATE")),
+        updated_iso: &iso_date(real("TDUPDATE")),
         properties: &properties,
         preview_png: info.preview_png,
         preview_bmp: info.preview_bmp,

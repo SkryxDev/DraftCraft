@@ -392,3 +392,34 @@ fn sat_text_survives_the_dwg_versions_that_hold_it() {
         assert_eq!(sat(&back), want, "{v:?}");
     }
 }
+
+/// The save history's dates are AutoCAD's: the universal time of the save, to the second.
+#[test]
+fn dates_read_as_autocads_save_history_gives_them() {
+    let d = crate::read_dwg_with(&mi201("mi201-r2007.dwg"), crate::DwgReader::Direct).unwrap();
+    let updated = d.header.get("TDUUPDATE").and_then(draftcraft_doc::HVal::as_f64).unwrap();
+    assert_eq!(iso_date(updated), "2026-10-02T16:57:01");
+    assert_eq!(iso_date(2_440_588.5), "1970-01-01T12:00:00");
+    assert_eq!(iso_date(0.0), "");
+    assert_eq!(iso_date(f64::NAN), "");
+    assert_eq!(iso_date(1e300), "");
+}
+
+/// Every file carries a preview 256 pixels wide: a PNG from 2013, an 8-bit bitmap before.
+#[test]
+fn files_carry_a_preview() {
+    let d = crate::read_dxf(&mi201("mi201-r2018.dxf")).unwrap();
+    for version in
+        [crate::Version::R2000, crate::Version::R2004, crate::Version::R2007, crate::Version::R2010, crate::Version::R2013, crate::Version::R2018]
+    {
+        let (bytes, _) = crate::write_dwg_own(&d, version).unwrap();
+        let has = |pattern: &[u8]| bytes.windows(pattern.len()).any(|w| w == pattern);
+        if version >= crate::Version::R2013 {
+            assert!(has(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0x0D, b'I', b'H', b'D', b'R', 0, 0, 1, 0]), "{version:?}");
+        } else {
+            assert!(has(&[40, 0, 0, 0, 0, 1, 0, 0]), "{version:?}");
+        }
+    }
+    let empty = draftcraft_doc::Drawing::default();
+    assert!(preview(&empty).is_none());
+}

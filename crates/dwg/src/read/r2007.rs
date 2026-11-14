@@ -482,4 +482,3 @@ mod tests {
         assert!(read(&file, DwgVersion::R2007).is_err());
     }
 }
-

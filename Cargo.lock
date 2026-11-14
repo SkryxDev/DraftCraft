@@ -1297,6 +1297,7 @@ name = "draftcraft-dwg"
 version = "3.0.0"
 dependencies = [
  "acadrust",
+ "chrono",
  "log",
 ]
 
@@ -1356,6 +1357,7 @@ name = "draftcraft-io"
 version = "3.0.0"
 dependencies = [
  "acadrust",
+ "chrono",
  "craft-pdf",
  "draftcraft-color",
  "draftcraft-doc",

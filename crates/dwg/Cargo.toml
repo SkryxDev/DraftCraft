@@ -10,6 +10,7 @@ workspace = true
 
 [dependencies]
 log = { workspace = true }
+chrono = { workspace = true }
 
 # The same target as build.rs's `no_acadrust` leaves acadrust out: FreeBSD aarch64, where
 # acadrust 0.6.6 passed a `*const c_char` (u8 there) to its own `*const i8` sysctlbyname.

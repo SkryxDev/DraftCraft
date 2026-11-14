@@ -81,7 +81,9 @@ fn page_checks_are_autocads() {
 #[test]
 fn the_codewords_are_autocads() {
     let file = autocad();
-    for (what, at, blocks, code) in [("page map", 0x480, 4, Code::System), ("objects", 0xAA40, 44, Code::Page), ("section map", 0xF120, 15, Code::System)] {
+    for (what, at, blocks, code) in
+        [("page map", 0x480, 4, Code::System), ("objects", 0xAA40, 44, Code::Page), ("section map", 0xF120, 15, Code::System)]
+    {
         for (i, cw) in codewords(&file, at, blocks).iter().enumerate() {
             let k = code.data();
             let check = code.parities(&cw[..k]);
@@ -133,7 +135,6 @@ fn the_random_numbers_are_autocads() {
     // The room after the header's codewords is filled from the first.
     assert_eq!(&page[3 * CODEWORD..3 * CODEWORD + 16], &r.fill(16)[..]);
 }
-
 
 /// The pages of the small sections, stored as they are with their check bytes, are AutoCAD's to
 /// the byte: the data, the check bytes of its blocks of 251 (the last made up with fill), fill.
@@ -215,5 +216,7 @@ fn scratch_ours() {
         off += s;
     }
     let c = crate::read::r2007::read(&file, crate::read::version::DwgVersion::R2007).unwrap();
-    for s in &c.sections { println!("{} {:#x}", s.name, s.size); }
+    for s in &c.sections {
+        println!("{} {:#x}", s.name, s.size);
+    }
 }
