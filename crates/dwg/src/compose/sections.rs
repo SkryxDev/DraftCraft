@@ -289,6 +289,7 @@ pub fn class_versions(dxf_name: &str) -> (u32, u32) {
         "ACDBDETAILVIEWSTYLE" => (33, 427),
         "DIMASSOC" => (23, 12),
         "DICTIONARYVAR" => (20, 0),
+        "ARC_DIMENSION" | "LARGE_RADIAL_DIMENSION" => (25, 20),
         _ => (0, 0),
     }
 }

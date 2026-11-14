@@ -105,12 +105,11 @@ DraftCraft writes every version itself, and acadrust is gone. What remains:
 | 18 | acadrust removed | done |
 | 19 | Dynamic-block parameters and actions made in the Block Editor written to DWG | done |
 
-Decisions open:
-
-- **ARC_DIMENSION and LARGE_RADIAL_DIMENSION**: the drawing has no place for an arc-length
-  dimension's leader and partial flag or a jogged radius's jog, and the writer can't write either
-  type back; the DXF reader keeps both as raw records. Raw carry (step 12), or new dimension kinds
-  in the drawing and the writer.
+ARC_DIMENSION and LARGE_RADIAL_DIMENSION are read and written in DXF and DWG as AutoCAD 2027
+writes them (its 2000 and 2018 files and its DXF): an arc-length dimension is `DimKind::ArcLength`
+with its partial and leader flags in `DimMarks`, a jogged radius `DimKind::Radius` with
+`DimMarks::jogged`. Their DWG fields are pinned by
+`arc_length_and_jogged_radius_dimensions_are_laid_out_as_autocad_writes_them`.
 
 Not yet confirmed against a file AutoCAD saved (an AutoCAD drawing with them would settle each):
 

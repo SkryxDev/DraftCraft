@@ -21,9 +21,7 @@ starts from the head of PR #15 (which contains `main` at f6f72215).
   AutoCAD's universal-time variables, and AutoCAD's variable dictionary when the drawing has none.
 - `cargo test -p draftcraft-io --no-fail-fast`: all pass (the `it` suite 578, 21 ignored), and
   `cargo test -p draftcraft-dwg` (101).
-- **Not verified in AutoCAD itself.** A nested session was set up to open the files in the
-  user's AutoCAD 2027 with computer use, and access to AutoCAD was refused twice; AutoCAD may be
-  blocked in the app's Computer use settings. What stands in for it is below.
+- **Verified in AutoCAD 2027**: see "What is left", item 1, for the files and versions opened.
 
 ## How it is built
 
@@ -95,7 +93,11 @@ set; an AutoCAD 2018 MTEXT ends with a null reference.
    dimensions 2000, tables 2010, attributes and annotation 2000), after four fixes: anonymous
    blocks stored unnumbered (`*D`, `*T`), the `AcDbSavedByObjectVersion` extended data on visual
    styles up to 2013, an empty VX table in 2000 files, and SEQENDs left out of the 2000 entity
-   chain. The image files were not checked.
+   chain. Since then, also with no recovery and AUDIT 0: mi201 2018, dimensions 2018 (with arc
+   length and jogged radius dimensions, which AutoCAD lists as its own types), hatches 2007 and
+   2018 (patterns, gradients, solid fill with a hole), mlines 2013, regions 2007, viewports 2007
+   and 2018 (the layout viewports show the model). AutoCAD's own save of our mi201 2018 file
+   reads in DraftCraft the same as ours. The image files were not checked.
 2. Dynamic-block parameters and actions made in the Block Editor are written to DWG: the Block
    Editor keeps the evaluation graph's node list (`rebuild_graph` in
    `crates/doc/src/dynblock/author.rs`), and `crates/engine/tests/dynblock_authoring.rs` saves

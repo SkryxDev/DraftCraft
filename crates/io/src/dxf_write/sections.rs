@@ -344,6 +344,13 @@ fn write_classes(w: &mut W, cx: &Ctx, every: &[&Entity]) {
     if cx.native_mleader() && every.iter().any(|e| matches!(e.kind, EntityKind::MLeader(_))) {
         classes.push(("MULTILEADER", "AcDbMLeader", 1025, true));
     }
+    let dims = |name: &str| every.iter().any(|e| matches!(&e.kind, EntityKind::Dimension(dm) if super::entity::dimension_type(dm) == name));
+    if dims("ARC_DIMENSION") {
+        classes.push(("ARC_DIMENSION", "AcDbArcDimension", 1025, true));
+    }
+    if dims("LARGE_RADIAL_DIMENSION") {
+        classes.push(("LARGE_RADIAL_DIMENSION", "AcDbRadialDimensionLarge", 1025, true));
+    }
     if every.iter().any(|e| matches!(e.kind, EntityKind::Wipeout(_))) {
         classes.push(("WIPEOUT", "AcDbWipeout", 127, true));
     }

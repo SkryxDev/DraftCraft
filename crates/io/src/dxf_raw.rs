@@ -238,7 +238,8 @@ pub(crate) fn foreign_xdata(kind: &str, tags: &[Tag]) -> Vec<RawTag> {
         let chunk = rest.get(i..i + 1 + len).unwrap_or(&[]);
         i += 1 + len;
         let app = up(&first.str());
-        let own = OWN_APPS.contains(&app.as_str()) || (app == "ACAD" && matches!(kind, "DIMENSION" | "DIMSTYLE"));
+        let own = OWN_APPS.contains(&app.as_str())
+            || (app == "ACAD" && matches!(kind, "DIMENSION" | "ARC_DIMENSION" | "LARGE_RADIAL_DIMENSION" | "DIMSTYLE"));
         if app.is_empty() || own || out.len() + chunk.len() > MAX_XDATA_GROUPS {
             continue;
         }

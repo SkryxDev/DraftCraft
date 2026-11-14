@@ -23,7 +23,7 @@ pub(super) fn entity(cx: &Cx<'_>, r: &Rec<'_>) -> Option<ObjectWriter> {
             }
             w
         }
-        "DIMENSION" => dimension(cx, r)?,
+        "DIMENSION" | "ARC_DIMENSION" | "LARGE_RADIAL_DIMENSION" => dimension(cx, r)?,
         "SPLINE" => {
             let mut w = begin(cx, 0x24, r);
             spline_fields(cx, &mut w, r.sub("AcDbSpline"));
@@ -210,15 +210,19 @@ fn dimension(cx: &Cx<'_>, r: &Rec<'_>) -> Option<ObjectWriter> {
     let ver = cx.ver;
     let g = r.sub("AcDbDimension");
     let flags = g.i(70);
-    let code = match flags & 7 {
-        0 => 0x15,
-        1 => 0x16,
-        2 => 0x18,
-        3 => 0x1A,
-        4 => 0x19,
-        5 => 0x17,
-        6 => 0x14,
-        _ => return None,
+    let code = match r.kind {
+        "ARC_DIMENSION" => cx.class("ARC_DIMENSION")?,
+        "LARGE_RADIAL_DIMENSION" => cx.class("LARGE_RADIAL_DIMENSION")?,
+        _ => match flags & 7 {
+            0 => 0x15,
+            1 => 0x16,
+            2 => 0x18,
+            3 => 0x1A,
+            4 => 0x19,
+            5 => 0x17,
+            6 => 0x14,
+            _ => return None,
+        },
     };
     let mut w = begin(cx, code, r);
     if ver >= V::R2010 {
@@ -248,53 +252,79 @@ fn dimension(cx: &Cx<'_>, r: &Rec<'_>) -> Option<ObjectWriter> {
     w.rd2(g.p2(12));
     let defpt = g.p3(10);
     let (aligned, rotated) = (r.sub("AcDbAlignedDimension"), r.sub("AcDbRotatedDimension"));
-    match code {
-        0x14 => {
-            let o = r.sub("AcDbOrdinateDimension");
-            w.bd3(defpt);
-            w.bd3(o.p3(13));
-            w.bd3(o.p3(14));
-            w.rc(u8::from(flags & 64 != 0));
-        }
-        0x15 | 0x16 => {
-            w.bd3(aligned.p3(13));
-            w.bd3(aligned.p3(14));
-            w.bd3(defpt);
-            // The oblique angle and the rotation are the aligned subclass's, or (AutoCAD's own
-            // DXF) the rotated one's.
-            let pick = |code: i32| aligned.get(code).or_else(|| rotated.get(code)).map_or(0.0, Tag::f64).to_radians();
-            w.bd(pick(52));
-            if code == 0x15 {
-                w.bd(pick(50));
+    if r.kind == "ARC_DIMENSION" {
+        // The point on the dimension arc, the arc's two points and centre, whether it measures
+        // part of the arc, its start and end angles, whether it has a leader, the two points
+        // again (AutoCAD's files, 2000 to 2018).
+        let a = r.sub("AcDbArcDimension");
+        w.bd3(defpt);
+        w.bd3(a.p3(13));
+        w.bd3(a.p3(14));
+        w.bd3(a.p3(15));
+        w.b(a.i(70) != 0);
+        w.bd(a.f(40));
+        w.bd(a.f(41));
+        w.b(a.i(71) != 0);
+        w.bd3(a.p3(16));
+        w.bd3(a.p3(17));
+    } else if r.kind == "LARGE_RADIAL_DIMENSION" {
+        // The centre, the point on the arc, the leader length, the centre the dimension line
+        // starts from instead and the jog.
+        let a = r.sub("AcDbRadialDimensionLarge");
+        w.bd3(defpt);
+        w.bd3(a.p3(15));
+        w.bd(a.f(40));
+        w.bd3(a.p3(13));
+        w.bd3(a.p3(14));
+    } else {
+        match code {
+            0x14 => {
+                let o = r.sub("AcDbOrdinateDimension");
+                w.bd3(defpt);
+                w.bd3(o.p3(13));
+                w.bd3(o.p3(14));
+                w.rc(u8::from(flags & 64 != 0));
             }
-        }
-        0x17 => {
-            let a = r.sub("AcDb3PointAngularDimension");
-            w.bd3(defpt);
-            w.bd3(a.p3(13));
-            w.bd3(a.p3(14));
-            w.bd3(a.p3(15));
-        }
-        0x18 => {
-            let a = r.sub("AcDb2LineAngularDimension");
-            w.rd2(a.p2(16));
-            w.bd3(a.p3(13));
-            w.bd3(a.p3(14));
-            w.bd3(a.p3(15));
-            w.bd3(defpt);
-        }
-        0x19 => {
-            let a = r.sub("AcDbRadialDimension");
-            w.bd3(defpt);
-            w.bd3(a.p3(15));
-            w.bd(a.f(40));
-        }
-        _ => {
-            // The far end of the chord (15) first, then its near end (10).
-            let a = r.sub("AcDbDiametricDimension");
-            w.bd3(a.p3(15));
-            w.bd3(defpt);
-            w.bd(a.f(40));
+            0x15 | 0x16 => {
+                w.bd3(aligned.p3(13));
+                w.bd3(aligned.p3(14));
+                w.bd3(defpt);
+                // The oblique angle and the rotation are the aligned subclass's, or (AutoCAD's own
+                // DXF) the rotated one's.
+                let pick = |code: i32| aligned.get(code).or_else(|| rotated.get(code)).map_or(0.0, Tag::f64).to_radians();
+                w.bd(pick(52));
+                if code == 0x15 {
+                    w.bd(pick(50));
+                }
+            }
+            0x17 => {
+                let a = r.sub("AcDb3PointAngularDimension");
+                w.bd3(defpt);
+                w.bd3(a.p3(13));
+                w.bd3(a.p3(14));
+                w.bd3(a.p3(15));
+            }
+            0x18 => {
+                let a = r.sub("AcDb2LineAngularDimension");
+                w.rd2(a.p2(16));
+                w.bd3(a.p3(13));
+                w.bd3(a.p3(14));
+                w.bd3(a.p3(15));
+                w.bd3(defpt);
+            }
+            0x19 => {
+                let a = r.sub("AcDbRadialDimension");
+                w.bd3(defpt);
+                w.bd3(a.p3(15));
+                w.bd(a.f(40));
+            }
+            _ => {
+                // The far end of the chord (15) first, then its near end (10).
+                let a = r.sub("AcDbDiametricDimension");
+                w.bd3(a.p3(15));
+                w.bd3(defpt);
+                w.bd(a.f(40));
+            }
         }
     }
     w.reference(Ref::HardPointer, dim_style(cx, g.s(3)));

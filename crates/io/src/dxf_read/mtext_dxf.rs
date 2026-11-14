@@ -59,7 +59,7 @@ pub(crate) fn encode_line(s: &str) -> String {
 /// has its own and is left alone. AutoLISP's entget and entmake/entmod use it.
 pub(crate) fn map_text_groups(kind: &str, tags: &mut [Tag], f: fn(&str) -> String) {
     let kind = kind.to_ascii_uppercase();
-    if !matches!(kind.as_str(), "TEXT" | "ATTRIB" | "ATTDEF" | "DIMENSION") {
+    if !matches!(kind.as_str(), "TEXT" | "ATTRIB" | "ATTDEF" | "DIMENSION" | "ARC_DIMENSION" | "LARGE_RADIAL_DIMENSION") {
         return;
     }
     for t in tags.iter_mut().take_while(|t| t.code != 101) {
